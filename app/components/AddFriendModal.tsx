@@ -1,76 +1,220 @@
-import { Mail, Search, User, UserPlus } from 'lucide-react';
-import { useState } from 'react';
-import { toast } from 'sonner';
-import { Avatar, AvatarFallback } from './ui/avatar';
-import { Button } from './ui/button';
+import { addFriendByInvitation, searchUsers } from "@/lib/userService";
+import { User } from "@/utils/auth";
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-} from './ui/dialog';
-import { Input } from './ui/input';
+  Hash,
+  Key,
+  Loader2,
+  Mail,
+  MessageCircle,
+  Search,
+  User as UserIcon,
+  UserPlus,
+} from "lucide-react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
+import { Button } from "./ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
+import { Input } from "./ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 
 interface AddFriendModalProps {
   open: boolean;
   onClose: () => void;
-  onAddFriend: (identifier: string) => void;
-  existingFriends: string[]; // Array of friend IDs
+  currentUserId: string;
+  onAddFriend: (user: User) => void;
+  onStartDM?: (user: User) => void;
+  existingFriendIds: string[]; // Array of friend IDs
 }
 
-// Mock users database (simulates searching for users)
-const MOCK_USERS = [
-  { id: 'u1', name: 'Jessica Parker', email: 'jessica@company.com', avatar: 'JP' },
-  { id: 'u2', name: 'Robert Chen', email: 'robert@company.com', avatar: 'RC' },
-  { id: 'u3', name: 'Maria Garcia', email: 'maria@company.com', avatar: 'MG' },
-  { id: 'u4', name: 'James Wilson', email: 'james@company.com', avatar: 'JW' },
-  { id: 'u5', name: 'Anna Schmidt', email: 'anna@company.com', avatar: 'AS' },
-  { id: 'u6', name: 'Chris Taylor', email: 'chris@company.com', avatar: 'CT' },
-  { id: 'u7', name: 'Priya Patel', email: 'priya@company.com', avatar: 'PP' },
-  { id: 'u8', name: 'Daniel Kim', email: 'daniel@company.com', avatar: 'DK' },
-];
-
-export function AddFriendModal({ open, onClose, onAddFriend, existingFriends }: AddFriendModalProps) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<typeof MOCK_USERS>([]);
+export function AddFriendModal({
+  open,
+  onClose,
+  currentUserId,
+  onAddFriend,
+  onStartDM,
+  existingFriendIds,
+}: AddFriendModalProps) {
+  const [activeTab, setActiveTab] = useState<"search" | "invite">("search");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<User[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
-  const handleSearch = () => {
-    if (!searchQuery.trim()) {
-      toast.error('Please enter a username or email');
+  // Invitation ID state
+  const [invitationId, setInvitationId] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  // Realtime search with debouncing
+  useEffect(() => {
+    // Don't search if query is too short or empty
+    if (searchQuery.trim().length < 2) {
+      setSearchResults([]);
+      setIsSearching(false);
       return;
     }
 
+    // Set loading state
     setIsSearching(true);
 
-    // Simulate API search
-    setTimeout(() => {
-      const results = MOCK_USERS.filter(user => 
-        user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        user.email.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-
-      setSearchResults(results);
-      setIsSearching(false);
-
-      if (results.length === 0) {
-        toast.error('No users found');
+    // Debounce: wait 500ms after user stops typing
+    const debounceTimer = setTimeout(async () => {
+      try {
+        const results = await searchUsers(searchQuery, currentUserId);
+        setSearchResults(results);
+      } catch {
+        toast.error("Failed to search users");
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
       }
     }, 500);
-  };
 
-  const handleAddFriend = (userId: string, userName: string) => {
-    if (existingFriends.includes(userId)) {
-      toast.error('Already friends with this user');
+    // Cleanup: cancel the timer if user keeps typing
+    return () => {
+      clearTimeout(debounceTimer);
+    };
+  }, [searchQuery, currentUserId]);
+
+  const handleAddFriend = (user: User, startDm: boolean = false) => {
+    if (existingFriendIds.includes(user.id)) {
+      toast.error("Already friends with this user");
       return;
     }
 
-    onAddFriend(userId);
-    toast.success(`Friend request sent to ${userName}!`);
-    setSearchQuery('');
-    setSearchResults([]);
+    if (user.id === currentUserId) {
+      toast.error("You cannot add yourself as a friend");
+      return;
+    }
+
+    onAddFriend(user);
+    toast.success(`Added ${user.full_name} as a friend!`, {
+      description: startDm ? "Opening direct message..." : undefined,
+      duration: 2000,
+    });
+
+    if (startDm && onStartDM) {
+      setTimeout(() => {
+        onStartDM(user);
+        onClose();
+      }, 500);
+    } else {
+      setSearchQuery("");
+      setSearchResults([]);
+    }
   };
+
+  const handleAddByInvitation = async () => {
+    if (!invitationId.trim()) {
+      toast.error("Please enter an invitation ID");
+      return;
+    }
+
+    setIsProcessing(true);
+
+    try {
+      const result = await addFriendByInvitation(
+        currentUserId,
+        invitationId,
+        apiKey
+      );
+
+      if (result.success && result.user) {
+        onAddFriend(result.user);
+        toast.success(`Added ${result.user.full_name} as a friend!`, {
+          description: "You can now start messaging",
+          action: {
+            label: "Message",
+            onClick: () => {
+              if (onStartDM && result.user) {
+                onStartDM(result.user);
+                onClose();
+              }
+            },
+          },
+        });
+        setInvitationId("");
+        setApiKey("");
+      } else {
+        toast.error(result.error || "Failed to add friend");
+      }
+    } catch {
+      toast.error("An error occurred while adding friend");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const getInitials = (name: string) => {
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  const renderUserCard = (user: User, showMessageButton: boolean = false) => (
+    <div
+      key={user.id}
+      className="flex items-center justify-between p-3 rounded-lg bg-[#1e1f22] hover:bg-[#35363c] transition-colors"
+    >
+      <div className="flex items-center gap-3">
+        <Avatar className="h-10 w-10">
+          {user.avatar_url && (
+            <AvatarImage src={user.avatar_url} alt={user.full_name} />
+          )}
+          <AvatarFallback className="bg-[#5865f2] text-white">
+            {getInitials(user.full_name)}
+          </AvatarFallback>
+        </Avatar>
+        <div>
+          <div className="text-white font-medium">{user.full_name}</div>
+          <div className="text-gray-400 text-sm flex items-center gap-1">
+            <Mail size={12} />@{user.username}
+          </div>
+        </div>
+      </div>
+      <div className="flex gap-2">
+        {showMessageButton && !existingFriendIds.includes(user.id) && (
+          <Button
+            onClick={() => handleAddFriend(user, true)}
+            size="sm"
+            variant="outline"
+            className="bg-transparent border-[#5865f2] text-[#5865f2] hover:bg-[#5865f2] hover:text-white"
+          >
+            <MessageCircle size={14} className="mr-1" />
+            Add & Message
+          </Button>
+        )}
+        <Button
+          onClick={() => handleAddFriend(user, false)}
+          size="sm"
+          disabled={existingFriendIds.includes(user.id)}
+          className={`${
+            existingFriendIds.includes(user.id)
+              ? "bg-gray-600 cursor-not-allowed"
+              : "bg-[#5865f2] hover:bg-[#4752c4]"
+          } text-white`}
+        >
+          {existingFriendIds.includes(user.id) ? (
+            "Friends"
+          ) : (
+            <>
+              <UserPlus size={14} className="mr-1" />
+              Add
+            </>
+          )}
+        </Button>
+      </div>
+    </div>
+  );
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -81,142 +225,177 @@ export function AddFriendModal({ open, onClose, onAddFriend, existingFriends }: 
             Add Friend
           </DialogTitle>
           <DialogDescription className="text-gray-400">
-            Search for friends by username or email address.
+            Search for friends or add them by invitation ID
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          {/* Search Input */}
-          <div className="flex gap-2">
-            <div className="flex-1 relative">
-              <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <Input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    handleSearch();
-                  }
-                }}
-                placeholder="Username or email..."
-                className="pl-9 bg-[#1e1f22] border-[#1e1f22] text-white placeholder:text-gray-500"
-              />
-            </div>
-            <Button
-              onClick={handleSearch}
-              disabled={isSearching}
-              className="bg-[#5865f2] hover:bg-[#4752c4] text-white"
+        <Tabs
+          value={activeTab}
+          onValueChange={(v) => setActiveTab(v as "search" | "invite")}
+          className="w-full"
+        >
+          <TabsList className="grid w-full grid-cols-2 bg-[#1e1f22]">
+            <TabsTrigger
+              value="search"
+              className="data-[state=active]:bg-[#5865f2]"
             >
-              {isSearching ? (
-                <div className="animate-spin">⏳</div>
-              ) : (
-                <Search size={16} />
+              <Search size={16} className="mr-2" />
+              Search
+            </TabsTrigger>
+            <TabsTrigger
+              value="invite"
+              className="data-[state=active]:bg-[#5865f2]"
+            >
+              <Hash size={16} className="mr-2" />
+              Invitation ID
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Search Tab */}
+          <TabsContent value="search" className="space-y-4 mt-4">
+            {/* Search Input */}
+            <div className="relative">
+              <div className="flex-1 relative">
+                <UserIcon
+                  size={16}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                />
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Type to search by username, email, or name..."
+                  className="pl-9 pr-10 bg-[#1e1f22] border-[#1e1f22] text-white placeholder:text-gray-500"
+                  autoFocus
+                />
+                {isSearching && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <Loader2 size={16} className="text-gray-400 animate-spin" />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Hint text */}
+            {!searchQuery && (
+              <div className="text-gray-500 text-sm text-center py-4">
+                Start typing to search for users...
+              </div>
+            )}
+
+            {/* Minimum character hint */}
+            {searchQuery && searchQuery.trim().length < 2 && (
+              <div className="text-gray-500 text-sm text-center py-4">
+                Type at least 2 characters to search...
+              </div>
+            )}
+
+            {/* Search Results */}
+            {searchResults.length > 0 && (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                <div className="text-gray-400 text-sm font-medium px-1">
+                  Found {searchResults.length} user
+                  {searchResults.length > 1 ? "s" : ""}
+                </div>
+                {searchResults.map((user) => renderUserCard(user, true))}
+              </div>
+            )}
+
+            {/* No Results */}
+            {!isSearching &&
+              searchQuery.trim().length >= 2 &&
+              searchResults.length === 0 && (
+                <div className="text-center py-8 text-gray-500 text-sm">
+                  No users found. Try a different search term.
+                </div>
               )}
-            </Button>
-          </div>
 
-          {/* Search Results */}
-          {searchResults.length > 0 && (
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              <div className="text-gray-400 text-sm font-medium px-1">
-                Found {searchResults.length} user{searchResults.length > 1 ? 's' : ''}
+            {/* Info Box */}
+            <div className="bg-[#5865f2]/10 border border-[#5865f2]/20 rounded-lg p-3">
+              <div className="text-[#5865f2] text-sm">
+                💡 <span className="font-medium">Tip:</span> Search
+                automatically as you type (searches username, email, and full
+                name)
               </div>
-              {searchResults.map((user) => (
-                <div
-                  key={user.id}
-                  className="flex items-center justify-between p-3 rounded-lg bg-[#1e1f22] hover:bg-[#35363c] transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <Avatar className="h-10 w-10">
-                      <AvatarFallback className="bg-[#5865f2] text-white">
-                        {user.avatar}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <div className="text-white font-medium">{user.name}</div>
-                      <div className="text-gray-400 text-sm flex items-center gap-1">
-                        <Mail size={12} />
-                        {user.email}
-                      </div>
-                    </div>
-                  </div>
-                  <Button
-                    onClick={() => handleAddFriend(user.id, user.name)}
-                    size="sm"
-                    disabled={existingFriends.includes(user.id)}
-                    className={`${
-                      existingFriends.includes(user.id)
-                        ? 'bg-gray-600 cursor-not-allowed'
-                        : 'bg-[#5865f2] hover:bg-[#4752c4]'
-                    } text-white`}
-                  >
-                    {existingFriends.includes(user.id) ? (
-                      'Friends'
-                    ) : (
-                      <>
-                        <UserPlus size={14} className="mr-1" />
-                        Add
-                      </>
-                    )}
-                  </Button>
-                </div>
-              ))}
             </div>
-          )}
+          </TabsContent>
 
-          {/* Quick Add Suggestions */}
-          {searchResults.length === 0 && !isSearching && (
-            <div className="space-y-2">
-              <div className="text-gray-400 text-sm font-medium px-1">
-                Suggested Users
+          {/* Invitation ID Tab */}
+          <TabsContent value="invite" className="space-y-4 mt-4">
+            <div className="space-y-3">
+              {/* Invitation ID Input */}
+              <div className="space-y-2">
+                <label className="text-sm text-gray-400">
+                  User ID or Username
+                </label>
+                <div className="relative">
+                  <Hash
+                    size={16}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                  />
+                  <Input
+                    value={invitationId}
+                    onChange={(e) => setInvitationId(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleAddByInvitation();
+                      }
+                    }}
+                    placeholder="Enter user ID or username..."
+                    className="pl-9 bg-[#1e1f22] border-[#1e1f22] text-white placeholder:text-gray-500"
+                  />
+                </div>
               </div>
-              {MOCK_USERS.slice(0, 3).map((user) => (
-                <div
-                  key={user.id}
-                  className="flex items-center justify-between p-3 rounded-lg bg-[#1e1f22] hover:bg-[#35363c] transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <Avatar className="h-10 w-10">
-                      <AvatarFallback className="bg-gradient-to-br from-purple-500 to-pink-500 text-white">
-                        {user.avatar}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <div className="text-white font-medium">{user.name}</div>
-                      <div className="text-gray-400 text-sm">{user.email}</div>
-                    </div>
-                  </div>
-                  <Button
-                    onClick={() => handleAddFriend(user.id, user.name)}
-                    size="sm"
-                    disabled={existingFriends.includes(user.id)}
-                    className={`${
-                      existingFriends.includes(user.id)
-                        ? 'bg-gray-600 cursor-not-allowed'
-                        : 'bg-[#5865f2] hover:bg-[#4752c4]'
-                    } text-white`}
-                  >
-                    {existingFriends.includes(user.id) ? (
-                      'Friends'
-                    ) : (
-                      <>
-                        <UserPlus size={14} className="mr-1" />
-                        Add
-                      </>
-                    )}
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
 
-          {/* Info Box */}
-          <div className="bg-[#5865f2]/10 border border-[#5865f2]/20 rounded-lg p-3">
-            <div className="text-[#5865f2] text-sm">
-              💡 <span className="font-medium">Tip:</span> You can search by name or email address
+              {/* API Key Input (Optional) */}
+              <div className="space-y-2">
+                <label className="text-sm text-gray-400">
+                  API Key (Optional)
+                </label>
+                <div className="relative">
+                  <Key
+                    size={16}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                  />
+                  <Input
+                    type="password"
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder="Enter API key if required..."
+                    className="pl-9 bg-[#1e1f22] border-[#1e1f22] text-white placeholder:text-gray-500"
+                  />
+                </div>
+              </div>
+
+              {/* Submit Button */}
+              <Button
+                onClick={handleAddByInvitation}
+                disabled={isProcessing || !invitationId.trim()}
+                className="w-full bg-[#5865f2] hover:bg-[#4752c4] text-white"
+              >
+                {isProcessing ? (
+                  <>
+                    <Loader2 size={16} className="mr-2 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <UserPlus size={16} className="mr-2" />
+                    Add by Invitation
+                  </>
+                )}
+              </Button>
             </div>
-          </div>
-        </div>
+
+            {/* Info Box */}
+            <div className="bg-[#5865f2]/10 border border-[#5865f2]/20 rounded-lg p-3">
+              <div className="text-[#5865f2] text-sm">
+                💡 <span className="font-medium">Tip:</span> Ask your friend for
+                their username or user ID to connect directly
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );

@@ -153,6 +153,158 @@ create policy "Auth users can create cards." on public.cards for insert with che
 create policy "Auth users can update cards." on public.cards for update using (auth.role() = 'authenticated');
 
 
+-- 7. FRIENDSHIPS TABLE (Friend Requests & Relationships)
+create table public.friendships (
+  id uuid default uuid_generate_v4() primary key,
+  requester_id uuid references public.users(id) on delete cascade not null,
+  addressee_id uuid references public.users(id) on delete cascade not null,
+  status text default 'pending' check (status in ('pending', 'accepted', 'blocked')),
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  
+  -- Ensure unique friendship pairs (no duplicates)
+  unique(requester_id, addressee_id),
+  
+  -- Prevent self-friendship
+  check (requester_id != addressee_id)
+);
+
+alter table public.friendships enable row level security;
+
+-- Users can view their own friendship records
+create policy "Users can view their friendships"
+  on public.friendships for select
+  using (auth.uid() = requester_id or auth.uid() = addressee_id);
+
+-- Users can create friendship requests
+create policy "Users can create friend requests"
+  on public.friendships for insert
+  with check (auth.uid() = requester_id);
+
+-- Users can update friendships they're part of (for accepting/blocking)
+create policy "Users can update their friendships"
+  on public.friendships for update
+  using (auth.uid() = requester_id or auth.uid() = addressee_id);
+
+-- Users can delete friendships they're part of
+create policy "Users can delete their friendships"
+  on public.friendships for delete
+  using (auth.uid() = requester_id or auth.uid() = addressee_id);
+
+
+-- 8. DM_THREADS TABLE (Direct Message Conversations)
+create table public.dm_threads (
+  id uuid default uuid_generate_v4() primary key,
+  user_a uuid references public.users(id) on delete cascade not null,
+  user_b uuid references public.users(id) on delete cascade not null,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  
+  -- Ensure unique thread pairs (no duplicates)
+  unique(user_a, user_b),
+  
+  -- Prevent self-threads
+  check (user_a != user_b)
+);
+
+alter table public.dm_threads enable row level security;
+
+-- Users can view threads they're part of
+create policy "Users can view their DM threads"
+  on public.dm_threads for select
+  using (auth.uid() = user_a or auth.uid() = user_b);
+
+-- Users can create DM threads
+create policy "Users can create DM threads"
+  on public.dm_threads for insert
+  with check (auth.uid() = user_a or auth.uid() = user_b);
+
+
+-- 9. DM_MESSAGES TABLE (Direct Messages)
+create table public.dm_messages (
+  id uuid default uuid_generate_v4() primary key,
+  thread_id uuid references public.dm_threads(id) on delete cascade not null,
+  sender_id uuid references public.users(id) on delete cascade not null,
+  content text,
+  attachments jsonb default '[]'::jsonb,
+  reactions jsonb default '{}'::jsonb,
+  reply_to_id uuid references public.dm_messages(id),
+  is_edited boolean default false,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+alter table public.dm_messages enable row level security;
+
+-- Users can view messages in their DM threads
+create policy "Users can view their DM messages"
+  on public.dm_messages for select
+  using (
+    exists (
+      select 1 from public.dm_threads
+      where dm_threads.id = dm_messages.thread_id
+      and (dm_threads.user_a = auth.uid() or dm_threads.user_b = auth.uid())
+    )
+  );
+
+-- Users can send messages in their DM threads
+create policy "Users can send DM messages"
+  on public.dm_messages for insert
+  with check (
+    auth.uid() = sender_id and
+    exists (
+      select 1 from public.dm_threads
+      where dm_threads.id = dm_messages.thread_id
+      and (dm_threads.user_a = auth.uid() or dm_threads.user_b = auth.uid())
+    )
+  );
+
+-- Users can update their own messages
+create policy "Users can update their own DM messages"
+  on public.dm_messages for update
+  using (auth.uid() = sender_id);
+
+-- Users can delete their own messages
+create policy "Users can delete their own DM messages"
+  on public.dm_messages for delete
+  using (auth.uid() = sender_id);
+
+
+-- HELPER FUNCTIONS
+
+-- Function to create DM thread between two users (handles ordering)
+create or replace function public.create_dm_thread(user_id_1 uuid, user_id_2 uuid)
+returns uuid as $$
+declare
+  thread_id uuid;
+  ordered_user_a uuid;
+  ordered_user_b uuid;
+begin
+  -- Always order users to ensure consistent thread creation
+  if user_id_1 < user_id_2 then
+    ordered_user_a := user_id_1;
+    ordered_user_b := user_id_2;
+  else
+    ordered_user_a := user_id_2;
+    ordered_user_b := user_id_1;
+  end if;
+  
+  -- Try to find existing thread
+  select id into thread_id
+  from public.dm_threads
+  where user_a = ordered_user_a and user_b = ordered_user_b;
+  
+  -- Create thread if it doesn't exist
+  if thread_id is null then
+    insert into public.dm_threads (user_a, user_b)
+    values (ordered_user_a, ordered_user_b)
+    returning id into thread_id;
+  end if;
+  
+  return thread_id;
+end;
+$$ language plpgsql security definer;
+
+
 -- SEED DATA (Optional - Run this to get some initial data)
 -- Note: You need to create a user via Auth first for the foreign keys to work perfectly, 
 -- but here is how you would insert a default channel.

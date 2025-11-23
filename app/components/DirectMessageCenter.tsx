@@ -1,15 +1,35 @@
 "use client";
 
-import { Ban, Inbox, MessageCircle, MoreVertical, Phone, Search, UserPlus, Users, Video } from "lucide-react";
+import { chatService } from "@/lib/chatService";
+import { 
+  getFriends, 
+  getPendingFriendRequests,
+  acceptFriendRequest,
+  declineFriendRequest,
+  cancelFriendRequest,
+  getDmConversations,
+  getDmThread,
+  sendFriendRequest
+} from "@/lib/friendService";
+import { getCurrentUser, User } from "@/utils/auth";
+import {
+  Ban,
+  Inbox,
+  MessageCircle,
+  MoreVertical,
+  Phone,
+  Search,
+  UserPlus,
+  Users,
+  Video,
+} from "lucide-react";
 import { Resizable } from "re-resizable";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { chatService } from "@/lib/chatService";
-import { getCurrentUser } from "@/utils/auth";
 import { AddFriendModal } from "./AddFriendModal";
 import { EnhancedDirectMessageChat } from "./EnhancedDirectMessageChat";
 import { FriendRequestsPanel } from "./FriendRequestsPanel";
-import { Avatar, AvatarFallback } from "./ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -17,48 +37,23 @@ import { ScrollArea } from "./ui/scroll-area";
 import { Separator } from "./ui/separator";
 import { UserProfile } from "./UserProfile";
 
-interface Friend {
-  id: string;
-  name: string;
-  email: string;
-  avatar: string;
-  status: "online" | "idle" | "dnd" | "offline";
-  customStatus?: string;
-}
-
 interface DMConversation {
   id: string;
-  friend: Friend;
+  friend: User;
   lastMessage: string;
   timestamp: string;
   unread: number;
   isTyping?: boolean;
 }
 
-interface FriendRequest {
+interface FriendRequestData {
   id: string;
-  from: Friend;
+  user: User;
   timestamp: string;
   type: "incoming" | "outgoing";
 }
 
-const mockFriends: Friend[] = [
-  { id: "f1", name: "Sarah Chen", email: "sarah@company.com", avatar: "SC", status: "online", customStatus: "Working on new features" },
-  { id: "f2", name: "Mike Johnson", email: "mike@company.com", avatar: "MJ", status: "online", customStatus: "In a meeting" },
-  { id: "f3", name: "Alex Kim", email: "alex@company.com", avatar: "AK", status: "idle", customStatus: "Away for lunch" },
-  { id: "f4", name: "Emily Davis", email: "emily@company.com", avatar: "ED", status: "online" },
-];
-
-const mockFriendRequests: FriendRequest[] = [
-  {
-    id: "fr1",
-    from: { id: "new1", name: "John Smith", email: "john@company.com", avatar: "JS", status: "online" },
-    timestamp: "2 days ago",
-    type: "incoming",
-  },
-];
-
-const getStatusColor = (status: Friend["status"]) => {
+const getStatusColor = (status: User["status"]) => {
   switch (status) {
     case "online":
       return "bg-green-500";
@@ -71,29 +66,109 @@ const getStatusColor = (status: Friend["status"]) => {
   }
 };
 
+const getInitials = (name: string) => {
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+};
+
 export function DirectMessageCenter() {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [activeView, setActiveView] = useState<"friends" | "dms">("dms");
-  const [friendsTab, setFriendsTab] = useState<"online" | "all" | "pending" | "blocked" | "add">("online");
+  const [friendsTab, setFriendsTab] = useState<
+    "online" | "all" | "pending" | "blocked" | "add"
+  >("online");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedDM, setSelectedDM] = useState<DMConversation | null>(null);
-  const [friends, setFriends] = useState<Friend[]>(mockFriends);
+  const [friends, setFriends] = useState<User[]>([]);
   const [dms, setDms] = useState<DMConversation[]>([]);
-  const [friendRequests, setFriendRequests] = useState<FriendRequest[]>(mockFriendRequests);
+  const [friendRequests, setFriendRequests] = useState<FriendRequestData[]>([]);
   const [showAddFriendModal, setShowAddFriendModal] = useState(false);
   const [threads, setThreads] = useState<Record<string, string>>({});
-  const currentUserId = getCurrentUser()?.id || "anon";
+  const [isLoading, setIsLoading] = useState(true);
+  const [pendingRequests, setPendingRequests] = useState({ incoming: [] as User[], outgoing: [] as User[] });
 
+  // Load current user
   useEffect(() => {
-    const savedDMId = typeof window !== "undefined" ? localStorage.getItem("lastSelectedDM") : null;
-    if (savedDMId) {
+    const loadCurrentUser = async () => {
+      const user = await getCurrentUser();
+      setCurrentUser(user);
+    };
+    loadCurrentUser();
+  }, []);
+
+  // Load friends and requests when user is available
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const loadFriendsAndRequests = async () => {
+      setIsLoading(true);
+      try {
+        // Load friends
+        const friendsList = await getFriends(currentUser.id);
+        setFriends(friendsList);
+
+        // Load friend requests
+        const requests = await getPendingFriendRequests(currentUser.id);
+        setPendingRequests(requests);
+        
+        // Format requests for the UI
+        const formattedRequests: FriendRequestData[] = [
+          ...requests.incoming.map((user) => ({
+            id: user.id,
+            user: user,
+            timestamp: new Date().toISOString(),
+            type: "incoming" as const,
+          })),
+          ...requests.outgoing.map((user) => ({
+            id: user.id,
+            user: user,
+            timestamp: new Date().toISOString(),
+            type: "outgoing" as const,
+          })),
+        ];
+        setFriendRequests(formattedRequests);
+
+        // Load DM conversations
+        const conversations = await getDmConversations(currentUser.id);
+        const dmConversations: DMConversation[] = conversations.map((conv) => ({
+          id: conv.id,
+          friend: conv.otherUser,
+          lastMessage: conv.lastMessage,
+          timestamp: conv.lastMessageTime,
+          unread: conv.unreadCount,
+        }));
+        setDms(dmConversations);
+
+      } catch (error) {
+        console.error("Failed to load data:", error);
+        toast.error("Failed to load friends and conversations");
+      }
+      setIsLoading(false);
+    };
+
+    loadFriendsAndRequests();
+  }, [currentUser]);
+
+  // Restore last selected DM from localStorage
+  useEffect(() => {
+    const savedDMId =
+      typeof window !== "undefined"
+        ? localStorage.getItem("lastSelectedDM")
+        : null;
+    if (savedDMId && dms.length > 0) {
       const dm = dms.find((d) => d.id === savedDMId);
       if (dm) {
         setSelectedDM(dm);
         setActiveView("dms");
       }
     }
-  }, [dms]);
+  }, []); // Run only once on mount
 
+  // Save selected DM to localStorage
   useEffect(() => {
     if (selectedDM && typeof window !== "undefined") {
       localStorage.setItem("lastSelectedDM", selectedDM.id);
@@ -102,45 +177,222 @@ export function DirectMessageCenter() {
 
   const filteredFriends = friends.filter(
     (f) =>
-      f.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      f.email.toLowerCase().includes(searchQuery.toLowerCase())
+      f.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      f.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      f.username.toLowerCase().includes(searchQuery.toLowerCase())
   );
-  const filteredDMs = dms.filter((dm) => dm.friend.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredDMs = dms.filter((dm) =>
+    dm.friend.full_name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
-  const handleStartDM = (friend: Friend) => {
-    const existingDM = dms.find((dm) => dm.friend.id === friend.id);
-    const dmToUse =
-      existingDM ||
-      (() => {
-        const newDM: DMConversation = {
-          id: `dm-${friend.id}`,
-          friend,
-          lastMessage: "",
-          timestamp: "Now",
-          unread: 0,
-        };
-        setDms((prev) => [newDM, ...prev]);
-        return newDM;
-      })();
+  // Friend request handlers
+  const handleAcceptFriendRequest = async (requesterId: string) => {
+    if (!currentUser) return;
 
-    chatService.createDmThread(currentUserId, friend.id).then((thread) => {
-      setThreads((prev) => ({ ...prev, [friend.id]: thread.id }));
-      setSelectedDM(dmToUse);
-      setActiveView("dms");
-    });
-  };
-
-  const handleAcceptFriendRequest = (requestId: string) => {
-    const request = friendRequests.find((r) => r.id === requestId);
-    if (request) {
-      setFriends((prev) => [...prev, request.from]);
-      setFriendRequests((prev) => prev.filter((r) => r.id !== requestId));
+    try {
+      const result = await acceptFriendRequest(currentUser.id, requesterId);
+      if (result.success) {
+        toast.success("Friend request accepted!");
+        
+        // Refresh friends and requests
+        const friendsList = await getFriends(currentUser.id);
+        setFriends(friendsList);
+        
+        const requests = await getPendingFriendRequests(currentUser.id);
+        setPendingRequests(requests);
+        
+        const formattedRequests: FriendRequestData[] = [
+          ...requests.incoming.map((user) => ({
+            id: user.id,
+            user: user,
+            timestamp: new Date().toISOString(),
+            type: "incoming" as const,
+          })),
+          ...requests.outgoing.map((user) => ({
+            id: user.id,
+            user: user,
+            timestamp: new Date().toISOString(),
+            type: "outgoing" as const,
+          })),
+        ];
+        setFriendRequests(formattedRequests);
+        
+        // Update DM conversations
+        const conversations = await getDmConversations(currentUser.id);
+        const dmConversations: DMConversation[] = conversations.map((conv) => ({
+          id: conv.id,
+          friend: conv.otherUser,
+          lastMessage: conv.lastMessage,
+          timestamp: conv.lastMessageTime,
+          unread: conv.unreadCount,
+        }));
+        setDms(dmConversations);
+      } else {
+        toast.error(result.error || "Failed to accept friend request");
+      }
+    } catch (error) {
+      console.error("Failed to accept friend request:", error);
+      toast.error("Failed to accept friend request");
     }
   };
 
-  const handleDeclineFriendRequest = (requestId: string) => {
-    setFriendRequests((prev) => prev.filter((r) => r.id !== requestId));
+  const handleDeclineFriendRequest = async (requesterId: string) => {
+    if (!currentUser) return;
+
+    try {
+      const result = await declineFriendRequest(currentUser.id, requesterId);
+      if (result.success) {
+        toast.success("Friend request declined");
+        
+        // Refresh requests
+        const requests = await getPendingFriendRequests(currentUser.id);
+        setPendingRequests(requests);
+        
+        const formattedRequests: FriendRequestData[] = [
+          ...requests.incoming.map((user) => ({
+            id: user.id,
+            user: user,
+            timestamp: new Date().toISOString(),
+            type: "incoming" as const,
+          })),
+          ...requests.outgoing.map((user) => ({
+            id: user.id,
+            user: user,
+            timestamp: new Date().toISOString(),
+            type: "outgoing" as const,
+          })),
+        ];
+        setFriendRequests(formattedRequests);
+      } else {
+        toast.error(result.error || "Failed to decline friend request");
+      }
+    } catch (error) {
+      console.error("Failed to decline friend request:", error);
+      toast.error("Failed to decline friend request");
+    }
   };
+
+  const handleCancelFriendRequest = async (addresseeId: string) => {
+    if (!currentUser) return;
+
+    try {
+      const result = await cancelFriendRequest(currentUser.id, addresseeId);
+      if (result.success) {
+        toast.success("Friend request cancelled");
+        
+        // Refresh requests
+        const requests = await getPendingFriendRequests(currentUser.id);
+        setPendingRequests(requests);
+        
+        const formattedRequests: FriendRequestData[] = [
+          ...requests.incoming.map((user) => ({
+            id: user.id,
+            user: user,
+            timestamp: new Date().toISOString(),
+            type: "incoming" as const,
+          })),
+          ...requests.outgoing.map((user) => ({
+            id: user.id,
+            user: user,
+            timestamp: new Date().toISOString(),
+            type: "outgoing" as const,
+          })),
+        ];
+        setFriendRequests(formattedRequests);
+      } else {
+        toast.error(result.error || "Failed to cancel friend request");
+      }
+    } catch (error) {
+      console.error("Failed to cancel friend request:", error);
+      toast.error("Failed to cancel friend request");
+    }
+  };
+
+  const handleAddFriend = async (user: User) => {
+    if (!currentUser) return;
+
+    try {
+      const result = await sendFriendRequest(currentUser.id, user.id);
+      if (result.success) {
+        toast.success(`Friend request sent to ${user.full_name}!`);
+        
+        // Refresh requests to show the new outgoing request
+        const requests = await getPendingFriendRequests(currentUser.id);
+        setPendingRequests(requests);
+        
+        const formattedRequests: FriendRequestData[] = [
+          ...requests.incoming.map((user) => ({
+            id: user.id,
+            user: user,
+            timestamp: new Date().toISOString(),
+            type: "incoming" as const,
+          })),
+          ...requests.outgoing.map((user) => ({
+            id: user.id,
+            user: user,
+            timestamp: new Date().toISOString(),
+            type: "outgoing" as const,
+          })),
+        ];
+        setFriendRequests(formattedRequests);
+      } else {
+        toast.error(result.error || "Failed to send friend request");
+      }
+    } catch (error) {
+      console.error("Failed to send friend request:", error);
+      toast.error("Failed to send friend request");
+    }
+  };
+
+  const handleStartDM = async (friend: User) => {
+    if (!currentUser) return;
+
+    try {
+      // Get or create DM thread
+      const { thread, error } = await getDmThread(currentUser.id, friend.id);
+      
+      if (error || !thread) {
+        toast.error("Failed to create conversation");
+        return;
+      }
+
+      // Create DM conversation object
+      const conversation: DMConversation = {
+        id: thread.id,
+        friend,
+        lastMessage: "Start chatting...",
+        timestamp: new Date().toISOString(),
+        unread: 0,
+      };
+
+      // Add to DMs list if not already there
+      setDms((prevDMs) => {
+        const exists = prevDMs.find((dm) => dm.friend.id === friend.id);
+        if (!exists) {
+          return [conversation, ...prevDMs];
+        }
+        return prevDMs;
+      });
+
+      // Select the DM
+      setSelectedDM(conversation);
+      setActiveView("dms");
+
+      // Save to localStorage
+      localStorage.setItem("lastSelectedDM", thread.id);
+    } catch (error) {
+      console.error("Failed to start DM:", error);
+      toast.error("Failed to start conversation");
+    }
+  };
+
+  if (!currentUser) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-[#313338]">
+        <div className="text-white">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex">
@@ -149,13 +401,18 @@ export function DirectMessageCenter() {
         minWidth={180}
         maxWidth={400}
         enable={{ right: true }}
-        handleStyles={{ right: { width: "4px", right: "0", cursor: "ew-resize" } }}
+        handleStyles={{
+          right: { width: "4px", right: "0", cursor: "ew-resize" },
+        }}
         handleClasses={{ right: "hover:bg-[#5865f2] transition-colors" }}
       >
         <div className="h-full bg-[#2b2d31] flex flex-col border-r border-[#1e1f22]">
           <div className="p-3">
             <div className="relative">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Search
+                size={16}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+              />
               <Input
                 placeholder="Find or start a conversation"
                 value={searchQuery}
@@ -175,10 +432,17 @@ export function DirectMessageCenter() {
                 setSelectedDM(null);
               }}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md transition-all ${
-                activeView === "friends" ? "bg-[#404249] text-white" : "text-gray-300 hover:bg-[#35363c] hover:text-white"
+                activeView === "friends"
+                  ? "bg-[#404249] text-white"
+                  : "text-gray-300 hover:bg-[#35363c] hover:text-white"
               }`}
             >
-              <Users size={20} className={activeView === "friends" ? "text-[#5865f2]" : "text-gray-400"} />
+              <Users
+                size={20}
+                className={
+                  activeView === "friends" ? "text-[#5865f2]" : "text-gray-400"
+                }
+              />
               <span className="text-[15px] font-medium">Friends</span>
             </button>
             <button
@@ -197,8 +461,15 @@ export function DirectMessageCenter() {
           <Separator className="bg-[#1e1f22] my-2" />
 
           <div className="flex items-center justify-between px-3 py-2">
-            <span className="text-gray-400 text-xs uppercase tracking-wider font-semibold">Direct Messages</span>
-            <Button variant="ghost" size="sm" className="h-auto p-1 text-gray-400 hover:text-white hover:bg-transparent" onClick={() => setShowAddFriendModal(true)}>
+            <span className="text-gray-400 text-xs uppercase tracking-wider font-semibold">
+              Direct Messages
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-auto p-1 text-gray-400 hover:text-white hover:bg-transparent"
+              onClick={() => setShowAddFriendModal(true)}
+            >
               <UserPlus size={18} />
             </Button>
           </div>
@@ -215,29 +486,55 @@ export function DirectMessageCenter() {
                 >
                   <div className="relative flex-shrink-0">
                     <Avatar className="h-8 w-8">
-                      <AvatarFallback className="bg-[#5865f2] text-white text-xs">{dm.friend.avatar}</AvatarFallback>
+                      {dm.friend.avatar_url && (
+                        <AvatarImage
+                          src={dm.friend.avatar_url}
+                          alt={dm.friend.full_name}
+                        />
+                      )}
+                      <AvatarFallback className="bg-[#5865f2] text-white text-xs">
+                        {getInitials(dm.friend.full_name)}
+                      </AvatarFallback>
                     </Avatar>
-                    <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#2b2d31] ${getStatusColor(dm.friend.status)}`} />
+                    <div
+                      className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#2b2d31] ${getStatusColor(
+                        dm.friend.status
+                      )}`}
+                    />
                   </div>
 
                   <div className="flex-1 min-w-0 text-left">
                     <div className="flex items-center gap-2 mb-0.5">
-                      <span className="text-gray-300 text-sm truncate">{dm.friend.name}</span>
+                      <span className="text-gray-300 text-sm truncate">
+                        {dm.friend.full_name}
+                      </span>
                     </div>
-                    <div className="text-gray-500 text-xs truncate">{dm.lastMessage || "No messages yet"}</div>
+                    <div className="text-gray-500 text-xs truncate">
+                      {dm.lastMessage || "No messages yet"}
+                    </div>
                   </div>
 
-                  {dm.unread > 0 && <div className="w-2 h-2 bg-[#f23f43] rounded-full flex-shrink-0" />}
+                  {dm.unread > 0 && (
+                    <div className="w-2 h-2 bg-[#f23f43] rounded-full flex-shrink-0" />
+                  )}
                 </button>
               ))}
 
               {filteredDMs.length === 0 && (
-                <div className="text-center py-8 text-gray-500 text-sm">No conversations found</div>
+                <div className="text-center py-8 text-gray-500 text-sm">
+                  No conversations found
+                </div>
               )}
             </div>
           </ScrollArea>
 
-          <UserProfile userName="John Doe" userAvatar="JD" userStatus="online" customStatus="Available" />
+          <UserProfile
+            userName={currentUser.full_name}
+            userAvatar={getInitials(currentUser.full_name)}
+            userStatus={currentUser.status}
+            userId={currentUser.id}
+            username={currentUser.username}
+          />
         </div>
       </Resizable>
 
@@ -246,13 +543,13 @@ export function DirectMessageCenter() {
           <EnhancedDirectMessageChat
             selectedDM={{
               userId: selectedDM.friend.id,
-              userName: selectedDM.friend.name,
-              userAvatar: selectedDM.friend.avatar,
+              userName: selectedDM.friend.full_name,
+              userAvatar: getInitials(selectedDM.friend.full_name),
               userStatus: selectedDM.friend.status,
               threadId: threads[selectedDM.friend.id] || selectedDM.id,
             }}
-            currentUserId={currentUserId}
-            currentUserName={getCurrentUser()?.fullName || "You"}
+            currentUserId={currentUser.id}
+            currentUserName={currentUser.full_name}
           />
         ) : activeView === "friends" ? (
           <>
@@ -265,35 +562,76 @@ export function DirectMessageCenter() {
               <Separator orientation="vertical" className="h-6 bg-[#3f4147]" />
 
               <div className="flex gap-4">
-                <button onClick={() => setFriendsTab("online")} className={`text-sm transition-colors ${friendsTab === "online" ? "text-white" : "text-gray-400 hover:text-gray-200"}`}>
+                <button
+                  onClick={() => setFriendsTab("online")}
+                  className={`text-sm transition-colors ${
+                    friendsTab === "online"
+                      ? "text-white"
+                      : "text-gray-400 hover:text-gray-200"
+                  }`}
+                >
                   Online
                 </button>
-                <button onClick={() => setFriendsTab("all")} className={`text-sm transition-colors ${friendsTab === "all" ? "text-white" : "text-gray-400 hover:text-gray-200"}`}>
+                <button
+                  onClick={() => setFriendsTab("all")}
+                  className={`text-sm transition-colors ${
+                    friendsTab === "all"
+                      ? "text-white"
+                      : "text-gray-400 hover:text-gray-200"
+                  }`}
+                >
                   All
                 </button>
                 <button
                   onClick={() => setFriendsTab("pending")}
-                  className={`text-sm transition-colors flex items-center gap-1 ${friendsTab === "pending" ? "text-white" : "text-gray-400 hover:text-gray-200"}`}
+                  className={`text-sm transition-colors flex items-center gap-1 ${
+                    friendsTab === "pending"
+                      ? "text-white"
+                      : "text-gray-400 hover:text-gray-200"
+                  }`}
                 >
                   Pending
-                  {friendRequests.length > 0 && <Badge className="bg-[#f23f43] text-white text-xs h-4 px-1.5">{friendRequests.length}</Badge>}
+                  {friendRequests.length > 0 && (
+                    <Badge className="bg-[#f23f43] text-white text-xs h-4 px-1.5">
+                      {friendRequests.length}
+                    </Badge>
+                  )}
                 </button>
-                <button onClick={() => setFriendsTab("blocked")} className={`text-sm transition-colors ${friendsTab === "blocked" ? "text-white" : "text-gray-400 hover:text-gray-200"}`}>
+                <button
+                  onClick={() => setFriendsTab("blocked")}
+                  className={`text-sm transition-colors ${
+                    friendsTab === "blocked"
+                      ? "text-white"
+                      : "text-gray-400 hover:text-gray-200"
+                  }`}
+                >
                   Blocked
                 </button>
                 <button
                   onClick={() => setFriendsTab("add")}
-                  className={`text-sm px-2 py-0.5 rounded transition-colors ${friendsTab === "add" ? "bg-[#3ba55d] text-white" : "bg-[#3ba55d] text-white hover:bg-[#2d7d46]"}`}
+                  className={`text-sm px-2 py-0.5 rounded transition-colors ${
+                    friendsTab === "add"
+                      ? "bg-[#3ba55d] text-white"
+                      : "bg-[#3ba55d] text-white hover:bg-[#2d7d46]"
+                  }`}
                 >
                   Add Friend
                 </button>
               </div>
 
               <div className="ml-auto flex items-center gap-2">
-                <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white p-2 h-auto">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-gray-400 hover:text-white p-2 h-auto"
+                >
                   <Inbox size={20} />
                 </Button>
-                <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white p-2 h-auto">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-gray-400 hover:text-white p-2 h-auto"
+                >
                   <MoreVertical size={20} />
                 </Button>
               </div>
@@ -304,16 +642,31 @@ export function DirectMessageCenter() {
                 <AddFriendModal
                   open={true}
                   onClose={() => setFriendsTab("online")}
-                  existingFriends={friends.map((f) => f.id)}
-                  onAddFriend={(email) => {
-                    setShowAddFriendModal(false);
-                    toast.success(`Friend request sent to ${email}`);
+                  currentUserId={currentUser.id}
+                  existingFriendIds={friends.map((f) => f.id)}
+                  onAddFriend={handleAddFriend}
+                  onStartDM={(user) => {
+                    handleAddFriend(user);
+                    handleStartDM(user);
                   }}
                 />
               )}
 
               {friendsTab === "pending" && (
-                <FriendRequestsPanel friendRequests={friendRequests} onAccept={handleAcceptFriendRequest} onDecline={handleDeclineFriendRequest} />
+                <FriendRequestsPanel
+                  requests={friendRequests.map((req) => ({
+                    id: req.id,
+                    userId: req.user.id,
+                    userName: req.user.full_name,
+                    userEmail: req.user.email || "",
+                    userAvatar: getInitials(req.user.full_name),
+                    timestamp: req.timestamp,
+                    type: req.type,
+                  }))}
+                  onAccept={handleAcceptFriendRequest}
+                  onDecline={handleDeclineFriendRequest}
+                  onCancel={handleCancelFriendRequest}
+                />
               )}
 
               {friendsTab === "blocked" && (
@@ -326,50 +679,103 @@ export function DirectMessageCenter() {
               {(friendsTab === "online" || friendsTab === "all") && (
                 <div className="p-6">
                   <h3 className="text-gray-400 text-xs uppercase tracking-wide mb-4">
-                    {friendsTab === "online" ? `Online - ${friends.filter((f) => f.status === "online").length}` : `All Friends - ${friends.length}`}
+                    {friendsTab === "online"
+                      ? `Online - ${
+                          friends.filter((f) => f.status === "online").length
+                        }`
+                      : `All Friends - ${friends.length}`}
                   </h3>
-                  <div className="space-y-2">
-                    {(friendsTab === "online" ? friends.filter((f) => f.status === "online") : filteredFriends).map((friend) => (
-                      <div
-                        key={friend.id}
-                        className="flex items-center gap-4 p-4 bg-[#2b2d31] rounded-lg hover:bg-[#35363c] transition-colors border-t border-[#3f4147] group"
-                      >
-                        <div className="relative">
-                          <Avatar className="h-12 w-12">
-                            <AvatarFallback className="bg-[#5865f2] text-white">{friend.avatar}</AvatarFallback>
-                          </Avatar>
-                          <div className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-[#2b2d31] ${getStatusColor(friend.status)}`} />
-                        </div>
+                  {isLoading ? (
+                    <div className="text-center py-8 text-gray-500">
+                      Loading friends...
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {(friendsTab === "online"
+                        ? friends.filter((f) => f.status === "online")
+                        : filteredFriends
+                      ).map((friend) => (
+                        <div
+                          key={friend.id}
+                          className="flex items-center gap-4 p-4 bg-[#2b2d31] rounded-lg hover:bg-[#35363c] transition-colors border-t border-[#3f4147] group"
+                        >
+                          <div className="relative">
+                            <Avatar className="h-12 w-12">
+                              {friend.avatar_url && (
+                                <AvatarImage
+                                  src={friend.avatar_url}
+                                  alt={friend.full_name}
+                                />
+                              )}
+                              <AvatarFallback className="bg-[#5865f2] text-white">
+                                {getInitials(friend.full_name)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div
+                              className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-[#2b2d31] ${getStatusColor(
+                                friend.status
+                              )}`}
+                            />
+                          </div>
 
-                        <div className="flex-1">
-                          <div className="text-white">{friend.name}</div>
-                          <div className="text-gray-400 text-sm">{friend.customStatus || friend.email}</div>
-                        </div>
+                          <div className="flex-1">
+                            <div className="text-white">{friend.full_name}</div>
+                            <div className="text-gray-400 text-sm">
+                              @{friend.username}
+                            </div>
+                          </div>
 
-                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Button onClick={() => handleStartDM(friend)} className="bg-[#2b2d31] hover:bg-[#1e1f22] text-white p-2 h-auto" title="Message">
-                            <MessageCircle size={20} />
-                          </Button>
-                          <Button variant="ghost" className="text-gray-400 hover:text-white p-2 h-auto" title="Voice Call">
-                            <Phone size={20} />
-                          </Button>
-                          <Button variant="ghost" className="text-gray-400 hover:text-white p-2 h-auto" title="Video Call">
-                            <Video size={20} />
-                          </Button>
-                          <Button variant="ghost" className="text-gray-400 hover:text-white p-2 h-auto" title="More">
-                            <MoreVertical size={20} />
-                          </Button>
+                          <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button
+                              onClick={() => handleStartDM(friend)}
+                              className="bg-[#2b2d31] hover:bg-[#1e1f22] text-white p-2 h-auto"
+                              title="Message"
+                            >
+                              <MessageCircle size={20} />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              className="text-gray-400 hover:text-white p-2 h-auto"
+                              title="Voice Call"
+                            >
+                              <Phone size={20} />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              className="text-gray-400 hover:text-white p-2 h-auto"
+                              title="Video Call"
+                            >
+                              <Video size={20} />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              className="text-gray-400 hover:text-white p-2 h-auto"
+                              title="More"
+                            >
+                              <MoreVertical size={20} />
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
 
-                    {(friendsTab === "online" ? friends.filter((f) => f.status === "online") : filteredFriends).length === 0 && (
-                      <div className="text-center py-12">
-                        <Users size={48} className="text-gray-600 mx-auto mb-4" />
-                        <p className="text-gray-400">{friendsTab === "online" ? "No friends online" : "No friends found"}</p>
-                      </div>
-                    )}
-                  </div>
+                      {(friendsTab === "online"
+                        ? friends.filter((f) => f.status === "online")
+                        : filteredFriends
+                      ).length === 0 && (
+                        <div className="text-center py-12">
+                          <Users
+                            size={48}
+                            className="text-gray-600 mx-auto mb-4"
+                          />
+                          <p className="text-gray-400">
+                            {friendsTab === "online"
+                              ? "No friends online"
+                              : "No friends found"}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </ScrollArea>
@@ -379,9 +785,20 @@ export function DirectMessageCenter() {
             <div className="w-16 h-16 bg-[#5865f2] rounded-full flex items-center justify-center mb-4">
               <MessageCircle size={32} className="text-white" />
             </div>
-            <h2 className="text-white text-xl mb-2">No conversation selected</h2>
-            <p className="text-gray-400 mb-6 max-w-md">Choose a conversation from the list on the left or start a new one by clicking on a friend.</p>
-            <Button onClick={() => { setActiveView("friends"); setFriendsTab("online"); }} className="bg-[#5865f2] hover:bg-[#4752c4] text-white gap-2">
+            <h2 className="text-white text-xl mb-2">
+              No conversation selected
+            </h2>
+            <p className="text-gray-400 mb-6 max-w-md">
+              Choose a conversation from the list on the left or start a new one
+              by clicking on a friend.
+            </p>
+            <Button
+              onClick={() => {
+                setActiveView("friends");
+                setFriendsTab("online");
+              }}
+              className="bg-[#5865f2] hover:bg-[#4752c4] text-white gap-2"
+            >
               <UserPlus size={18} />
               Find Friends
             </Button>
@@ -393,15 +810,16 @@ export function DirectMessageCenter() {
         <AddFriendModal
           open={showAddFriendModal}
           onClose={() => setShowAddFriendModal(false)}
-          existingFriends={friends.map((f) => f.id)}
-          onAddFriend={(email, apiKey) => {
-            toast.success(`Friend request sent to ${email}`);
+          currentUserId={currentUser.id}
+          existingFriendIds={friends.map((f) => f.id)}
+          onAddFriend={handleAddFriend}
+          onStartDM={(user) => {
+            handleAddFriend(user);
+            handleStartDM(user);
             setShowAddFriendModal(false);
-            chatService.addFriend(currentUserId, email, apiKey);
           }}
         />
       )}
     </div>
   );
 }
-

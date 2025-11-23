@@ -12,6 +12,8 @@ interface UserProfileProps {
   userAvatar?: string;
   userStatus?: "online" | "idle" | "dnd" | "offline";
   customStatus?: string;
+  userId?: string;
+  username?: string;
 }
 
 const getStatusColor = (status: UserProfileProps["userStatus"]) => {
@@ -32,10 +34,25 @@ export const UserProfile = memo(function UserProfile({
   userAvatar = "JD",
   userStatus = "online",
   customStatus,
+  userId,
+  username,
 }: UserProfileProps) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isMicMuted, setIsMicMuted] = useState(false);
   const [isDeafened, setIsDeafened] = useState(false);
+
+  const handleCopyUserId = () => {
+    if (userId) {
+      navigator.clipboard.writeText(userId);
+      // Using a simple toast would be better, but for now this works
+      const button = document.activeElement as HTMLElement;
+      const originalText = button.textContent;
+      button.textContent = "Copied!";
+      setTimeout(() => {
+        button.textContent = originalText;
+      }, 1000);
+    }
+  };
 
   return (
     <>
@@ -55,9 +72,13 @@ export const UserProfile = memo(function UserProfile({
 
         <div className="flex-1 min-w-0">
           <div className="text-white text-sm truncate">{userName}</div>
-          <div className="text-gray-400 text-xs truncate">
-            {customStatus || `#${Math.random().toString().slice(2, 6)}`}
-          </div>
+          <button
+            onClick={handleCopyUserId}
+            className="text-gray-400 hover:text-gray-300 text-xs truncate transition-colors cursor-pointer text-left w-full"
+            title="Click to copy User ID"
+          >
+            {username ? `@${username}` : customStatus || "Set status"}
+          </button>
         </div>
 
         <div className="flex items-center gap-1">

@@ -15,7 +15,6 @@ import { KeyboardShortcuts } from "./components/KeyboardShortcuts";
 import type { Label } from "./components/LabelBadge";
 import { LabelManager } from "./components/LabelManager";
 import { Sidebar } from "./components/Sidebar";
-import { StorageBanner } from "./components/StorageBanner";
 import { TaskDetailsModal } from "./components/TaskDetailsModal";
 import { Toaster } from "./components/ui/toaster";
 
@@ -849,7 +848,6 @@ export default function Home() {
         />
       )}
 
-      <StorageBanner />
       <KeyboardShortcuts />
       <Toaster />
     </div>

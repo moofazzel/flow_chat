@@ -1,8 +1,8 @@
 /**
  * 🗄️ STORAGE UTILITY
- * 
+ *
  * Smart localStorage management with database-ready architecture.
- * 
+ *
  * ARCHITECTURE:
  * ✅ localStorage (Current):
  *    - Tasks (full persistence)
@@ -11,9 +11,26 @@
  *    - Session state
  *    - Draft messages
  *    - Recent messages (cache only - last 50 per channel)
- * 
+ *
+ * 🚀 Database (Future - TODO):
+ *    - All messages (unlimited history)
+ *    - User accounts
+ *    - Real-time sync
+ *    - File uploads
+ *    - Audit logs
+ */
+
+import type { BoardColumn } from "@/app/components/BoardsContainer";
+import type { Label } from "@/app/components/LabelBadge";
+import type { Task } from "@/app/page";
+
+export interface BoardData {
+  id: string;
+  name: string;
+  description: string;
+  color: string;
   columns: BoardColumn[];
-  labels?: Label[]; // 🆕 Labels for this board
+  labels?: Label[];
 }
 
 export interface Message {
@@ -40,14 +57,14 @@ export interface Reaction {
 }
 
 export interface UserPreferences {
-  theme: 'dark' | 'light';
+  theme: "dark" | "light";
   sidebarCollapsed: boolean;
   notificationsEnabled: boolean;
   soundEnabled: boolean;
 }
 
 export interface SessionState {
-  currentView: 'chat' | 'board' | 'dm';
+  currentView: "chat" | "board" | "dm";
   selectedChannel: string;
   activeBoard: string;
   pageScrollLeft: number;
@@ -56,7 +73,7 @@ export interface SessionState {
     userId: string;
     userName: string;
     userAvatar: string;
-    userStatus: 'online' | 'idle' | 'dnd' | 'offline';
+    userStatus: "online" | "idle" | "dnd" | "offline";
   } | null;
 }
 
@@ -66,20 +83,20 @@ export interface SessionState {
 
 const STORAGE_KEYS = {
   // ✅ Full persistence (localStorage)
-  TASKS: 'Flow Chat_tasks',
-  BOARDS: 'Flow Chat_boards',
-  PREFERENCES: 'Flow Chat_preferences',
-  SESSION: 'Flow Chat_session',
-  DRAFT_MESSAGES: 'Flow Chat_drafts',
-  
+  TASKS: "Flow Chat_tasks",
+  BOARDS: "Flow Chat_boards",
+  PREFERENCES: "Flow Chat_preferences",
+  SESSION: "Flow Chat_session",
+  DRAFT_MESSAGES: "Flow Chat_drafts",
+
   // ⚠️ Cache only (localStorage) - Will migrate to database
-  MESSAGES_PREFIX: 'Flow Chat_messages_', // + channelId
-  
+  MESSAGES_PREFIX: "Flow Chat_messages_", // + channelId
+
   // 📊 Version control
-  STORAGE_VERSION: 'Flow Chat_storage_version',
+  STORAGE_VERSION: "Flow Chat_storage_version",
 } as const;
 
-const CURRENT_STORAGE_VERSION = '1.0.0';
+const CURRENT_STORAGE_VERSION = "1.0.0";
 const MAX_MESSAGES_PER_CHANNEL = 50; // Cache limit
 
 // ============================================

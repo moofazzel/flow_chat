@@ -1,28 +1,25 @@
-import { useState } from 'react';
-import { 
-  Settings, 
-  UserPlus, 
-  Bell, 
-  Shield, 
-  Hash, 
-  Folder,
-  Edit,
-  Trash2,
-  LogOut,
+"use client";
+
+import {
+  Bell,
   ChevronRight,
-  Sparkles,
-  Users
-} from 'lucide-react';
+  Edit,
+  Folder,
+  Hash,
+  LogOut,
+  Settings,
+  Shield,
+  UserPlus,
+} from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
-} from './ui/dropdown-menu';
+} from "./ui/dropdown-menu";
 
 interface WorkspaceDropdownProps {
   children: React.ReactNode;
@@ -33,24 +30,24 @@ interface WorkspaceDropdownProps {
   onEditServerProfile?: () => void;
 }
 
-export function WorkspaceDropdown({ 
-  children, 
+export function WorkspaceDropdown({
+  children,
   onCreateChannel,
   onCreateCategory,
   onServerSettings,
   onInvitePeople,
-  onEditServerProfile
+  onEditServerProfile,
 }: WorkspaceDropdownProps) {
   return (
     <DropdownMenu>
       {children}
-      <DropdownMenuContent 
+      <DropdownMenuContent
         className="w-56 bg-[#111214] border-none text-white shadow-xl p-1.5"
         align="start"
         sideOffset={8}
       >
         {/* Invite People */}
-        <DropdownMenuItem 
+        <DropdownMenuItem
           className="px-2 py-2 rounded cursor-pointer hover:bg-[#5865f2] hover:text-white transition-colors text-[#b5bac1] group"
           onClick={onInvitePeople}
         >
@@ -65,7 +62,7 @@ export function WorkspaceDropdown({
         <DropdownMenuSeparator className="bg-[#3f4147] my-1.5" />
 
         {/* Server Settings */}
-        <DropdownMenuItem 
+        <DropdownMenuItem
           className="px-2 py-2 rounded cursor-pointer hover:bg-[#5865f2] hover:text-white transition-colors text-[#b5bac1]"
           onClick={onServerSettings}
         >
@@ -74,7 +71,7 @@ export function WorkspaceDropdown({
         </DropdownMenuItem>
 
         {/* Create Channel */}
-        <DropdownMenuItem 
+        <DropdownMenuItem
           className="px-2 py-2 rounded cursor-pointer hover:bg-[#5865f2] hover:text-white transition-colors text-[#b5bac1]"
           onClick={onCreateChannel}
         >
@@ -83,7 +80,7 @@ export function WorkspaceDropdown({
         </DropdownMenuItem>
 
         {/* Create Category */}
-        <DropdownMenuItem 
+        <DropdownMenuItem
           className="px-2 py-2 rounded cursor-pointer hover:bg-[#5865f2] hover:text-white transition-colors text-[#b5bac1]"
           onClick={onCreateCategory}
         >
@@ -119,9 +116,7 @@ export function WorkspaceDropdown({
         </DropdownMenuSub>
 
         {/* Privacy Settings */}
-        <DropdownMenuItem 
-          className="px-2 py-2 rounded cursor-pointer hover:bg-[#5865f2] hover:text-white transition-colors text-[#b5bac1]"
-        >
+        <DropdownMenuItem className="px-2 py-2 rounded cursor-pointer hover:bg-[#5865f2] hover:text-white transition-colors text-[#b5bac1]">
           <Shield size={16} className="mr-3" />
           <span>Privacy Settings</span>
         </DropdownMenuItem>
@@ -129,7 +124,7 @@ export function WorkspaceDropdown({
         <DropdownMenuSeparator className="bg-[#3f4147] my-1.5" />
 
         {/* Edit Server Profile */}
-        <DropdownMenuItem 
+        <DropdownMenuItem
           className="px-2 py-2 rounded cursor-pointer hover:bg-[#5865f2] hover:text-white transition-colors text-[#b5bac1]"
           onClick={onEditServerProfile}
         >
@@ -138,18 +133,14 @@ export function WorkspaceDropdown({
         </DropdownMenuItem>
 
         {/* Hide Muted Channels */}
-        <DropdownMenuItem 
-          className="px-2 py-2 rounded cursor-pointer hover:bg-[#5865f2] hover:text-white transition-colors text-[#b5bac1]"
-        >
+        <DropdownMenuItem className="px-2 py-2 rounded cursor-pointer hover:bg-[#5865f2] hover:text-white transition-colors text-[#b5bac1]">
           <span className="ml-9 text-sm">Hide Muted Channels</span>
         </DropdownMenuItem>
 
         <DropdownMenuSeparator className="bg-[#3f4147] my-1.5" />
 
         {/* Leave Server */}
-        <DropdownMenuItem 
-          className="px-2 py-2 rounded cursor-pointer hover:bg-[#ed4245] hover:text-white transition-colors text-[#ed4245]"
-        >
+        <DropdownMenuItem className="px-2 py-2 rounded cursor-pointer hover:bg-[#ed4245] hover:text-white transition-colors text-[#ed4245]">
           <LogOut size={16} className="mr-3" />
           <span>Leave Server</span>
         </DropdownMenuItem>

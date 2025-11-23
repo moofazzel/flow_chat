@@ -1,14 +1,12 @@
-import { useState } from 'react';
-import { Filter, X, Tag, User, Calendar, AlertCircle } from 'lucide-react';
-import { Button } from './ui/button';
-import { Badge } from './ui/badge';
-import { LabelBadge, type Label } from './LabelBadge';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from './ui/popover';
-import { Checkbox } from './ui/checkbox';
+"use client";
+
+import { AlertCircle, Calendar, Filter, Tag, User, X } from "lucide-react";
+import { useState } from "react";
+import { LabelBadge, type Label } from "./LabelBadge";
+import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
+import { Checkbox } from "./ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 
 export interface TaskFilter {
   labels: string[];
@@ -35,25 +33,25 @@ export function TaskFilters({
 }: TaskFiltersProps) {
   const [open, setOpen] = useState(false);
 
-  const activeFilterCount = 
-    filters.labels.length + 
-    filters.priorities.length + 
-    filters.assignees.length + 
+  const activeFilterCount =
+    filters.labels.length +
+    filters.priorities.length +
+    filters.assignees.length +
     filters.statuses.length;
 
   const priorities = [
-    { id: 'urgent', name: 'Urgent', color: 'bg-red-100 text-red-700' },
-    { id: 'high', name: 'High', color: 'bg-orange-100 text-orange-700' },
-    { id: 'medium', name: 'Medium', color: 'bg-yellow-100 text-yellow-700' },
-    { id: 'low', name: 'Low', color: 'bg-gray-100 text-gray-700' },
+    { id: "urgent", name: "Urgent", color: "bg-red-100 text-red-700" },
+    { id: "high", name: "High", color: "bg-orange-100 text-orange-700" },
+    { id: "medium", name: "Medium", color: "bg-yellow-100 text-yellow-700" },
+    { id: "low", name: "Low", color: "bg-gray-100 text-gray-700" },
   ];
 
   const toggleFilter = (type: keyof TaskFilter, value: string) => {
     const currentValues = filters[type] as string[];
     const newValues = currentValues.includes(value)
-      ? currentValues.filter(v => v !== value)
+      ? currentValues.filter((v) => v !== value)
       : [...currentValues, value];
-    
+
     onFiltersChange({ ...filters, [type]: newValues });
   };
 
@@ -79,7 +77,7 @@ export function TaskFilters({
           <Tag size={14} className="text-blue-600" />
           <span className="text-xs text-blue-700">{filters.labels.length}</span>
           <button
-            onClick={() => clearFilterType('labels')}
+            onClick={() => clearFilterType("labels")}
             className="text-blue-600 hover:text-blue-800"
           >
             <X size={12} />
@@ -90,9 +88,11 @@ export function TaskFilters({
       {filters.priorities.length > 0 && (
         <div className="flex items-center gap-1 bg-orange-50 px-2 py-1 rounded">
           <AlertCircle size={14} className="text-orange-600" />
-          <span className="text-xs text-orange-700">{filters.priorities.length}</span>
+          <span className="text-xs text-orange-700">
+            {filters.priorities.length}
+          </span>
           <button
-            onClick={() => clearFilterType('priorities')}
+            onClick={() => clearFilterType("priorities")}
             className="text-orange-600 hover:text-orange-800"
           >
             <X size={12} />
@@ -103,9 +103,11 @@ export function TaskFilters({
       {filters.assignees.length > 0 && (
         <div className="flex items-center gap-1 bg-green-50 px-2 py-1 rounded">
           <User size={14} className="text-green-600" />
-          <span className="text-xs text-green-700">{filters.assignees.length}</span>
+          <span className="text-xs text-green-700">
+            {filters.assignees.length}
+          </span>
           <button
-            onClick={() => clearFilterType('assignees')}
+            onClick={() => clearFilterType("assignees")}
             className="text-green-600 hover:text-green-800"
           >
             <X size={12} />
@@ -116,9 +118,11 @@ export function TaskFilters({
       {/* Filter Button */}
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <Button 
-            variant="outline" 
-            className={`gap-2 border-gray-300 relative ${activeFilterCount > 0 ? 'border-blue-500 bg-blue-50' : ''}`}
+          <Button
+            variant="outline"
+            className={`gap-2 border-gray-300 relative ${
+              activeFilterCount > 0 ? "border-blue-500 bg-blue-50" : ""
+            }`}
           >
             <Filter size={18} />
             Filter
@@ -154,14 +158,14 @@ export function TaskFilters({
                 Labels
               </h4>
               <div className="space-y-2">
-                {availableLabels.map(label => (
+                {availableLabels.map((label) => (
                   <label
                     key={label.id}
                     className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded"
                   >
                     <Checkbox
                       checked={filters.labels.includes(label.id)}
-                      onCheckedChange={() => toggleFilter('labels', label.id)}
+                      onCheckedChange={() => toggleFilter("labels", label.id)}
                     />
                     <LabelBadge label={label} size="sm" />
                   </label>
@@ -179,18 +183,18 @@ export function TaskFilters({
                 Priority
               </h4>
               <div className="space-y-2">
-                {priorities.map(priority => (
+                {priorities.map((priority) => (
                   <label
                     key={priority.id}
                     className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded"
                   >
                     <Checkbox
                       checked={filters.priorities.includes(priority.id)}
-                      onCheckedChange={() => toggleFilter('priorities', priority.id)}
+                      onCheckedChange={() =>
+                        toggleFilter("priorities", priority.id)
+                      }
                     />
-                    <Badge className={priority.color}>
-                      {priority.name}
-                    </Badge>
+                    <Badge className={priority.color}>{priority.name}</Badge>
                   </label>
                 ))}
               </div>
@@ -203,20 +207,24 @@ export function TaskFilters({
                 Assignee
               </h4>
               <div className="space-y-2">
-                {availableAssignees.map(assignee => (
+                {availableAssignees.map((assignee) => (
                   <label
                     key={assignee}
                     className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded"
                   >
                     <Checkbox
                       checked={filters.assignees.includes(assignee)}
-                      onCheckedChange={() => toggleFilter('assignees', assignee)}
+                      onCheckedChange={() =>
+                        toggleFilter("assignees", assignee)
+                      }
                     />
                     <span className="text-sm">{assignee}</span>
                   </label>
                 ))}
                 {availableAssignees.length === 0 && (
-                  <p className="text-xs text-gray-500">No assignees available</p>
+                  <p className="text-xs text-gray-500">
+                    No assignees available
+                  </p>
                 )}
               </div>
             </div>
@@ -228,14 +236,14 @@ export function TaskFilters({
                 Status
               </h4>
               <div className="space-y-2">
-                {availableStatuses.map(status => (
+                {availableStatuses.map((status) => (
                   <label
                     key={status}
                     className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded"
                   >
                     <Checkbox
                       checked={filters.statuses.includes(status)}
-                      onCheckedChange={() => toggleFilter('statuses', status)}
+                      onCheckedChange={() => toggleFilter("statuses", status)}
                     />
                     <span className="text-sm">{status}</span>
                   </label>

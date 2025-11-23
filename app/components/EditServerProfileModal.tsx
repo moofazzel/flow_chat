@@ -1,26 +1,55 @@
-import { Edit, Save } from 'lucide-react';
-import { useState } from 'react';
-import { toast } from 'sonner';
-import { Button } from './ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
+"use client";
+
+import { Edit, Save } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
+import { Button } from "./ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
 
 interface EditServerProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-export function EditServerProfileModal({ isOpen, onClose }: EditServerProfileModalProps) {
-  const [serverName, setServerName] = useState('Workspace');
-  const [serverIcon, setServerIcon] = useState('WS');
-  const [serverColor, setServerColor] = useState('#5865f2');
+export function EditServerProfileModal({
+  isOpen,
+  onClose,
+}: EditServerProfileModalProps) {
+  const [serverName, setServerName] = useState("Workspace");
+  const [serverIcon, setServerIcon] = useState("WS");
+  const [serverColor, setServerColor] = useState("#5865f2");
 
-  const availableEmojis = ['🎯', '🚀', '⚡', '💼', '🎨', '🔥', '💡', '🌟', '🎮', '📱', '🏆', '💻', '📊', '🎪', '🌈', '⭐'];
+  const availableEmojis = [
+    "🎯",
+    "🚀",
+    "⚡",
+    "💼",
+    "🎨",
+    "🔥",
+    "💡",
+    "🌟",
+    "🎮",
+    "📱",
+    "🏆",
+    "💻",
+    "📊",
+    "🎪",
+    "🌈",
+    "⭐",
+  ];
 
   const handleSave = () => {
     if (serverName.trim()) {
-      toast.success('Server profile updated successfully!');
+      toast.success("Server profile updated successfully!");
       onClose();
     }
   };
@@ -49,7 +78,7 @@ export function EditServerProfileModal({ isOpen, onClose }: EditServerProfileMod
               Server Icon
             </Label>
             <div className="flex items-center gap-4">
-              <div 
+              <div
                 className="w-20 h-20 rounded-full flex items-center justify-center text-3xl font-semibold shadow-lg"
                 style={{ backgroundColor: serverColor }}
               >
@@ -65,9 +94,9 @@ export function EditServerProfileModal({ isOpen, onClose }: EditServerProfileMod
                       key={emoji}
                       onClick={() => setServerIcon(emoji)}
                       className={`w-10 h-10 rounded-lg flex items-center justify-center text-xl transition-all hover:scale-110 ${
-                        serverIcon === emoji 
-                          ? 'bg-[#5865f2] ring-2 ring-[#5865f2] ring-offset-2 ring-offset-[#313338]' 
-                          : 'bg-[#2b2d31] hover:bg-[#404249]'
+                        serverIcon === emoji
+                          ? "bg-[#5865f2] ring-2 ring-[#5865f2] ring-offset-2 ring-offset-[#313338]"
+                          : "bg-[#2b2d31] hover:bg-[#404249]"
                       }`}
                     >
                       {emoji}
@@ -78,7 +107,10 @@ export function EditServerProfileModal({ isOpen, onClose }: EditServerProfileMod
                   variant="ghost"
                   className="text-[#5865f2] hover:text-[#4752c4] h-auto p-0 text-sm mt-2"
                   onClick={() => {
-                    const randomEmoji = availableEmojis[Math.floor(Math.random() * availableEmojis.length)];
+                    const randomEmoji =
+                      availableEmojis[
+                        Math.floor(Math.random() * availableEmojis.length)
+                      ];
                     setServerIcon(randomEmoji);
                   }}
                 >
@@ -90,7 +122,10 @@ export function EditServerProfileModal({ isOpen, onClose }: EditServerProfileMod
 
           {/* Server Name */}
           <div className="space-y-2">
-            <Label htmlFor="server-name" className="text-[#b5bac1] text-xs uppercase tracking-wider font-semibold">
+            <Label
+              htmlFor="server-name"
+              className="text-[#b5bac1] text-xs uppercase tracking-wider font-semibold"
+            >
               Server Nickname
             </Label>
             <Input
@@ -103,7 +138,8 @@ export function EditServerProfileModal({ isOpen, onClose }: EditServerProfileMod
               maxLength={32}
             />
             <p className="text-xs text-[#80848e]">
-              This is how the server will appear to you. Others will see the original name.
+              This is how the server will appear to you. Others will see the
+              original name.
             </p>
           </div>
 
@@ -127,12 +163,21 @@ export function EditServerProfileModal({ isOpen, onClose }: EditServerProfileMod
               />
             </div>
             <div className="flex gap-2 mt-2">
-              {['#5865f2', '#3ba55d', '#f0b232', '#ed4245', '#9b59b6', '#e91e63'].map((color) => (
+              {[
+                "#5865f2",
+                "#3ba55d",
+                "#f0b232",
+                "#ed4245",
+                "#9b59b6",
+                "#e91e63",
+              ].map((color) => (
                 <button
                   key={color}
                   onClick={() => setServerColor(color)}
                   className={`w-8 h-8 rounded-full transition-all hover:scale-110 ${
-                    serverColor === color ? 'ring-2 ring-white ring-offset-2 ring-offset-[#313338]' : ''
+                    serverColor === color
+                      ? "ring-2 ring-white ring-offset-2 ring-offset-[#313338]"
+                      : ""
                   }`}
                   style={{ backgroundColor: color }}
                 />
@@ -146,15 +191,19 @@ export function EditServerProfileModal({ isOpen, onClose }: EditServerProfileMod
               Preview
             </Label>
             <div className="flex items-center gap-3">
-              <div 
+              <div
                 className="w-12 h-12 rounded-full flex items-center justify-center text-xl font-semibold"
                 style={{ backgroundColor: serverColor }}
               >
                 {serverIcon}
               </div>
               <div>
-                <div className="text-white font-semibold">{serverName || 'Workspace'}</div>
-                <div className="text-[#b5bac1] text-sm">Your personalized server</div>
+                <div className="text-white font-semibold">
+                  {serverName || "Workspace"}
+                </div>
+                <div className="text-[#b5bac1] text-sm">
+                  Your personalized server
+                </div>
               </div>
             </div>
           </div>

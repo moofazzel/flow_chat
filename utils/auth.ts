@@ -1,243 +1,206 @@
-// Authentication utilities for Chatapp
+import { createClient } from "@/utils/supabase/client";
+import { User as SupabaseUser } from "@supabase/supabase-js";
 
+// Re-export the User type to match our app's needs, extending Supabase's user
 export interface User {
   id: string;
   email: string;
   username: string;
-  avatar: string;
-  fullName: string;
-  createdAt: string;
-  status: 'online' | 'idle' | 'dnd' | 'offline';
+  full_name: string;
+  avatar_url: string;
+  status: "online" | "idle" | "dnd" | "offline";
+  created_at: string;
 }
 
 export interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
+  isLoading: boolean;
 }
 
-const STORAGE_KEY = 'chatapp_auth';
-const USERS_KEY = 'chatapp_users';
+// Helper to map Supabase user to our app's User type
+const mapSupabaseUser = async (
+  sbUser: SupabaseUser | null
+): Promise<User | null> => {
+  if (!sbUser) return null;
+
+  const supabase = createClient();
+
+  // Fetch the public profile from the 'users' table
+  const { data: profile } = await supabase
+    .from("users")
+    .select("*")
+    .eq("id", sbUser.id)
+    .single();
+
+  if (!profile) return null;
+
+  return {
+    id: sbUser.id,
+    email: sbUser.email || "",
+    username: profile.username || sbUser.user_metadata.username || "User",
+    full_name: profile.full_name || sbUser.user_metadata.full_name || "",
+    avatar_url: profile.avatar_url || sbUser.user_metadata.avatar_url || "",
+    status: profile.status || "online",
+    created_at: profile.created_at,
+  };
+};
 
 // Get current authenticated user
-export const getCurrentUser = (): User | null => {
-  if (typeof window === 'undefined') return null;
-  
-  const authData = localStorage.getItem(STORAGE_KEY);
-  if (!authData) return null;
-  
-  try {
-    const { user } = JSON.parse(authData);
-    return user;
-  } catch (error) {
-    console.error('Failed to parse auth data:', error);
-    return null;
-  }
+export const getCurrentUser = async (): Promise<User | null> => {
+  const supabase = createClient();
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
+
+  if (error || !user) return null;
+  return mapSupabaseUser(user);
 };
 
 // Check if user is authenticated
-export const isAuthenticated = (): boolean => {
-  return getCurrentUser() !== null;
+export const isAuthenticated = async (): Promise<boolean> => {
+  const user = await getCurrentUser();
+  return user !== null;
 };
 
-// Get all registered users
-const getUsers = (): User[] => {
-  if (typeof window === 'undefined') return [];
-  
-  const usersData = localStorage.getItem(USERS_KEY);
-  if (!usersData) return [];
-  
-  try {
-    return JSON.parse(usersData);
-  } catch (error) {
-    console.error('Failed to parse users data:', error);
-    return [];
-  }
-};
-
-// Save users to storage
-const saveUsers = (users: User[]) => {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(USERS_KEY, JSON.stringify(users));
-};
-
-// Generate avatar from username
-const generateAvatar = (username: string): string => {
-  return username.slice(0, 2).toUpperCase();
-};
-
-// Register new user
-export const register = (
+// Sign Up
+export const register = async (
   email: string,
-  username: string,
   password: string,
+  username: string,
   fullName: string
-): { success: boolean; error?: string; user?: User } => {
-  if (typeof window === 'undefined') {
-    return { success: false, error: 'Window not available' };
+): Promise<{ success: boolean; error?: string; user?: User }> => {
+  const supabase = createClient();
+
+  // 1. Check if email already exists
+  const { data: existingUserByEmail } = await supabase
+    .from("users")
+    .select("id, email")
+    .eq("email", email)
+    .single();
+
+  if (existingUserByEmail) {
+    return {
+      success: false,
+      error: "An account with this email already exists. Please login instead.",
+    };
   }
 
-  // Validate inputs
-  if (!email || !username || !password || !fullName) {
-    return { success: false, error: 'All fields are required' };
+  // 2. Check if username already exists
+  const { data: existingUserByUsername } = await supabase
+    .from("users")
+    .select("id, username")
+    .eq("username", username)
+    .single();
+
+  if (existingUserByUsername) {
+    return {
+      success: false,
+      error: "This username is already taken. Please choose another one.",
+    };
   }
 
-  if (password.length < 6) {
-    return { success: false, error: 'Password must be at least 6 characters' };
+  // 3. Sign up with Supabase Auth
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      // Disable email confirmation
+      // TODO: Enable email confirmation later
+      emailRedirectTo: undefined,
+      data: {
+        username,
+        full_name: fullName,
+        avatar_url: `https://ui-avatars.com/api/?name=${encodeURIComponent(
+          fullName
+        )}&background=random`,
+      },
+    },
+  });
+
+  if (error) {
+    // Check for specific Supabase errors
+    if (error.message.toLowerCase().includes("already registered")) {
+      return {
+        success: false,
+        error:
+          "An account with this email already exists. Please login instead.",
+      };
+    }
+    return { success: false, error: error.message };
   }
 
-  // Check if user already exists
-  const users = getUsers();
-  const existingUser = users.find(
-    (u) => u.email.toLowerCase() === email.toLowerCase() || 
-           u.username.toLowerCase() === username.toLowerCase()
-  );
-
-  if (existingUser) {
-    return { success: false, error: 'Email or username already exists' };
+  if (data.user) {
+    // The trigger in SQL will handle creating the public.users record
+    const mappedUser = await mapSupabaseUser(data.user);
+    return { success: true, user: mappedUser || undefined };
   }
 
-  // Create new user
-  const newUser: User = {
-    id: `user-${Date.now()}`,
-    email: email.toLowerCase(),
-    username,
-    fullName,
-    avatar: generateAvatar(username),
-    createdAt: new Date().toISOString(),
-    status: 'online',
-  };
-
-  // Save user
-  users.push(newUser);
-  saveUsers(users);
-
-  // Store password (in production, this would be hashed on backend)
-  const passwordsKey = 'chatapp_passwords';
-  const passwords = JSON.parse(localStorage.getItem(passwordsKey) || '{}');
-  passwords[newUser.id] = password; // In production: hash this!
-  localStorage.setItem(passwordsKey, JSON.stringify(passwords));
-
-  return { success: true, user: newUser };
+  return { success: false, error: "Registration failed" };
 };
 
-// Login user
-export const login = (
-  emailOrUsername: string,
+// Login
+export const login = async (
+  email: string,
   password: string
-): { success: boolean; error?: string; user?: User } => {
-  if (typeof window === 'undefined') {
-    return { success: false, error: 'Window not available' };
+): Promise<{ success: boolean; error?: string; user?: User }> => {
+  const supabase = createClient();
+
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (error) {
+    return { success: false, error: error.message };
   }
 
-  // Validate inputs
-  if (!emailOrUsername || !password) {
-    return { success: false, error: 'Email/username and password are required' };
+  if (data.user) {
+    const mappedUser = await mapSupabaseUser(data.user);
+    return { success: true, user: mappedUser || undefined };
   }
 
-  // Find user
-  const users = getUsers();
-  const user = users.find(
-    (u) =>
-      u.email.toLowerCase() === emailOrUsername.toLowerCase() ||
-      u.username.toLowerCase() === emailOrUsername.toLowerCase()
-  );
-
-  if (!user) {
-    return { success: false, error: 'Invalid email/username or password' };
-  }
-
-  // Verify password
-  const passwordsKey = 'chatapp_passwords';
-  const passwords = JSON.parse(localStorage.getItem(passwordsKey) || '{}');
-  const storedPassword = passwords[user.id];
-
-  if (storedPassword !== password) {
-    return { success: false, error: 'Invalid email/username or password' };
-  }
-
-  // Update user status to online
-  const updatedUser = { ...user, status: 'online' as const };
-  const updatedUsers = users.map((u) => (u.id === user.id ? updatedUser : u));
-  saveUsers(updatedUsers);
-
-  // Save auth state
-  localStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify({ user: updatedUser, timestamp: Date.now() })
-  );
-
-  return { success: true, user: updatedUser };
+  return { success: false, error: "Login failed" };
 };
 
-// Logout user
-export const logout = (): void => {
-  if (typeof window === 'undefined') return;
-
-  const user = getCurrentUser();
-  if (user) {
-    // Update user status to offline
-    const users = getUsers();
-    const updatedUsers = users.map((u) =>
-      u.id === user.id ? { ...u, status: 'offline' as const } : u
-    );
-    saveUsers(updatedUsers);
-  }
-
-  // Clear auth state
-  localStorage.removeItem(STORAGE_KEY);
+// Logout
+export const logout = async (): Promise<void> => {
+  const supabase = createClient();
+  await supabase.auth.signOut();
 };
 
 // Update user profile
-export const updateUserProfile = (
-  updates: Partial<Pick<User, 'fullName' | 'avatar' | 'status'>>
-): { success: boolean; error?: string; user?: User } => {
-  if (typeof window === 'undefined') {
-    return { success: false, error: 'Window not available' };
-  }
+export const updateUserProfile = async (
+  updates: Partial<Pick<User, "full_name" | "avatar_url" | "status">>
+): Promise<{ success: boolean; error?: string; user?: User }> => {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  const currentUser = getCurrentUser();
-  if (!currentUser) {
-    return { success: false, error: 'Not authenticated' };
-  }
+  if (!user) return { success: false, error: "Not authenticated" };
 
-  // Update user
-  const users = getUsers();
-  const updatedUser = { ...currentUser, ...updates };
-  const updatedUsers = users.map((u) => (u.id === currentUser.id ? updatedUser : u));
-  saveUsers(updatedUsers);
+  const { error } = await supabase
+    .from("users")
+    .update(updates)
+    .eq("id", user.id);
 
-  // Update auth state
-  localStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify({ user: updatedUser, timestamp: Date.now() })
-  );
+  if (error) return { success: false, error: error.message };
 
-  return { success: true, user: updatedUser };
+  const updatedUser = await getCurrentUser();
+  return { success: true, user: updatedUser || undefined };
 };
 
-// Get user by ID
-export const getUserById = (userId: string): User | null => {
-  const users = getUsers();
-  return users.find((u) => u.id === userId) || null;
-};
+// Get all users (for mentions, etc.)
+export const getAllUsers = async (): Promise<User[]> => {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("users")
+    .select("*")
+    .order("username");
 
-// Get all users (for mentions, assignments, etc.)
-export const getAllUsers = (): User[] => {
-  return getUsers();
-};
+  if (error || !data) return [];
 
-// Check session validity (optional: add expiration)
-export const isSessionValid = (): boolean => {
-  if (typeof window === 'undefined') return false;
-
-  const authData = localStorage.getItem(STORAGE_KEY);
-  if (!authData) return false;
-
-  try {
-    const { timestamp } = JSON.parse(authData);
-    const sessionDuration = 7 * 24 * 60 * 60 * 1000; // 7 days
-    return Date.now() - timestamp < sessionDuration;
-  } catch (error) {
-    return false;
-  }
+  return data as User[];
 };

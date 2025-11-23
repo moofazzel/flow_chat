@@ -1,3 +1,5 @@
+"use client";
+
 import { copyToClipboard } from "@/utils/clipboard";
 import {
   AlertCircle,

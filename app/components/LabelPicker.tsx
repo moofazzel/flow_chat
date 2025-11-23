@@ -1,12 +1,10 @@
-import { useState } from 'react';
-import { Check, Plus, Settings } from 'lucide-react';
-import { Button } from './ui/button';
-import { Label } from './LabelBadge';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from './ui/popover';
+"use client";
+
+import { Check, Plus, Settings } from "lucide-react";
+import { useState } from "react";
+import { Label } from "./LabelBadge";
+import { Button } from "./ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 
 interface LabelPickerProps {
   allLabels: Label[];
@@ -83,8 +81,8 @@ export function LabelPicker({
                     <div
                       className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
                         isSelected
-                          ? 'bg-blue-500 border-blue-500'
-                          : 'border-gray-300 bg-white'
+                          ? "bg-blue-500 border-blue-500"
+                          : "border-gray-300 bg-white"
                       }`}
                     >
                       {isSelected && <Check size={12} className="text-white" />}

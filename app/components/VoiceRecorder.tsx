@@ -1,8 +1,10 @@
-import { Mic, Pause, Play, Send, Square, Trash2, X } from 'lucide-react';
-import { motion } from 'motion/react';
-import { useEffect, useRef, useState } from 'react';
-import { toast } from 'sonner';
-import { Button } from './ui/button';
+"use client";
+
+import { Mic, Pause, Play, Send, Square, Trash2, X } from "lucide-react";
+import { motion } from "motion/react";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import { Button } from "./ui/button";
 
 interface VoiceRecorderProps {
   onSend: (audioBlob: Blob, duration: number) => void;
@@ -29,7 +31,10 @@ export function VoiceRecorder({ onSend, onCancel }: VoiceRecorderProps) {
     return () => {
       // Cleanup
       stopTimer();
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      if (
+        mediaRecorderRef.current &&
+        mediaRecorderRef.current.state !== "inactive"
+      ) {
         mediaRecorderRef.current.stop();
       }
       if (audioUrl) {
@@ -52,28 +57,31 @@ export function VoiceRecorder({ onSend, onCancel }: VoiceRecorderProps) {
       };
 
       mediaRecorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
         setAudioBlob(blob);
         const url = URL.createObjectURL(blob);
         setAudioUrl(url);
-        
+
         // Stop all tracks
-        stream.getTracks().forEach(track => track.stop());
+        stream.getTracks().forEach((track) => track.stop());
       };
 
       mediaRecorder.start();
       setIsRecording(true);
       startTimer();
-      toast.success('Recording started');
+      toast.success("Recording started");
     } catch (error) {
-      console.error('Error accessing microphone:', error);
-      toast.error('Could not access microphone. Please check permissions.');
+      console.error("Error accessing microphone:", error);
+      toast.error("Could not access microphone. Please check permissions.");
       onCancel();
     }
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+    if (
+      mediaRecorderRef.current &&
+      mediaRecorderRef.current.state !== "inactive"
+    ) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
       setIsPaused(false);
@@ -82,7 +90,10 @@ export function VoiceRecorder({ onSend, onCancel }: VoiceRecorderProps) {
   };
 
   const pauseRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+    if (
+      mediaRecorderRef.current &&
+      mediaRecorderRef.current.state === "recording"
+    ) {
       mediaRecorderRef.current.pause();
       setIsPaused(true);
       stopTimer();
@@ -90,7 +101,10 @@ export function VoiceRecorder({ onSend, onCancel }: VoiceRecorderProps) {
   };
 
   const resumeRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'paused') {
+    if (
+      mediaRecorderRef.current &&
+      mediaRecorderRef.current.state === "paused"
+    ) {
       mediaRecorderRef.current.resume();
       setIsPaused(false);
       startTimer();
@@ -99,7 +113,7 @@ export function VoiceRecorder({ onSend, onCancel }: VoiceRecorderProps) {
 
   const startTimer = () => {
     timerRef.current = setInterval(() => {
-      setRecordingTime(prev => prev + 1);
+      setRecordingTime((prev) => prev + 1);
     }, 1000);
   };
 
@@ -113,7 +127,7 @@ export function VoiceRecorder({ onSend, onCancel }: VoiceRecorderProps) {
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
   const handlePlayPause = () => {
@@ -131,7 +145,7 @@ export function VoiceRecorder({ onSend, onCancel }: VoiceRecorderProps) {
   const handleSend = () => {
     if (audioBlob) {
       onSend(audioBlob, recordingTime);
-      toast.success('Voice note sent!');
+      toast.success("Voice note sent!");
     }
   };
 
@@ -173,7 +187,7 @@ export function VoiceRecorder({ onSend, onCancel }: VoiceRecorderProps) {
           <div className="text-white font-medium mb-1">
             {isRecording ? (
               <span className="flex items-center gap-2">
-                {isPaused ? 'Paused' : 'Recording'}
+                {isPaused ? "Paused" : "Recording"}
                 {!isPaused && (
                   <span className="inline-flex gap-1">
                     <motion.span
@@ -205,7 +219,7 @@ export function VoiceRecorder({ onSend, onCancel }: VoiceRecorderProps) {
                 )}
               </span>
             ) : (
-              'Voice Note'
+              "Voice Note"
             )}
           </div>
           <div className="text-gray-400 text-sm font-mono">

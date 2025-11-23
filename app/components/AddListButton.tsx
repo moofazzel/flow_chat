@@ -1,5 +1,7 @@
-import { useState, useRef, useEffect } from "react";
-import { Plus, X, Check } from "lucide-react";
+"use client";
+
+import { Check, Plus, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 
@@ -42,8 +44,7 @@ export function AddListButton({
 
     if (
       existingNames.some(
-        (name) =>
-          name.toLowerCase() === trimmedName.toLowerCase(),
+        (name) => name.toLowerCase() === trimmedName.toLowerCase()
       )
     ) {
       setError("Column name already exists");
@@ -88,8 +89,8 @@ export function AddListButton({
             Add Your First List
           </h2>
           <p className="text-gray-600 mb-6">
-            Lists help you organize your tasks into stages like
-            "To Do", "In Progress", and "Done"
+            Lists help you organize your tasks into stages like "To Do", "In
+            Progress", and "Done"
           </p>
 
           {isAdding ? (
@@ -105,23 +106,13 @@ export function AddListButton({
                 placeholder="Enter list name..."
                 className="mb-3"
               />
-              {error && (
-                <p className="text-sm text-red-500 mb-3">
-                  {error}
-                </p>
-              )}
+              {error && <p className="text-sm text-red-500 mb-3">{error}</p>}
               <div className="flex gap-2">
-                <Button
-                  onClick={handleAdd}
-                  className="flex-1 gap-2"
-                >
+                <Button onClick={handleAdd} className="flex-1 gap-2">
                   <Check size={16} />
                   Add List
                 </Button>
-                <Button
-                  onClick={handleCancel}
-                  variant="outline"
-                >
+                <Button onClick={handleCancel} variant="outline">
                   <X size={16} />
                 </Button>
               </div>
@@ -156,23 +147,13 @@ export function AddListButton({
           placeholder="Enter list name..."
           className="mb-2"
         />
-        {error && (
-          <p className="text-xs text-red-500 mb-2">{error}</p>
-        )}
+        {error && <p className="text-xs text-red-500 mb-2">{error}</p>}
         <div className="flex gap-2">
-          <Button
-            onClick={handleAdd}
-            size="sm"
-            className="flex-1 gap-1"
-          >
+          <Button onClick={handleAdd} size="sm" className="flex-1 gap-1">
             <Check size={14} />
             Add List
           </Button>
-          <Button
-            onClick={handleCancel}
-            size="sm"
-            variant="outline"
-          >
+          <Button onClick={handleCancel} size="sm" variant="outline">
             <X size={14} />
           </Button>
         </div>

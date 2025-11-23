@@ -1,12 +1,6 @@
-import { useState } from 'react';
-import { MoreVertical, Edit2, Trash2, Copy, Archive } from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from './ui/dropdown-menu';
+"use client";
+import { Copy, Edit2, MoreVertical, Trash2 } from "lucide-react";
+import { useState } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,12 +10,25 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from './ui/alert-dialog';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Textarea } from './ui/textarea';
-import { Label } from './ui/label';
+} from "./ui/alert-dialog";
+import { Button } from "./ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import { Textarea } from "./ui/textarea";
 
 interface BoardMenuProps {
   boardId: string;
@@ -30,23 +37,28 @@ interface BoardMenuProps {
   boardColor: string;
   isOnlyBoard: boolean;
   onDelete: (boardId: string) => void;
-  onRename: (boardId: string, newName: string, newDescription: string, newColor: string) => void;
+  onRename: (
+    boardId: string,
+    newName: string,
+    newDescription: string,
+    newColor: string
+  ) => void;
   onDuplicate?: (boardId: string) => void;
 }
 
 const BOARD_COLORS = [
-  { name: 'Blue', value: 'bg-blue-500' },
-  { name: 'Purple', value: 'bg-purple-500' },
-  { name: 'Pink', value: 'bg-pink-500' },
-  { name: 'Red', value: 'bg-red-500' },
-  { name: 'Orange', value: 'bg-orange-500' },
-  { name: 'Yellow', value: 'bg-yellow-500' },
-  { name: 'Green', value: 'bg-green-500' },
-  { name: 'Teal', value: 'bg-teal-500' },
-  { name: 'Cyan', value: 'bg-cyan-500' },
-  { name: 'Indigo', value: 'bg-indigo-500' },
-  { name: 'Violet', value: 'bg-violet-500' },
-  { name: 'Fuchsia', value: 'bg-fuchsia-500' },
+  { name: "Blue", value: "bg-blue-500" },
+  { name: "Purple", value: "bg-purple-500" },
+  { name: "Pink", value: "bg-pink-500" },
+  { name: "Red", value: "bg-red-500" },
+  { name: "Orange", value: "bg-orange-500" },
+  { name: "Yellow", value: "bg-yellow-500" },
+  { name: "Green", value: "bg-green-500" },
+  { name: "Teal", value: "bg-teal-500" },
+  { name: "Cyan", value: "bg-cyan-500" },
+  { name: "Indigo", value: "bg-indigo-500" },
+  { name: "Violet", value: "bg-violet-500" },
+  { name: "Fuchsia", value: "bg-fuchsia-500" },
 ];
 
 export function BoardMenu({
@@ -72,7 +84,7 @@ export function BoardMenu({
 
   const handleRename = () => {
     if (!newName.trim()) {
-      alert('Board name cannot be empty');
+      alert("Board name cannot be empty");
       return;
     }
     onRename(boardId, newName.trim(), newDescription.trim(), newColor);
@@ -102,23 +114,23 @@ export function BoardMenu({
             <Edit2 size={16} className="mr-2" />
             Edit Board
           </DropdownMenuItem>
-          
+
           {onDuplicate && (
             <DropdownMenuItem onClick={() => onDuplicate(boardId)}>
               <Copy size={16} className="mr-2" />
               Duplicate Board
             </DropdownMenuItem>
           )}
-          
+
           <DropdownMenuSeparator />
-          
+
           <DropdownMenuItem
             onClick={() => setShowDeleteDialog(true)}
             disabled={isOnlyBoard}
             className="text-red-600 focus:text-red-600 focus:bg-red-50"
           >
             <Trash2 size={16} className="mr-2" />
-            {isOnlyBoard ? 'Delete (Need 1+ board)' : 'Delete Board'}
+            {isOnlyBoard ? "Delete (Need 1+ board)" : "Delete Board"}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -129,8 +141,9 @@ export function BoardMenu({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Board?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete <strong>"{boardName}"</strong>? 
-              This action cannot be undone. All tasks in this board will remain but will need to be reassigned to other boards.
+              Are you sure you want to delete <strong>"{boardName}"</strong>?
+              This action cannot be undone. All tasks in this board will remain
+              but will need to be reassigned to other boards.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -184,10 +197,12 @@ export function BoardMenu({
                   <button
                     key={color.value}
                     onClick={() => setNewColor(color.value)}
-                    className={`relative h-10 rounded-lg transition-all ${color.value} ${
+                    className={`relative h-10 rounded-lg transition-all ${
+                      color.value
+                    } ${
                       newColor === color.value
-                        ? 'ring-4 ring-offset-2 ring-blue-500 scale-105'
-                        : 'hover:scale-105'
+                        ? "ring-4 ring-offset-2 ring-blue-500 scale-105"
+                        : "hover:scale-105"
                     }`}
                     title={color.name}
                   >

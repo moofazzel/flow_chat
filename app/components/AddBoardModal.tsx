@@ -1,10 +1,17 @@
-import { useState } from 'react';
-import { Plus, X, Palette, LayoutGrid } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Textarea } from './ui/textarea';
-import { Label } from './ui/label';
+"use client";
+import { LayoutGrid, Palette, Plus } from "lucide-react";
+import { useState } from "react";
+import { Button } from "./ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import { Textarea } from "./ui/textarea";
 
 interface AddBoardModalProps {
   isOpen: boolean;
@@ -17,95 +24,99 @@ interface AddBoardModalProps {
 }
 
 const BOARD_COLORS = [
-  { name: 'Blue', value: 'bg-blue-500', hex: '#3b82f6' },
-  { name: 'Purple', value: 'bg-purple-500', hex: '#a855f7' },
-  { name: 'Pink', value: 'bg-pink-500', hex: '#ec4899' },
-  { name: 'Red', value: 'bg-red-500', hex: '#ef4444' },
-  { name: 'Orange', value: 'bg-orange-500', hex: '#f97316' },
-  { name: 'Yellow', value: 'bg-yellow-500', hex: '#eab308' },
-  { name: 'Green', value: 'bg-green-500', hex: '#22c55e' },
-  { name: 'Teal', value: 'bg-teal-500', hex: '#14b8a6' },
-  { name: 'Cyan', value: 'bg-cyan-500', hex: '#06b6d4' },
-  { name: 'Indigo', value: 'bg-indigo-500', hex: '#6366f1' },
-  { name: 'Violet', value: 'bg-violet-500', hex: '#8b5cf6' },
-  { name: 'Fuchsia', value: 'bg-fuchsia-500', hex: '#d946ef' },
+  { name: "Blue", value: "bg-blue-500", hex: "#3b82f6" },
+  { name: "Purple", value: "bg-purple-500", hex: "#a855f7" },
+  { name: "Pink", value: "bg-pink-500", hex: "#ec4899" },
+  { name: "Red", value: "bg-red-500", hex: "#ef4444" },
+  { name: "Orange", value: "bg-orange-500", hex: "#f97316" },
+  { name: "Yellow", value: "bg-yellow-500", hex: "#eab308" },
+  { name: "Green", value: "bg-green-500", hex: "#22c55e" },
+  { name: "Teal", value: "bg-teal-500", hex: "#14b8a6" },
+  { name: "Cyan", value: "bg-cyan-500", hex: "#06b6d4" },
+  { name: "Indigo", value: "bg-indigo-500", hex: "#6366f1" },
+  { name: "Violet", value: "bg-violet-500", hex: "#8b5cf6" },
+  { name: "Fuchsia", value: "bg-fuchsia-500", hex: "#d946ef" },
 ];
 
 const BOARD_TEMPLATES = [
   {
-    id: 'blank',
-    name: 'Blank Board',
-    description: 'Start from scratch',
-    icon: '📋',
+    id: "blank",
+    name: "Blank Board",
+    description: "Start from scratch",
+    icon: "📋",
     columns: [
-      { title: 'To Do', color: 'bg-gray-300' },
-      { title: 'In Progress', color: 'bg-yellow-300' },
-      { title: 'Done', color: 'bg-green-300' },
+      { title: "To Do", color: "bg-gray-300" },
+      { title: "In Progress", color: "bg-yellow-300" },
+      { title: "Done", color: "bg-green-300" },
     ],
   },
   {
-    id: 'kanban',
-    name: 'Kanban Board',
-    description: 'Classic workflow',
-    icon: '📊',
+    id: "kanban",
+    name: "Kanban Board",
+    description: "Classic workflow",
+    icon: "📊",
     columns: [
-      { title: 'Backlog', color: 'bg-gray-300' },
-      { title: 'To Do', color: 'bg-blue-300' },
-      { title: 'In Progress', color: 'bg-yellow-300' },
-      { title: 'Review', color: 'bg-purple-300' },
-      { title: 'Done', color: 'bg-green-300' },
+      { title: "Backlog", color: "bg-gray-300" },
+      { title: "To Do", color: "bg-blue-300" },
+      { title: "In Progress", color: "bg-yellow-300" },
+      { title: "Review", color: "bg-purple-300" },
+      { title: "Done", color: "bg-green-300" },
     ],
   },
   {
-    id: 'sprint',
-    name: 'Sprint Board',
-    description: 'Agile development',
-    icon: '🚀',
+    id: "sprint",
+    name: "Sprint Board",
+    description: "Agile development",
+    icon: "🚀",
     columns: [
-      { title: 'Sprint Backlog', color: 'bg-gray-300' },
-      { title: 'In Development', color: 'bg-blue-300' },
-      { title: 'Testing', color: 'bg-yellow-300' },
-      { title: 'Ready for Release', color: 'bg-green-300' },
+      { title: "Sprint Backlog", color: "bg-gray-300" },
+      { title: "In Development", color: "bg-blue-300" },
+      { title: "Testing", color: "bg-yellow-300" },
+      { title: "Ready for Release", color: "bg-green-300" },
     ],
   },
   {
-    id: 'bugs',
-    name: 'Bug Tracker',
-    description: 'Track issues',
-    icon: '🐛',
+    id: "bugs",
+    name: "Bug Tracker",
+    description: "Track issues",
+    icon: "🐛",
     columns: [
-      { title: 'Reported', color: 'bg-red-300' },
-      { title: 'Investigating', color: 'bg-yellow-300' },
-      { title: 'In Progress', color: 'bg-blue-300' },
-      { title: 'Fixed', color: 'bg-green-300' },
+      { title: "Reported", color: "bg-red-300" },
+      { title: "Investigating", color: "bg-yellow-300" },
+      { title: "In Progress", color: "bg-blue-300" },
+      { title: "Fixed", color: "bg-green-300" },
     ],
   },
 ];
 
-export function AddBoardModal({ isOpen, onClose, onCreateBoard }: AddBoardModalProps) {
-  const [step, setStep] = useState<'template' | 'customize'>('template');
+export function AddBoardModal({
+  isOpen,
+  onClose,
+  onCreateBoard,
+}: AddBoardModalProps) {
+  const [step, setStep] = useState<"template" | "customize">("template");
   const [selectedTemplate, setSelectedTemplate] = useState(BOARD_TEMPLATES[0]);
-  const [boardName, setBoardName] = useState('');
-  const [boardDescription, setBoardDescription] = useState('');
+  const [boardName, setBoardName] = useState("");
+  const [boardDescription, setBoardDescription] = useState("");
   const [selectedColor, setSelectedColor] = useState(BOARD_COLORS[0].value);
 
   const handleClose = () => {
-    setStep('template');
+    setStep("template");
     setSelectedTemplate(BOARD_TEMPLATES[0]);
-    setBoardName('');
-    setBoardDescription('');
+    setBoardName("");
+    setBoardDescription("");
     setSelectedColor(BOARD_COLORS[0].value);
     onClose();
   };
 
-  const handleTemplateSelect = (template: typeof BOARD_TEMPLATES[0]) => {
+  const handleTemplateSelect = (template: (typeof BOARD_TEMPLATES)[0]) => {
     setSelectedTemplate(template);
-    setStep('customize');
+    setStep("customize");
   };
 
   const handleCreate = () => {
     if (!boardName.trim()) {
-      alert('Please enter a board name');
+      alert("Please enter a board name");
       return;
     }
 
@@ -121,7 +132,7 @@ export function AddBoardModal({ isOpen, onClose, onCreateBoard }: AddBoardModalP
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto bg-white">
-        {step === 'template' ? (
+        {step === "template" ? (
           <>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-2xl">
@@ -129,7 +140,8 @@ export function AddBoardModal({ isOpen, onClose, onCreateBoard }: AddBoardModalP
                 Choose a Board Template
               </DialogTitle>
               <DialogDescription>
-                Select a template to get started quickly, or start with a blank board.
+                Select a template to get started quickly, or start with a blank
+                board.
               </DialogDescription>
             </DialogHeader>
 
@@ -144,7 +156,9 @@ export function AddBoardModal({ isOpen, onClose, onCreateBoard }: AddBoardModalP
                   <h3 className="font-semibold text-lg mb-1 group-hover:text-[#0052cc] transition-colors">
                     {template.name}
                   </h3>
-                  <p className="text-sm text-gray-600 mb-3">{template.description}</p>
+                  <p className="text-sm text-gray-600 mb-3">
+                    {template.description}
+                  </p>
                   <div className="flex flex-wrap gap-1.5 mt-auto">
                     {template.columns.map((col, idx) => (
                       <span
@@ -213,10 +227,12 @@ export function AddBoardModal({ isOpen, onClose, onCreateBoard }: AddBoardModalP
                     <button
                       key={color.value}
                       onClick={() => setSelectedColor(color.value)}
-                      className={`relative h-12 rounded-lg transition-all ${color.value} ${
+                      className={`relative h-12 rounded-lg transition-all ${
+                        color.value
+                      } ${
                         selectedColor === color.value
-                          ? 'ring-4 ring-offset-2 ring-[#0052cc] scale-105'
-                          : 'hover:scale-105 hover:shadow-lg'
+                          ? "ring-4 ring-offset-2 ring-[#0052cc] scale-105"
+                          : "hover:scale-105 hover:shadow-lg"
                       }`}
                       title={color.name}
                     >
@@ -254,7 +270,7 @@ export function AddBoardModal({ isOpen, onClose, onCreateBoard }: AddBoardModalP
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setStep('template')}
+                  onClick={() => setStep("template")}
                   className="flex-1"
                 >
                   Back

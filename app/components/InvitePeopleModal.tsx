@@ -1,31 +1,33 @@
+"use client";
+
 import { copyToClipboard } from "@/utils/clipboard";
 import {
-    Check,
-    Copy,
-    Crown,
-    Link as LinkIcon,
-    Mail,
-    Settings,
-    UserPlus,
+  Check,
+  Copy,
+  Crown,
+  Link as LinkIcon,
+  Mail,
+  Settings,
+  UserPlus,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "./ui/button";
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
 } from "./ui/dialog";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "./ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 
@@ -40,7 +42,7 @@ export function InvitePeopleModal({ isOpen, onClose }: InvitePeopleModalProps) {
   const [inviteExpiry, setInviteExpiry] = useState("7days");
   const [maxUses, setMaxUses] = useState("unlimited");
 
-  const inviteLink = "https://chatapp.com/invite/abc123xyz";
+  const inviteLink = "https://Flow Chat.com/invite/abc123xyz";
 
   const handleCopyLink = async () => {
     const success = await copyToClipboard(inviteLink);
@@ -250,7 +252,7 @@ export function InvitePeopleModal({ isOpen, onClose }: InvitePeopleModalProps) {
                   You're invited to join Workspace!
                 </div>
                 <p className="text-[#b5bac1] text-sm leading-relaxed">
-                  John Doe has invited you to join their server on ChatApp.
+                  John Doe has invited you to join their server on Flow Chat.
                   Click the button below to accept the invitation and start
                   collaborating.
                 </p>

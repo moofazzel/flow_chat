@@ -12,31 +12,6 @@
  *    - Draft messages
  *    - Recent messages (cache only - last 50 per channel)
  * 
- * 🚀 Database (Future - TODO):
- *    - All messages (unlimited history)
- *    - User accounts
- *    - Real-time sync
- *    - File uploads
- *    - Audit logs
- * 
- * MIGRATION PATH:
- * When adding database, replace CHAT_STORAGE functions with API calls.
- * All other storage functions remain unchanged.
- */
-
-import type { Task, Comment, SubTask, Attachment } from '../App';
-import type { BoardColumn } from '../components/BoardsContainer';
-import type { Label } from '../components/LabelBadge';
-
-// ============================================
-// 📋 TYPES & INTERFACES
-// ============================================
-
-export interface BoardData {
-  id: string;
-  name: string;
-  description: string;
-  color: string;
   columns: BoardColumn[];
   labels?: Label[]; // 🆕 Labels for this board
 }
@@ -91,17 +66,17 @@ export interface SessionState {
 
 const STORAGE_KEYS = {
   // ✅ Full persistence (localStorage)
-  TASKS: 'chatapp_tasks',
-  BOARDS: 'chatapp_boards',
-  PREFERENCES: 'chatapp_preferences',
-  SESSION: 'chatapp_session',
-  DRAFT_MESSAGES: 'chatapp_drafts',
+  TASKS: 'Flow Chat_tasks',
+  BOARDS: 'Flow Chat_boards',
+  PREFERENCES: 'Flow Chat_preferences',
+  SESSION: 'Flow Chat_session',
+  DRAFT_MESSAGES: 'Flow Chat_drafts',
   
   // ⚠️ Cache only (localStorage) - Will migrate to database
-  MESSAGES_PREFIX: 'chatapp_messages_', // + channelId
+  MESSAGES_PREFIX: 'Flow Chat_messages_', // + channelId
   
   // 📊 Version control
-  STORAGE_VERSION: 'chatapp_storage_version',
+  STORAGE_VERSION: 'Flow Chat_storage_version',
 } as const;
 
 const CURRENT_STORAGE_VERSION = '1.0.0';
@@ -119,7 +94,7 @@ function safeParse<T>(json: string | null, fallback: T): T {
   try {
     return JSON.parse(json) as T;
   } catch (error) {
-    console.error('❌ Failed to parse JSON:', error);
+    console.error("❌ Failed to parse JSON:", error);
     return fallback;
   }
 }
@@ -134,8 +109,10 @@ function safeSetItem(key: string, value: string): boolean {
   } catch (error) {
     console.error(`❌ Failed to save to localStorage (${key}):`, error);
     // Check if quota exceeded
-    if (error instanceof DOMException && error.name === 'QuotaExceededError') {
-      console.warn('⚠️ localStorage quota exceeded! Consider clearing old data.');
+    if (error instanceof DOMException && error.name === "QuotaExceededError") {
+      console.warn(
+        "⚠️ localStorage quota exceeded! Consider clearing old data."
+      );
     }
     return false;
   }
@@ -146,9 +123,11 @@ function safeSetItem(key: string, value: string): boolean {
  */
 export function initializeStorage(): void {
   const version = localStorage.getItem(STORAGE_KEYS.STORAGE_VERSION);
-  
+
   if (version !== CURRENT_STORAGE_VERSION) {
-    console.log(`🔄 Storage version mismatch. Current: ${version}, Expected: ${CURRENT_STORAGE_VERSION}`);
+    console.log(
+      `🔄 Storage version mismatch. Current: ${version}, Expected: ${CURRENT_STORAGE_VERSION}`
+    );
     // TODO: Add migration logic here if schema changes
     localStorage.setItem(STORAGE_KEYS.STORAGE_VERSION, CURRENT_STORAGE_VERSION);
   }
@@ -172,7 +151,7 @@ export function saveTasks(tasks: Task[]): boolean {
 export function loadTasks(): Task[] | null {
   const json = localStorage.getItem(STORAGE_KEYS.TASKS);
   if (!json) return null;
-  
+
   const tasks = safeParse<Task[]>(json, []);
   console.log(`📂 Loaded ${tasks.length} tasks from localStorage`);
   return tasks;
@@ -183,14 +162,14 @@ export function loadTasks(): Task[] | null {
  */
 export function saveTask(task: Task): boolean {
   const tasks = loadTasks() || [];
-  const index = tasks.findIndex(t => t.id === task.id);
-  
+  const index = tasks.findIndex((t) => t.id === task.id);
+
   if (index >= 0) {
     tasks[index] = task;
   } else {
     tasks.push(task);
   }
-  
+
   return saveTasks(tasks);
 }
 
@@ -199,7 +178,7 @@ export function saveTask(task: Task): boolean {
  */
 export function deleteTask(taskId: string): boolean {
   const tasks = loadTasks() || [];
-  const filtered = tasks.filter(t => t.id !== taskId);
+  const filtered = tasks.filter((t) => t.id !== taskId);
   return saveTasks(filtered);
 }
 
@@ -221,7 +200,7 @@ export function saveBoards(boards: BoardData[]): boolean {
 export function loadBoards(): BoardData[] | null {
   const json = localStorage.getItem(STORAGE_KEYS.BOARDS);
   if (!json) return null;
-  
+
   const boards = safeParse<BoardData[]>(json, []);
   console.log(`📂 Loaded ${boards.length} boards from localStorage`);
   return boards;
@@ -233,7 +212,7 @@ export function loadBoards(): BoardData[] | null {
 
 /**
  * ⚠️ CACHE ONLY - Save recent messages (last 50)
- * 
+ *
  * 🚀 TODO: Replace with database API when ready:
  *    - await supabase.from('messages').insert(message)
  *    - WebSocket for real-time updates
@@ -242,19 +221,19 @@ export function loadBoards(): BoardData[] | null {
 export function saveMessages(channelId: string, messages: Message[]): boolean {
   // Only cache the most recent messages
   const recentMessages = messages.slice(-MAX_MESSAGES_PER_CHANNEL);
-  
+
   console.log(
     `💾 Caching ${recentMessages.length} recent messages for channel: ${channelId}`,
     `(${messages.length - recentMessages.length} older messages not cached)`
   );
-  
+
   const key = STORAGE_KEYS.MESSAGES_PREFIX + channelId;
   return safeSetItem(key, JSON.stringify(recentMessages));
 }
 
 /**
  * ⚠️ CACHE ONLY - Load recent messages
- * 
+ *
  * 🚀 TODO: Replace with database API when ready:
  *    - const { data } = await supabase.from('messages').select()
  *    - Load with pagination
@@ -262,16 +241,20 @@ export function saveMessages(channelId: string, messages: Message[]): boolean {
 export function loadMessages(channelId: string): Message[] | null {
   const key = STORAGE_KEYS.MESSAGES_PREFIX + channelId;
   const json = localStorage.getItem(key);
-  
+
   if (!json) {
     console.log(`📂 No cached messages for channel: ${channelId}`);
     return null;
   }
-  
+
   const messages = safeParse<Message[]>(json, []);
-  console.log(`📂 Loaded ${messages.length} cached messages for channel: ${channelId}`);
-  console.log(`⚠️ Note: Only recent ${MAX_MESSAGES_PER_CHANNEL} messages are cached`);
-  
+  console.log(
+    `📂 Loaded ${messages.length} cached messages for channel: ${channelId}`
+  );
+  console.log(
+    `⚠️ Note: Only recent ${MAX_MESSAGES_PER_CHANNEL} messages are cached`
+  );
+
   return messages;
 }
 
@@ -280,9 +263,11 @@ export function loadMessages(channelId: string): Message[] | null {
  */
 export function clearMessageCache(): void {
   const keys = Object.keys(localStorage);
-  const messageKeys = keys.filter(key => key.startsWith(STORAGE_KEYS.MESSAGES_PREFIX));
-  
-  messageKeys.forEach(key => localStorage.removeItem(key));
+  const messageKeys = keys.filter((key) =>
+    key.startsWith(STORAGE_KEYS.MESSAGES_PREFIX)
+  );
+
+  messageKeys.forEach((key) => localStorage.removeItem(key));
   console.log(`🗑️ Cleared ${messageKeys.length} message caches`);
 }
 
@@ -300,7 +285,7 @@ export interface DraftMessages {
 export function saveDraft(channelId: string, content: string): boolean {
   const drafts = loadDrafts();
   drafts[channelId] = content;
-  
+
   return safeSetItem(STORAGE_KEYS.DRAFT_MESSAGES, JSON.stringify(drafts));
 }
 
@@ -326,7 +311,7 @@ export function clearDraft(channelId: string): boolean {
 // ============================================
 
 const DEFAULT_PREFERENCES: UserPreferences = {
-  theme: 'dark',
+  theme: "dark",
   sidebarCollapsed: false,
   notificationsEnabled: true,
   soundEnabled: true,
@@ -335,11 +320,13 @@ const DEFAULT_PREFERENCES: UserPreferences = {
 /**
  * Save user preferences
  */
-export function savePreferences(preferences: Partial<UserPreferences>): boolean {
+export function savePreferences(
+  preferences: Partial<UserPreferences>
+): boolean {
   const current = loadPreferences();
   const updated = { ...current, ...preferences };
-  
-  console.log('💾 Saving user preferences:', updated);
+
+  console.log("💾 Saving user preferences:", updated);
   return safeSetItem(STORAGE_KEYS.PREFERENCES, JSON.stringify(updated));
 }
 
@@ -356,9 +343,9 @@ export function loadPreferences(): UserPreferences {
 // ============================================
 
 const DEFAULT_SESSION: SessionState = {
-  currentView: 'chat',
-  selectedChannel: 'general',
-  activeBoard: 'board-1',
+  currentView: "chat",
+  selectedChannel: "general",
+  activeBoard: "board-1",
   pageScrollLeft: 0,
   boardScrollPositions: {},
   selectedDM: null,
@@ -370,7 +357,7 @@ const DEFAULT_SESSION: SessionState = {
 export function saveSession(session: Partial<SessionState>): boolean {
   const current = loadSession();
   const updated = { ...current, ...session };
-  
+
   return safeSetItem(STORAGE_KEYS.SESSION, JSON.stringify(updated));
 }
 
@@ -397,15 +384,15 @@ export function hasStoredSession(): boolean {
  * Clear all app data (useful for logout/reset)
  */
 export function clearAllData(): void {
-  console.log('🗑️ Clearing all app data from localStorage...');
-  
-  Object.values(STORAGE_KEYS).forEach(key => {
+  console.log("🗑️ Clearing all app data from localStorage...");
+
+  Object.values(STORAGE_KEYS).forEach((key) => {
     localStorage.removeItem(key);
   });
-  
+
   clearMessageCache();
-  
-  console.log('✅ All data cleared!');
+
+  console.log("✅ All data cleared!");
 }
 
 /**
@@ -416,17 +403,19 @@ export function getStorageStats() {
   const boards = loadBoards() || [];
   const session = loadSession();
   const preferences = loadPreferences();
-  
+
   // Calculate approximate sizes
   const tasksSize = JSON.stringify(tasks).length;
   const boardsSize = JSON.stringify(boards).length;
   const sessionSize = JSON.stringify(session).length;
   const preferencesSize = JSON.stringify(preferences).length;
-  
+
   // Count message caches
   const keys = Object.keys(localStorage);
-  const messageCaches = keys.filter(key => key.startsWith(STORAGE_KEYS.MESSAGES_PREFIX));
-  
+  const messageCaches = keys.filter((key) =>
+    key.startsWith(STORAGE_KEYS.MESSAGES_PREFIX)
+  );
+
   return {
     tasks: {
       count: tasks.length,
@@ -438,7 +427,7 @@ export function getStorageStats() {
     },
     messageCaches: {
       count: messageCaches.length,
-      size: 'Varies by channel',
+      size: "Varies by channel",
     },
     session: {
       size: `${(sessionSize / 1024).toFixed(2)} KB`,
@@ -446,7 +435,10 @@ export function getStorageStats() {
     preferences: {
       size: `${(preferencesSize / 1024).toFixed(2)} KB`,
     },
-    totalSize: `~${((tasksSize + boardsSize + sessionSize + preferencesSize) / 1024).toFixed(2)} KB`,
+    totalSize: `~${(
+      (tasksSize + boardsSize + sessionSize + preferencesSize) /
+      1024
+    ).toFixed(2)} KB`,
   };
 }
 
@@ -457,7 +449,7 @@ export function getStorageStats() {
 export const storage = {
   // Initialization
   initialize: initializeStorage,
-  
+
   // Tasks (Full Persistence)
   tasks: {
     save: saveTasks,
@@ -465,40 +457,40 @@ export const storage = {
     saveOne: saveTask,
     delete: deleteTask,
   },
-  
+
   // Boards (Full Persistence)
   boards: {
     save: saveBoards,
     load: loadBoards,
   },
-  
+
   // Messages (Cache Only - Database Ready)
   messages: {
     save: saveMessages,
     load: loadMessages,
     clearCache: clearMessageCache,
   },
-  
+
   // Drafts (Full Persistence)
   drafts: {
     save: saveDraft,
     load: loadDrafts,
     clear: clearDraft,
   },
-  
+
   // Preferences (Full Persistence)
   preferences: {
     save: savePreferences,
     load: loadPreferences,
   },
-  
+
   // Session (Full Persistence)
   session: {
     save: saveSession,
     load: loadSession,
     hasStored: hasStoredSession,
   },
-  
+
   // Utilities
   clearAll: clearAllData,
   getStats: getStorageStats,

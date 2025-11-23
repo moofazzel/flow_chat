@@ -1,41 +1,58 @@
-import { useState } from 'react';
-import { Hash, Volume2, Lock, Sparkles } from 'lucide-react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
-import { Input } from './ui/input';
-import { Button } from './ui/button';
-import { Label } from './ui/label';
-import { RadioGroup, RadioGroupItem } from './ui/radio-group';
-import { Switch } from './ui/switch';
+"use client";
+
+import { Hash, Lock, Sparkles, Volume2 } from "lucide-react";
+import { useState } from "react";
+import { Button } from "./ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
+import { Switch } from "./ui/switch";
 
 interface CreateChannelModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreate: (channelData: { name: string; type: 'text' | 'voice'; isPrivate: boolean }) => void;
+  onCreate: (channelData: {
+    name: string;
+    type: "text" | "voice";
+    isPrivate: boolean;
+  }) => void;
 }
 
-export function CreateChannelModal({ isOpen, onClose, onCreate }: CreateChannelModalProps) {
-  const [channelName, setChannelName] = useState('');
-  const [channelType, setChannelType] = useState<'text' | 'voice'>('text');
+export function CreateChannelModal({
+  isOpen,
+  onClose,
+  onCreate,
+}: CreateChannelModalProps) {
+  const [channelName, setChannelName] = useState("");
+  const [channelType, setChannelType] = useState<"text" | "voice">("text");
   const [isPrivate, setIsPrivate] = useState(false);
 
   const handleCreate = () => {
     if (channelName.trim()) {
       onCreate({
-        name: channelName.toLowerCase().replace(/\s+/g, '-'),
+        name: channelName.toLowerCase().replace(/\s+/g, "-"),
         type: channelType,
         isPrivate: isPrivate,
       });
       // Reset form
-      setChannelName('');
-      setChannelType('text');
+      setChannelName("");
+      setChannelType("text");
       setIsPrivate(false);
       onClose();
     }
   };
 
   const handleClose = () => {
-    setChannelName('');
-    setChannelType('text');
+    setChannelName("");
+    setChannelType("text");
     setIsPrivate(false);
     onClose();
   };
@@ -49,7 +66,8 @@ export function CreateChannelModal({ isOpen, onClose, onCreate }: CreateChannelM
             Create Channel
           </DialogTitle>
           <DialogDescription className="text-[#b5bac1] text-[15px] mt-2">
-            Channels are where your team communicates. They're best organized around a topic — #marketing, for example.
+            Channels are where your team communicates. They&apos;re best
+            organized around a topic — #marketing, for example.
           </DialogDescription>
         </DialogHeader>
 
@@ -59,19 +77,32 @@ export function CreateChannelModal({ isOpen, onClose, onCreate }: CreateChannelM
             <Label className="text-[#b5bac1] text-xs uppercase tracking-wider font-semibold">
               Channel Type
             </Label>
-            <RadioGroup value={channelType} onValueChange={(value) => setChannelType(value as 'text' | 'voice')}>
-              <div 
+            <RadioGroup
+              value={channelType}
+              onValueChange={(value) =>
+                setChannelType(value as "text" | "voice")
+              }
+            >
+              <div
                 className={`flex items-start space-x-3 p-4 rounded-lg transition-all cursor-pointer border-2 ${
-                  channelType === 'text' 
-                    ? 'bg-[#404249] border-[#5865f2] shadow-lg' 
-                    : 'bg-[#2b2d31] border-transparent hover:border-[#404249]'
+                  channelType === "text"
+                    ? "bg-[#404249] border-[#5865f2] shadow-lg"
+                    : "bg-[#2b2d31] border-transparent hover:border-[#404249]"
                 }`}
-                onClick={() => setChannelType('text')}
+                onClick={() => setChannelType("text")}
               >
-                <RadioGroupItem value="text" id="text" className="mt-0.5 border-[#b5bac1]" />
+                <RadioGroupItem
+                  value="text"
+                  id="text"
+                  className="mt-0.5 border-[#b5bac1]"
+                />
                 <label htmlFor="text" className="flex-1 cursor-pointer">
                   <div className="flex items-center gap-2 mb-1.5">
-                    <div className={`p-1.5 rounded-md ${channelType === 'text' ? 'bg-[#5865f2]' : 'bg-[#404249]'}`}>
+                    <div
+                      className={`p-1.5 rounded-md ${
+                        channelType === "text" ? "bg-[#5865f2]" : "bg-[#404249]"
+                      }`}
+                    >
                       <Hash size={18} className="text-white" />
                     </div>
                     <span className="text-white font-semibold">Text</span>
@@ -82,18 +113,28 @@ export function CreateChannelModal({ isOpen, onClose, onCreate }: CreateChannelM
                 </label>
               </div>
 
-              <div 
+              <div
                 className={`flex items-start space-x-3 p-4 rounded-lg transition-all cursor-pointer border-2 ${
-                  channelType === 'voice' 
-                    ? 'bg-[#404249] border-[#5865f2] shadow-lg' 
-                    : 'bg-[#2b2d31] border-transparent hover:border-[#404249]'
+                  channelType === "voice"
+                    ? "bg-[#404249] border-[#5865f2] shadow-lg"
+                    : "bg-[#2b2d31] border-transparent hover:border-[#404249]"
                 }`}
-                onClick={() => setChannelType('voice')}
+                onClick={() => setChannelType("voice")}
               >
-                <RadioGroupItem value="voice" id="voice" className="mt-0.5 border-[#b5bac1]" />
+                <RadioGroupItem
+                  value="voice"
+                  id="voice"
+                  className="mt-0.5 border-[#b5bac1]"
+                />
                 <label htmlFor="voice" className="flex-1 cursor-pointer">
                   <div className="flex items-center gap-2 mb-1.5">
-                    <div className={`p-1.5 rounded-md ${channelType === 'voice' ? 'bg-[#5865f2]' : 'bg-[#404249]'}`}>
+                    <div
+                      className={`p-1.5 rounded-md ${
+                        channelType === "voice"
+                          ? "bg-[#5865f2]"
+                          : "bg-[#404249]"
+                      }`}
+                    >
                       <Volume2 size={18} className="text-white" />
                     </div>
                     <span className="text-white font-semibold">Voice</span>
@@ -108,22 +149,29 @@ export function CreateChannelModal({ isOpen, onClose, onCreate }: CreateChannelM
 
           {/* Channel Name */}
           <div className="space-y-2">
-            <Label htmlFor="channel-name" className="text-[#b5bac1] text-xs uppercase tracking-wider font-semibold">
+            <Label
+              htmlFor="channel-name"
+              className="text-[#b5bac1] text-xs uppercase tracking-wider font-semibold"
+            >
               Channel Name
             </Label>
             <div className="relative">
               <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[#80848e]">
-                {channelType === 'text' ? <Hash size={18} /> : <Volume2 size={18} />}
+                {channelType === "text" ? (
+                  <Hash size={18} />
+                ) : (
+                  <Volume2 size={18} />
+                )}
               </div>
               <Input
                 id="channel-name"
-                placeholder={channelType === 'text' ? 'new-channel' : 'General'}
+                placeholder={channelType === "text" ? "new-channel" : "General"}
                 value={channelName}
                 onChange={(e) => setChannelName(e.target.value)}
                 className="bg-[#1e1f22] border-none text-white pl-10 h-11 focus-visible:ring-1 focus-visible:ring-[#5865f2] placeholder:text-[#6d6f78]"
                 autoFocus
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
+                  if (e.key === "Enter") {
                     handleCreate();
                   }
                 }}
@@ -133,7 +181,8 @@ export function CreateChannelModal({ isOpen, onClose, onCreate }: CreateChannelM
               <div className="flex items-center gap-2 text-xs px-3 py-2 bg-[#2b2d31] rounded-md border border-[#1e1f22]">
                 <span className="text-[#80848e]">Preview:</span>
                 <span className="text-[#b5bac1] font-medium">
-                  {channelType === 'text' ? '#' : '🔊'} {channelName.toLowerCase().replace(/\s+/g, '-')}
+                  {channelType === "text" ? "#" : "🔊"}{" "}
+                  {channelName.toLowerCase().replace(/\s+/g, "-")}
                 </span>
               </div>
             )}
@@ -144,10 +193,13 @@ export function CreateChannelModal({ isOpen, onClose, onCreate }: CreateChannelM
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
                 <Lock size={18} className="text-[#b5bac1]" />
-                <span className="text-white font-semibold">Private Channel</span>
+                <span className="text-white font-semibold">
+                  Private Channel
+                </span>
               </div>
               <p className="text-[13px] text-[#b5bac1] leading-relaxed">
-                Only selected members and roles will be able to view this channel
+                Only selected members and roles will be able to view this
+                channel
               </p>
             </div>
             <Switch

@@ -1,3 +1,5 @@
+"use client";
+
 import {
   closestCorners,
   DndContext,
@@ -364,7 +366,7 @@ export function TaskBoard({
   // Restore board scroll position on mount
   useEffect(() => {
     if (!isInitialized && boardContainerRef.current) {
-      const savedScrollLeft = localStorage.getItem("chatapp_boardScrollLeft");
+      const savedScrollLeft = localStorage.getItem("Flow Chat_boardScrollLeft");
       if (savedScrollLeft) {
         boardContainerRef.current.scrollLeft = parseInt(savedScrollLeft, 10);
       }
@@ -377,7 +379,7 @@ export function TaskBoard({
     const handleScroll = () => {
       if (boardContainerRef.current) {
         localStorage.setItem(
-          "chatapp_boardScrollLeft",
+          "Flow Chat_boardScrollLeft",
           String(boardContainerRef.current.scrollLeft)
         );
       }

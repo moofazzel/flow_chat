@@ -1,9 +1,11 @@
-import { Check, X, Clock, UserPlus, Inbox } from 'lucide-react';
-import { Button } from './ui/button';
-import { Avatar, AvatarFallback } from './ui/avatar';
-import { ScrollArea } from './ui/scroll-area';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { motion } from 'motion/react';
+"use client";
+
+import { Check, Clock, Inbox, UserPlus, X } from "lucide-react";
+import { motion } from "motion/react";
+import { Avatar, AvatarFallback } from "./ui/avatar";
+import { Button } from "./ui/button";
+import { ScrollArea } from "./ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 
 export interface FriendRequest {
   id: string;
@@ -12,7 +14,7 @@ export interface FriendRequest {
   userEmail: string;
   userAvatar: string;
   timestamp: string;
-  type: 'incoming' | 'outgoing';
+  type: "incoming" | "outgoing";
 }
 
 interface FriendRequestsPanelProps {
@@ -22,14 +24,14 @@ interface FriendRequestsPanelProps {
   onCancel: (requestId: string) => void;
 }
 
-export function FriendRequestsPanel({ 
-  requests, 
-  onAccept, 
+export function FriendRequestsPanel({
+  requests,
+  onAccept,
   onDecline,
-  onCancel 
+  onCancel,
 }: FriendRequestsPanelProps) {
-  const incomingRequests = requests.filter(r => r.type === 'incoming');
-  const outgoingRequests = requests.filter(r => r.type === 'outgoing');
+  const incomingRequests = requests.filter((r) => r.type === "incoming");
+  const outgoingRequests = requests.filter((r) => r.type === "outgoing");
 
   const formatTimestamp = (timestamp: string) => {
     const date = new Date(timestamp);
@@ -39,7 +41,7 @@ export function FriendRequestsPanel({
     const hours = Math.floor(minutes / 60);
     const days = Math.floor(hours / 24);
 
-    if (minutes < 1) return 'Just now';
+    if (minutes < 1) return "Just now";
     if (minutes < 60) return `${minutes}m ago`;
     if (hours < 24) return `${hours}h ago`;
     if (days < 7) return `${days}d ago`;
@@ -63,11 +65,17 @@ export function FriendRequestsPanel({
       <Tabs defaultValue="incoming" className="flex-1 flex flex-col">
         <div className="px-4 pt-3">
           <TabsList className="grid w-full grid-cols-2 bg-[#2b2d31]">
-            <TabsTrigger value="incoming" className="data-[state=active]:bg-[#5865f2]">
+            <TabsTrigger
+              value="incoming"
+              className="data-[state=active]:bg-[#5865f2]"
+            >
               <UserPlus size={16} className="mr-2" />
               Incoming ({incomingRequests.length})
             </TabsTrigger>
-            <TabsTrigger value="outgoing" className="data-[state=active]:bg-[#5865f2]">
+            <TabsTrigger
+              value="outgoing"
+              className="data-[state=active]:bg-[#5865f2]"
+            >
               <Clock size={16} className="mr-2" />
               Pending ({outgoingRequests.length})
             </TabsTrigger>
@@ -81,7 +89,9 @@ export function FriendRequestsPanel({
               {incomingRequests.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <Inbox size={48} className="text-gray-600 mb-4" />
-                  <h3 className="text-white text-lg font-medium mb-2">No pending requests</h3>
+                  <h3 className="text-white text-lg font-medium mb-2">
+                    No pending requests
+                  </h3>
                   <p className="text-gray-400 text-sm">
                     When someone sends you a friend request, it will appear here
                   </p>
@@ -102,12 +112,16 @@ export function FriendRequestsPanel({
                       </Avatar>
                       <div className="flex-1">
                         <div className="flex items-center justify-between mb-1">
-                          <h3 className="text-white font-medium">{request.userName}</h3>
+                          <h3 className="text-white font-medium">
+                            {request.userName}
+                          </h3>
                           <span className="text-gray-500 text-xs">
                             {formatTimestamp(request.timestamp)}
                           </span>
                         </div>
-                        <p className="text-gray-400 text-sm mb-3">{request.userEmail}</p>
+                        <p className="text-gray-400 text-sm mb-3">
+                          {request.userEmail}
+                        </p>
                         <div className="flex gap-2">
                           <Button
                             onClick={() => onAccept(request.id)}
@@ -143,7 +157,9 @@ export function FriendRequestsPanel({
               {outgoingRequests.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <Clock size={48} className="text-gray-600 mb-4" />
-                  <h3 className="text-white text-lg font-medium mb-2">No pending requests</h3>
+                  <h3 className="text-white text-lg font-medium mb-2">
+                    No pending requests
+                  </h3>
                   <p className="text-gray-400 text-sm">
                     Friend requests you've sent will appear here
                   </p>
@@ -164,12 +180,16 @@ export function FriendRequestsPanel({
                       </Avatar>
                       <div className="flex-1">
                         <div className="flex items-center justify-between mb-1">
-                          <h3 className="text-white font-medium">{request.userName}</h3>
+                          <h3 className="text-white font-medium">
+                            {request.userName}
+                          </h3>
                           <span className="text-gray-500 text-xs">
                             {formatTimestamp(request.timestamp)}
                           </span>
                         </div>
-                        <p className="text-gray-400 text-sm mb-3">{request.userEmail}</p>
+                        <p className="text-gray-400 text-sm mb-3">
+                          {request.userEmail}
+                        </p>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2 text-yellow-500 text-sm">
                             <Clock size={14} />

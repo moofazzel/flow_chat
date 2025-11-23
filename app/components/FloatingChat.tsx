@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react';
-import { X, MessageSquare, Send, Hash } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { ScrollArea } from './ui/scroll-area';
-import { Input } from './ui/input';
-import { Button } from './ui/button';
-import { Avatar, AvatarFallback } from './ui/avatar';
-import { Badge } from './ui/badge';
-import type { Task } from '../App';
+"use client";
+import { AnimatePresence, motion } from "framer-motion";
+import { Hash, Send, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import type { Task } from "../App";
+import { Avatar, AvatarFallback } from "./ui/avatar";
+import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { ScrollArea } from "./ui/scroll-area";
 
 interface FloatingChatProps {
   channelId: string;
@@ -25,66 +26,72 @@ interface Message {
 
 const mockMessages: Message[] = [
   {
-    id: '1',
-    author: 'Sarah Chen',
-    avatar: 'SC',
-    timestamp: '10:30 AM',
-    content: 'Hey team! Just created a new task for the authentication bug we discussed yesterday.',
+    id: "1",
+    author: "Sarah Chen",
+    avatar: "SC",
+    timestamp: "10:30 AM",
+    content:
+      "Hey team! Just created a new task for the authentication bug we discussed yesterday.",
     task: {
-      id: 'PROJ-123',
-      title: 'Fix authentication redirect issue',
-      description: 'Users are being redirected to the wrong page after login',
-      status: 'todo',
-      priority: 'high',
-      reporter: 'Sarah Chen',
-      labels: ['bug', 'auth'],
-      createdAt: '2025-11-21',
+      id: "PROJ-123",
+      title: "Fix authentication redirect issue",
+      description: "Users are being redirected to the wrong page after login",
+      status: "todo",
+      priority: "high",
+      reporter: "Sarah Chen",
+      labels: ["bug", "auth"],
+      createdAt: "2025-11-21",
       comments: [],
     },
   },
   {
-    id: '2',
-    author: 'Mike Johnson',
-    avatar: 'MJ',
-    timestamp: '10:35 AM',
+    id: "2",
+    author: "Mike Johnson",
+    avatar: "MJ",
+    timestamp: "10:35 AM",
     content: "I'll take a look at this. Should be a quick fix.",
   },
   {
-    id: '3',
-    author: 'Alex Kim',
-    avatar: 'AK',
-    timestamp: '11:15 AM',
-    content: 'Updated the design for the new dashboard. Moving the task to review!',
+    id: "3",
+    author: "Alex Kim",
+    avatar: "AK",
+    timestamp: "11:15 AM",
+    content:
+      "Updated the design for the new dashboard. Moving the task to review!",
     task: {
-      id: 'PROJ-124',
-      title: 'Dashboard redesign mockups',
-      description: 'Create new mockups for the analytics dashboard',
-      status: 'review',
-      priority: 'medium',
-      reporter: 'Alex Kim',
-      labels: ['design', 'frontend'],
-      createdAt: '2025-11-21',
+      id: "PROJ-124",
+      title: "Dashboard redesign mockups",
+      description: "Create new mockups for the analytics dashboard",
+      status: "review",
+      priority: "medium",
+      reporter: "Alex Kim",
+      labels: ["design", "frontend"],
+      createdAt: "2025-11-21",
       comments: [],
     },
   },
   {
-    id: '4',
-    author: 'Sarah Chen',
-    avatar: 'SC',
-    timestamp: '11:45 AM',
-    content: 'Looks great! The new color scheme is much better.',
+    id: "4",
+    author: "Sarah Chen",
+    avatar: "SC",
+    timestamp: "11:45 AM",
+    content: "Looks great! The new color scheme is much better.",
   },
   {
-    id: '5',
-    author: 'Mike Johnson',
-    avatar: 'MJ',
-    timestamp: '2:15 PM',
-    content: 'Auth bug is fixed and pushed to staging. Can someone test it?',
+    id: "5",
+    author: "Mike Johnson",
+    avatar: "MJ",
+    timestamp: "2:15 PM",
+    content: "Auth bug is fixed and pushed to staging. Can someone test it?",
   },
 ];
 
-export function FloatingChat({ channelId, onTaskClick, onClose }: FloatingChatProps) {
-  const [message, setMessage] = useState('');
+export function FloatingChat({
+  channelId,
+  onTaskClick,
+  onClose,
+}: FloatingChatProps) {
+  const [message, setMessage] = useState("");
   const [prevChannelId, setPrevChannelId] = useState(channelId);
 
   // Detect channel change for animation
@@ -95,18 +102,18 @@ export function FloatingChat({ channelId, onTaskClick, onClose }: FloatingChatPr
   }, [channelId, prevChannelId]);
 
   return (
-    <motion.div 
-      initial={{ 
+    <motion.div
+      initial={{
         x: 450,
         opacity: 0,
         scale: 0.9,
       }}
-      animate={{ 
+      animate={{
         x: 0,
         opacity: 1,
         scale: 1,
       }}
-      exit={{ 
+      exit={{
         x: 450,
         opacity: 0,
         scale: 0.9,
@@ -119,19 +126,24 @@ export function FloatingChat({ channelId, onTaskClick, onClose }: FloatingChatPr
       className="fixed right-4 top-4 bottom-4 w-[400px] bg-[#313338] rounded-lg shadow-2xl flex flex-col z-50 border border-[#1e1f22]"
     >
       {/* Header */}
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ 
+        transition={{
           delay: 0.15,
           duration: 0.3,
-          ease: [0.16, 1, 0.3, 1]
+          ease: [0.16, 1, 0.3, 1],
         }}
         className="h-12 px-4 flex items-center gap-2 border-b border-[#1e1f22] bg-[#2b2d31] rounded-t-lg"
       >
         <Hash size={20} className="text-gray-400" />
         <span className="text-white flex-1">{channelId}</span>
-        <Button variant="ghost" size="sm" onClick={onClose} className="text-gray-400 hover:text-white p-1 h-auto">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onClose}
+          className="text-gray-400 hover:text-white p-1 h-auto"
+        >
           <X size={20} />
         </Button>
       </motion.div>
@@ -139,38 +151,44 @@ export function FloatingChat({ channelId, onTaskClick, onClose }: FloatingChatPr
       {/* Messages */}
       <ScrollArea className="flex-1 p-3">
         <AnimatePresence mode="wait">
-          <motion.div 
+          <motion.div
             key={channelId}
             initial={{ opacity: 0, x: 20, scale: 0.98 }}
             animate={{ opacity: 1, x: 0, scale: 1 }}
             exit={{ opacity: 0, x: -20, scale: 0.98 }}
             transition={{
               duration: 0.3,
-              ease: [0.16, 1, 0.3, 1]
+              ease: [0.16, 1, 0.3, 1],
             }}
             className="space-y-3"
           >
             {mockMessages.map((msg, index) => (
-              <motion.div 
+              <motion.div
                 key={msg.id}
                 initial={{ opacity: 0, x: 30, scale: 0.95 }}
                 animate={{ opacity: 1, x: 0, scale: 1 }}
                 transition={{
-                  delay: 0.1 + (index * 0.04),
+                  delay: 0.1 + index * 0.04,
                   duration: 0.3,
-                  ease: [0.16, 1, 0.3, 1]
+                  ease: [0.16, 1, 0.3, 1],
                 }}
                 className="flex gap-2 hover:bg-[#2e3035] -mx-2 px-2 py-1 rounded"
               >
                 <Avatar className="h-8 w-8 mt-1 flex-shrink-0">
-                  <AvatarFallback className="text-xs">{msg.avatar}</AvatarFallback>
+                  <AvatarFallback className="text-xs">
+                    {msg.avatar}
+                  </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline gap-2">
                     <span className="text-white text-sm">{msg.author}</span>
-                    <span className="text-gray-400 text-xs">{msg.timestamp}</span>
+                    <span className="text-gray-400 text-xs">
+                      {msg.timestamp}
+                    </span>
                   </div>
-                  <div className="text-gray-300 text-sm mt-0.5">{msg.content}</div>
+                  <div className="text-gray-300 text-sm mt-0.5">
+                    {msg.content}
+                  </div>
                   {msg.task && (
                     <motion.button
                       whileHover={{ scale: 1.02, x: 4 }}
@@ -183,20 +201,27 @@ export function FloatingChat({ channelId, onTaskClick, onClose }: FloatingChatPr
                         <Badge variant="outline" className="text-xs h-5">
                           {msg.task.id}
                         </Badge>
-                        <Badge 
-                          variant="outline" 
+                        <Badge
+                          variant="outline"
                           className={`text-xs h-5 ${
-                            msg.task.priority === 'urgent' ? 'border-red-500 text-red-500' :
-                            msg.task.priority === 'high' ? 'border-orange-500 text-orange-500' :
-                            msg.task.priority === 'medium' ? 'border-yellow-500 text-yellow-500' :
-                            'border-gray-500 text-gray-500'
+                            msg.task.priority === "urgent"
+                              ? "border-red-500 text-red-500"
+                              : msg.task.priority === "high"
+                              ? "border-orange-500 text-orange-500"
+                              : msg.task.priority === "medium"
+                              ? "border-yellow-500 text-yellow-500"
+                              : "border-gray-500 text-gray-500"
                           }`}
                         >
                           {msg.task.priority}
                         </Badge>
                       </div>
-                      <div className="text-white text-sm mb-1">{msg.task.title}</div>
-                      <div className="text-gray-400 text-xs line-clamp-1">{msg.task.description}</div>
+                      <div className="text-white text-sm mb-1">
+                        {msg.task.title}
+                      </div>
+                      <div className="text-gray-400 text-xs line-clamp-1">
+                        {msg.task.description}
+                      </div>
                     </motion.button>
                   )}
                 </div>
@@ -207,13 +232,13 @@ export function FloatingChat({ channelId, onTaskClick, onClose }: FloatingChatPr
       </ScrollArea>
 
       {/* Message input */}
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ 
+        transition={{
           delay: 0.25,
           duration: 0.3,
-          ease: [0.16, 1, 0.3, 1]
+          ease: [0.16, 1, 0.3, 1],
         }}
         className="p-3 border-t border-[#1e1f22]"
       >

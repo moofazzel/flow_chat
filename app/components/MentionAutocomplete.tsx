@@ -1,3 +1,5 @@
+"use client";
+
 import { AlertCircle, CheckCircle2, Clock, Hash, Zap } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Avatar, AvatarFallback } from "./ui/avatar";

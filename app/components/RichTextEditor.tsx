@@ -1,8 +1,20 @@
-import { Bold, Image as ImageIcon, Italic, Link as LinkIcon, List, ListOrdered, Type, Underline, X } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
-import { toast } from 'sonner';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
+"use client";
+
+import {
+  Bold,
+  Image as ImageIcon,
+  Italic,
+  Link as LinkIcon,
+  List,
+  ListOrdered,
+  Type,
+  Underline,
+  X,
+} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
 
 interface RichTextEditorProps {
   value: string;
@@ -12,24 +24,24 @@ interface RichTextEditorProps {
   minHeight?: string;
 }
 
-export function RichTextEditor({ 
-  value, 
-  onChange, 
-  placeholder = 'Type your description here...',
-  className = '',
-  minHeight = '200px'
+export function RichTextEditor({
+  value,
+  onChange,
+  placeholder = "Type your description here...",
+  className = "",
+  minHeight = "200px",
 }: RichTextEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [showLinkInput, setShowLinkInput] = useState(false);
-  const [linkUrl, setLinkUrl] = useState('');
-  const [linkText, setLinkText] = useState('');
+  const [linkUrl, setLinkUrl] = useState("");
+  const [linkText, setLinkText] = useState("");
 
   // Initialize editor content
   useEffect(() => {
     if (editorRef.current && value !== editorRef.current.innerHTML) {
-      editorRef.current.innerHTML = value || '';
+      editorRef.current.innerHTML = value || "";
     }
   }, [value]);
 
@@ -48,33 +60,34 @@ export function RichTextEditor({
 
   // Handle image upload
   const handleImageUpload = (file: File) => {
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please upload an image file');
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please upload an image file");
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) { // 5MB limit
-      toast.error('Image size should be less than 5MB');
+    if (file.size > 5 * 1024 * 1024) {
+      // 5MB limit
+      toast.error("Image size should be less than 5MB");
       return;
     }
 
     const reader = new FileReader();
     reader.onload = (e) => {
-      const img = document.createElement('img');
+      const img = document.createElement("img");
       img.src = e.target?.result as string;
-      img.style.maxWidth = '100%';
-      img.style.height = 'auto';
-      img.style.borderRadius = '8px';
-      img.style.margin = '10px 0';
-      img.classList.add('uploaded-image');
-      
+      img.style.maxWidth = "100%";
+      img.style.height = "auto";
+      img.style.borderRadius = "8px";
+      img.style.margin = "10px 0";
+      img.classList.add("uploaded-image");
+
       if (editorRef.current) {
         editorRef.current.appendChild(img);
-        editorRef.current.appendChild(document.createElement('br'));
+        editorRef.current.appendChild(document.createElement("br"));
         handleInput();
       }
-      
-      toast.success('Image uploaded successfully');
+
+      toast.success("Image uploaded successfully");
     };
     reader.readAsDataURL(file);
   };
@@ -113,7 +126,7 @@ export function RichTextEditor({
     const items = e.clipboardData?.items;
     if (items) {
       for (let i = 0; i < items.length; i++) {
-        if (items[i].type.indexOf('image') !== -1) {
+        if (items[i].type.indexOf("image") !== -1) {
           const file = items[i].getAsFile();
           if (file) {
             e.preventDefault();
@@ -129,31 +142,33 @@ export function RichTextEditor({
     if (linkUrl) {
       const selection = window.getSelection();
       const text = linkText || linkUrl;
-      
+
       if (selection && editorRef.current) {
         const range = selection.getRangeAt(0);
-        const link = document.createElement('a');
+        const link = document.createElement("a");
         link.href = linkUrl;
         link.textContent = text;
-        link.style.color = '#0052cc';
-        link.style.textDecoration = 'underline';
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        
+        link.style.color = "#0052cc";
+        link.style.textDecoration = "underline";
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+
         range.deleteContents();
         range.insertNode(link);
-        
+
         handleInput();
       }
     }
-    
+
     setShowLinkInput(false);
-    setLinkUrl('');
-    setLinkText('');
+    setLinkUrl("");
+    setLinkText("");
   };
 
   return (
-    <div className={`border border-gray-300 rounded-lg overflow-hidden ${className}`}>
+    <div
+      className={`border border-gray-300 rounded-lg overflow-hidden ${className}`}
+    >
       {/* Toolbar */}
       <div className="bg-gray-50 border-b border-gray-300 p-2 flex items-center gap-1 flex-wrap">
         <Button
@@ -161,73 +176,73 @@ export function RichTextEditor({
           size="sm"
           variant="ghost"
           className="h-8 w-8 p-0"
-          onClick={() => execCommand('bold')}
+          onClick={() => execCommand("bold")}
           title="Bold (Ctrl+B)"
         >
           <Bold size={16} />
         </Button>
-        
+
         <Button
           type="button"
           size="sm"
           variant="ghost"
           className="h-8 w-8 p-0"
-          onClick={() => execCommand('italic')}
+          onClick={() => execCommand("italic")}
           title="Italic (Ctrl+I)"
         >
           <Italic size={16} />
         </Button>
-        
+
         <Button
           type="button"
           size="sm"
           variant="ghost"
           className="h-8 w-8 p-0"
-          onClick={() => execCommand('underline')}
+          onClick={() => execCommand("underline")}
           title="Underline (Ctrl+U)"
         >
           <Underline size={16} />
         </Button>
 
         <div className="w-px h-6 bg-gray-300 mx-1" />
-        
+
         <Button
           type="button"
           size="sm"
           variant="ghost"
           className="h-8 w-8 p-0"
-          onClick={() => execCommand('insertUnorderedList')}
+          onClick={() => execCommand("insertUnorderedList")}
           title="Bullet List"
         >
           <List size={16} />
         </Button>
-        
+
         <Button
           type="button"
           size="sm"
           variant="ghost"
           className="h-8 w-8 p-0"
-          onClick={() => execCommand('insertOrderedList')}
+          onClick={() => execCommand("insertOrderedList")}
           title="Numbered List"
         >
           <ListOrdered size={16} />
         </Button>
 
         <div className="w-px h-6 bg-gray-300 mx-1" />
-        
+
         <Button
           type="button"
           size="sm"
           variant="ghost"
           className="h-8 w-8 p-0"
-          onClick={() => execCommand('formatBlock', 'h2')}
+          onClick={() => execCommand("formatBlock", "h2")}
           title="Heading"
         >
           <Type size={16} />
         </Button>
 
         <div className="w-px h-6 bg-gray-300 mx-1" />
-        
+
         <Button
           type="button"
           size="sm"
@@ -238,7 +253,7 @@ export function RichTextEditor({
         >
           <LinkIcon size={16} />
         </Button>
-        
+
         <Button
           type="button"
           size="sm"
@@ -278,13 +293,13 @@ export function RichTextEditor({
             <Button size="sm" onClick={handleInsertLink}>
               Insert
             </Button>
-            <Button 
-              size="sm" 
-              variant="ghost" 
+            <Button
+              size="sm"
+              variant="ghost"
               onClick={() => {
                 setShowLinkInput(false);
-                setLinkUrl('');
-                setLinkText('');
+                setLinkUrl("");
+                setLinkText("");
               }}
             >
               <X size={16} />
@@ -303,11 +318,11 @@ export function RichTextEditor({
         onDrop={handleDrop}
         onPaste={handlePaste}
         className={`p-4 outline-none overflow-y-auto bg-white ${
-          isDragging ? 'bg-blue-50 border-2 border-blue-400 border-dashed' : ''
+          isDragging ? "bg-blue-50 border-2 border-blue-400 border-dashed" : ""
         }`}
-        style={{ 
+        style={{
           minHeight,
-          maxHeight: '400px'
+          maxHeight: "400px",
         }}
         data-placeholder={placeholder}
       />

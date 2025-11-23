@@ -1,20 +1,32 @@
-import { Check, X } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
-import { toast } from 'sonner';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Textarea } from './ui/textarea';
+"use client";
+
+import { Check, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Textarea } from "./ui/textarea";
 
 interface AddTaskFormProps {
   columnId: string;
   boardId: string;
-  onAdd: (taskData: { title: string; description: string; columnId: string; boardId: string }) => void;
+  onAdd: (taskData: {
+    title: string;
+    description: string;
+    columnId: string;
+    boardId: string;
+  }) => void;
   onCancel: () => void;
 }
 
-export function AddTaskForm({ columnId, boardId, onAdd, onCancel }: AddTaskFormProps) {
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
+export function AddTaskForm({
+  columnId,
+  boardId,
+  onAdd,
+  onCancel,
+}: AddTaskFormProps) {
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [showFullForm, setShowFullForm] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
 
@@ -26,14 +38,14 @@ export function AddTaskForm({ columnId, boardId, onAdd, onCancel }: AddTaskFormP
 
   const handleAdd = () => {
     const trimmedTitle = title.trim();
-    
+
     if (!trimmedTitle) {
-      toast.error('Task title is required');
+      toast.error("Task title is required");
       return;
     }
 
     if (trimmedTitle.length > 200) {
-      toast.error('Task title too long (max 200 characters)');
+      toast.error("Task title too long (max 200 characters)");
       return;
     }
 
@@ -45,19 +57,19 @@ export function AddTaskForm({ columnId, boardId, onAdd, onCancel }: AddTaskFormP
     });
 
     // Reset form
-    setTitle('');
-    setDescription('');
+    setTitle("");
+    setDescription("");
     setShowFullForm(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       if (!showFullForm) {
         // If just title, add task immediately
         handleAdd();
       }
-    } else if (e.key === 'Escape') {
+    } else if (e.key === "Escape") {
       onCancel();
     }
   };
@@ -72,7 +84,7 @@ export function AddTaskForm({ columnId, boardId, onAdd, onCancel }: AddTaskFormP
         placeholder="Enter task title..."
         className="border-gray-300"
       />
-      
+
       {showFullForm && (
         <Textarea
           value={description}
@@ -89,9 +101,9 @@ export function AddTaskForm({ columnId, boardId, onAdd, onCancel }: AddTaskFormP
           Add Task
         </Button>
         {!showFullForm && (
-          <Button 
-            onClick={() => setShowFullForm(true)} 
-            size="sm" 
+          <Button
+            onClick={() => setShowFullForm(true)}
+            size="sm"
             variant="outline"
           >
             More Details

@@ -1,40 +1,55 @@
-import { Bell, Crown, Info, Settings, Shield, Upload, Users } from 'lucide-react';
-import { useState } from 'react';
-import { toast } from 'sonner';
-import { Avatar, AvatarFallback } from './ui/avatar';
-import { Button } from './ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { ScrollArea } from './ui/scroll-area';
-import { Separator } from './ui/separator';
-import { Switch } from './ui/switch';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { Textarea } from './ui/textarea';
+"use client";
+
+import {
+  Bell,
+  Crown,
+  Info,
+  Settings,
+  Shield,
+  Upload,
+  Users,
+} from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
+import { Avatar, AvatarFallback } from "./ui/avatar";
+import { Button } from "./ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import { ScrollArea } from "./ui/scroll-area";
+import { Separator } from "./ui/separator";
+import { Switch } from "./ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
+import { Textarea } from "./ui/textarea";
 
 interface ServerSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-export function ServerSettingsModal({ isOpen, onClose }: ServerSettingsModalProps) {
-  const [serverName, setServerName] = useState('Workspace');
-  const [serverDescription, setServerDescription] = useState('A productive workspace for our team');
-  const [serverIcon, setServerIcon] = useState('WS');
-  const [serverColor, setServerColor] = useState('#5865f2');
-  
+export function ServerSettingsModal({
+  isOpen,
+  onClose,
+}: ServerSettingsModalProps) {
+  const [serverName, setServerName] = useState("Workspace");
+  const [serverDescription, setServerDescription] = useState(
+    "A productive workspace for our team"
+  );
+  const [serverIcon, setServerIcon] = useState("WS");
+  const [serverColor, setServerColor] = useState("#5865f2");
+
   // Notification settings
   const [notifyAllMessages, setNotifyAllMessages] = useState(true);
   const [notifyMentions, setNotifyMentions] = useState(true);
   const [mobilePushEnabled, setMobilePushEnabled] = useState(true);
-  
+
   // Privacy settings
   const [allowInvites, setAllowInvites] = useState(true);
   const [requireApproval, setRequireApproval] = useState(false);
   const [showOnlineMembers, setShowOnlineMembers] = useState(true);
 
   const handleSave = () => {
-    toast.success('Server settings saved successfully!');
+    toast.success("Server settings saved successfully!");
     onClose();
   };
 
@@ -56,45 +71,49 @@ export function ServerSettingsModal({ isOpen, onClose }: ServerSettingsModalProp
                 <div className="text-[#b5bac1] text-xs uppercase tracking-wider font-semibold px-2 py-2">
                   Server Settings
                 </div>
-                <Tabs defaultValue="overview" orientation="vertical" className="w-full">
+                <Tabs
+                  defaultValue="overview"
+                  orientation="vertical"
+                  className="w-full"
+                >
                   <TabsList className="flex flex-col h-auto bg-transparent p-0 gap-0.5">
-                    <TabsTrigger 
-                      value="overview" 
+                    <TabsTrigger
+                      value="overview"
                       className="w-full justify-start px-3 py-2 rounded text-[#b5bac1] data-[state=active]:bg-[#404249] data-[state=active]:text-white hover:bg-[#35363c] hover:text-white transition-colors"
                     >
                       <Info size={16} className="mr-2" />
                       Overview
                     </TabsTrigger>
-                    <TabsTrigger 
-                      value="roles" 
+                    <TabsTrigger
+                      value="roles"
                       className="w-full justify-start px-3 py-2 rounded text-[#b5bac1] data-[state=active]:bg-[#404249] data-[state=active]:text-white hover:bg-[#35363c] hover:text-white transition-colors"
                     >
                       <Shield size={16} className="mr-2" />
                       Roles
                     </TabsTrigger>
-                    <TabsTrigger 
-                      value="members" 
+                    <TabsTrigger
+                      value="members"
                       className="w-full justify-start px-3 py-2 rounded text-[#b5bac1] data-[state=active]:bg-[#404249] data-[state=active]:text-white hover:bg-[#35363c] hover:text-white transition-colors"
                     >
                       <Users size={16} className="mr-2" />
                       Members
                     </TabsTrigger>
-                    
+
                     <Separator className="bg-[#3f4147] my-2" />
-                    
+
                     <div className="text-[#b5bac1] text-xs uppercase tracking-wider font-semibold px-2 py-2">
                       User Settings
                     </div>
-                    
-                    <TabsTrigger 
-                      value="notifications" 
+
+                    <TabsTrigger
+                      value="notifications"
                       className="w-full justify-start px-3 py-2 rounded text-[#b5bac1] data-[state=active]:bg-[#404249] data-[state=active]:text-white hover:bg-[#35363c] hover:text-white transition-colors"
                     >
                       <Bell size={16} className="mr-2" />
                       Notifications
                     </TabsTrigger>
-                    <TabsTrigger 
-                      value="privacy" 
+                    <TabsTrigger
+                      value="privacy"
                       className="w-full justify-start px-3 py-2 rounded text-[#b5bac1] data-[state=active]:bg-[#404249] data-[state=active]:text-white hover:bg-[#35363c] hover:text-white transition-colors"
                     >
                       <Shield size={16} className="mr-2" />
@@ -118,16 +137,21 @@ export function ServerSettingsModal({ isOpen, onClose }: ServerSettingsModalProp
           {/* Main Content */}
           <div className="flex-1 flex flex-col">
             <Tabs defaultValue="overview" className="flex-1 flex flex-col">
-              <TabsContent value="overview" className="flex-1 m-0 data-[state=active]:flex flex-col">
+              <TabsContent
+                value="overview"
+                className="flex-1 m-0 data-[state=active]:flex flex-col"
+              >
                 <ScrollArea className="flex-1 px-6 py-5">
                   <div className="max-w-[600px] space-y-6">
                     <div>
-                      <h3 className="text-white text-lg font-semibold mb-4">Server Overview</h3>
-                      
+                      <h3 className="text-white text-lg font-semibold mb-4">
+                        Server Overview
+                      </h3>
+
                       {/* Server Icon */}
                       <div className="flex items-center gap-6 mb-6">
                         <div className="relative group">
-                          <div 
+                          <div
                             className="w-24 h-24 rounded-full flex items-center justify-center text-3xl cursor-pointer transition-opacity"
                             style={{ backgroundColor: serverColor }}
                           >
@@ -138,15 +162,23 @@ export function ServerSettingsModal({ isOpen, onClose }: ServerSettingsModalProp
                           </div>
                         </div>
                         <div className="flex-1">
-                          <Label className="text-white font-medium mb-2 block">Server Icon</Label>
+                          <Label className="text-white font-medium mb-2 block">
+                            Server Icon
+                          </Label>
                           <p className="text-[#b5bac1] text-sm mb-3">
                             Recommended size: 512x512px
                           </p>
                           <div className="flex gap-2">
-                            <Button variant="outline" className="bg-transparent border-[#4e5058] text-white hover:bg-[#4e5058] h-9 px-4 text-sm">
+                            <Button
+                              variant="outline"
+                              className="bg-transparent border-[#4e5058] text-white hover:bg-[#4e5058] h-9 px-4 text-sm"
+                            >
                               Upload Image
                             </Button>
-                            <Button variant="ghost" className="text-[#ed4245] hover:text-white hover:bg-[#ed4245] h-9 px-4 text-sm">
+                            <Button
+                              variant="ghost"
+                              className="text-[#ed4245] hover:text-white hover:bg-[#ed4245] h-9 px-4 text-sm"
+                            >
                               Remove
                             </Button>
                           </div>
@@ -203,34 +235,57 @@ export function ServerSettingsModal({ isOpen, onClose }: ServerSettingsModalProp
                 </ScrollArea>
               </TabsContent>
 
-              <TabsContent value="roles" className="flex-1 m-0 data-[state=active]:flex flex-col">
+              <TabsContent
+                value="roles"
+                className="flex-1 m-0 data-[state=active]:flex flex-col"
+              >
                 <ScrollArea className="flex-1 px-6 py-5">
                   <div className="max-w-[600px] space-y-4">
                     <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-white text-lg font-semibold">Roles</h3>
+                      <h3 className="text-white text-lg font-semibold">
+                        Roles
+                      </h3>
                       <Button className="bg-[#5865f2] hover:bg-[#4752c4] h-9 px-4">
                         Create Role
                       </Button>
                     </div>
 
                     <div className="space-y-2">
-                      {['Admin', 'Moderator', 'Member'].map((role, idx) => (
-                        <div key={role} className="flex items-center justify-between p-4 bg-[#2b2d31] rounded-lg border border-[#1e1f22] hover:border-[#404249] transition-colors">
+                      {["Admin", "Moderator", "Member"].map((role, idx) => (
+                        <div
+                          key={role}
+                          className="flex items-center justify-between p-4 bg-[#2b2d31] rounded-lg border border-[#1e1f22] hover:border-[#404249] transition-colors"
+                        >
                           <div className="flex items-center gap-3">
-                            <div className={`w-3 h-3 rounded-full ${
-                              idx === 0 ? 'bg-[#ed4245]' : idx === 1 ? 'bg-[#5865f2]' : 'bg-[#99aab5]'
-                            }`} />
+                            <div
+                              className={`w-3 h-3 rounded-full ${
+                                idx === 0
+                                  ? "bg-[#ed4245]"
+                                  : idx === 1
+                                  ? "bg-[#5865f2]"
+                                  : "bg-[#99aab5]"
+                              }`}
+                            />
                             <div>
                               <div className="text-white font-medium flex items-center gap-2">
                                 {role}
-                                {idx === 0 && <Crown size={14} className="text-[#f0b232]" />}
+                                {idx === 0 && (
+                                  <Crown size={14} className="text-[#f0b232]" />
+                                )}
                               </div>
                               <div className="text-[#b5bac1] text-sm">
-                                {idx === 0 ? 'Full access' : idx === 1 ? 'Can manage channels' : 'Default permissions'}
+                                {idx === 0
+                                  ? "Full access"
+                                  : idx === 1
+                                  ? "Can manage channels"
+                                  : "Default permissions"}
                               </div>
                             </div>
                           </div>
-                          <Button variant="ghost" className="text-[#b5bac1] hover:text-white hover:bg-[#35363c] h-8 px-3">
+                          <Button
+                            variant="ghost"
+                            className="text-[#b5bac1] hover:text-white hover:bg-[#35363c] h-8 px-3"
+                          >
                             Edit
                           </Button>
                         </div>
@@ -240,11 +295,16 @@ export function ServerSettingsModal({ isOpen, onClose }: ServerSettingsModalProp
                 </ScrollArea>
               </TabsContent>
 
-              <TabsContent value="members" className="flex-1 m-0 data-[state=active]:flex flex-col">
+              <TabsContent
+                value="members"
+                className="flex-1 m-0 data-[state=active]:flex flex-col"
+              >
                 <ScrollArea className="flex-1 px-6 py-5">
                   <div className="max-w-[600px] space-y-4">
                     <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-white text-lg font-semibold">Members (24)</h3>
+                      <h3 className="text-white text-lg font-semibold">
+                        Members (24)
+                      </h3>
                       <Input
                         placeholder="Search members..."
                         className="bg-[#1e1f22] border-none text-white h-9 w-64"
@@ -253,29 +313,65 @@ export function ServerSettingsModal({ isOpen, onClose }: ServerSettingsModalProp
 
                     <div className="space-y-2">
                       {[
-                        { name: 'John Doe', role: 'Admin', status: 'online', avatar: 'JD' },
-                        { name: 'Sarah Chen', role: 'Moderator', status: 'online', avatar: 'SC' },
-                        { name: 'Mike Johnson', role: 'Member', status: 'idle', avatar: 'MJ' },
-                        { name: 'Alex Kim', role: 'Member', status: 'dnd', avatar: 'AK' },
+                        {
+                          name: "John Doe",
+                          role: "Admin",
+                          status: "online",
+                          avatar: "JD",
+                        },
+                        {
+                          name: "Sarah Chen",
+                          role: "Moderator",
+                          status: "online",
+                          avatar: "SC",
+                        },
+                        {
+                          name: "Mike Johnson",
+                          role: "Member",
+                          status: "idle",
+                          avatar: "MJ",
+                        },
+                        {
+                          name: "Alex Kim",
+                          role: "Member",
+                          status: "dnd",
+                          avatar: "AK",
+                        },
                       ].map((member) => (
-                        <div key={member.name} className="flex items-center justify-between p-3 bg-[#2b2d31] rounded-lg border border-[#1e1f22] hover:border-[#404249] transition-colors">
+                        <div
+                          key={member.name}
+                          className="flex items-center justify-between p-3 bg-[#2b2d31] rounded-lg border border-[#1e1f22] hover:border-[#404249] transition-colors"
+                        >
                           <div className="flex items-center gap-3">
                             <div className="relative">
                               <Avatar className="h-10 w-10">
-                                <AvatarFallback className="text-sm bg-[#5865f2]">{member.avatar}</AvatarFallback>
+                                <AvatarFallback className="text-sm bg-[#5865f2]">
+                                  {member.avatar}
+                                </AvatarFallback>
                               </Avatar>
-                              <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#2b2d31] ${
-                                member.status === 'online' ? 'bg-[#3ba55d]' : 
-                                member.status === 'idle' ? 'bg-[#f0b232]' : 
-                                'bg-[#ed4245]'
-                              }`} />
+                              <div
+                                className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#2b2d31] ${
+                                  member.status === "online"
+                                    ? "bg-[#3ba55d]"
+                                    : member.status === "idle"
+                                    ? "bg-[#f0b232]"
+                                    : "bg-[#ed4245]"
+                                }`}
+                              />
                             </div>
                             <div>
-                              <div className="text-white font-medium">{member.name}</div>
-                              <div className="text-[#b5bac1] text-sm">{member.role}</div>
+                              <div className="text-white font-medium">
+                                {member.name}
+                              </div>
+                              <div className="text-[#b5bac1] text-sm">
+                                {member.role}
+                              </div>
                             </div>
                           </div>
-                          <Button variant="ghost" className="text-[#b5bac1] hover:text-white hover:bg-[#35363c] h-8 px-3">
+                          <Button
+                            variant="ghost"
+                            className="text-[#b5bac1] hover:text-white hover:bg-[#35363c] h-8 px-3"
+                          >
                             Manage
                           </Button>
                         </div>
@@ -285,68 +381,120 @@ export function ServerSettingsModal({ isOpen, onClose }: ServerSettingsModalProp
                 </ScrollArea>
               </TabsContent>
 
-              <TabsContent value="notifications" className="flex-1 m-0 data-[state=active]:flex flex-col">
+              <TabsContent
+                value="notifications"
+                className="flex-1 m-0 data-[state=active]:flex flex-col"
+              >
                 <ScrollArea className="flex-1 px-6 py-5">
                   <div className="max-w-[600px] space-y-6">
-                    <h3 className="text-white text-lg font-semibold">Notification Settings</h3>
+                    <h3 className="text-white text-lg font-semibold">
+                      Notification Settings
+                    </h3>
 
                     <div className="space-y-4">
                       <div className="flex items-start justify-between p-4 bg-[#2b2d31] rounded-lg border border-[#1e1f22]">
                         <div className="flex-1">
-                          <div className="text-white font-medium mb-1">All Messages</div>
-                          <div className="text-[#b5bac1] text-sm">Get notified for every new message</div>
+                          <div className="text-white font-medium mb-1">
+                            All Messages
+                          </div>
+                          <div className="text-[#b5bac1] text-sm">
+                            Get notified for every new message
+                          </div>
                         </div>
-                        <Switch checked={notifyAllMessages} onCheckedChange={setNotifyAllMessages} />
+                        <Switch
+                          checked={notifyAllMessages}
+                          onCheckedChange={setNotifyAllMessages}
+                        />
                       </div>
 
                       <div className="flex items-start justify-between p-4 bg-[#2b2d31] rounded-lg border border-[#1e1f22]">
                         <div className="flex-1">
-                          <div className="text-white font-medium mb-1">Mentions Only</div>
-                          <div className="text-[#b5bac1] text-sm">Only get notified when someone mentions you</div>
+                          <div className="text-white font-medium mb-1">
+                            Mentions Only
+                          </div>
+                          <div className="text-[#b5bac1] text-sm">
+                            Only get notified when someone mentions you
+                          </div>
                         </div>
-                        <Switch checked={notifyMentions} onCheckedChange={setNotifyMentions} />
+                        <Switch
+                          checked={notifyMentions}
+                          onCheckedChange={setNotifyMentions}
+                        />
                       </div>
 
                       <div className="flex items-start justify-between p-4 bg-[#2b2d31] rounded-lg border border-[#1e1f22]">
                         <div className="flex-1">
-                          <div className="text-white font-medium mb-1">Mobile Push Notifications</div>
-                          <div className="text-[#b5bac1] text-sm">Receive push notifications on mobile devices</div>
+                          <div className="text-white font-medium mb-1">
+                            Mobile Push Notifications
+                          </div>
+                          <div className="text-[#b5bac1] text-sm">
+                            Receive push notifications on mobile devices
+                          </div>
                         </div>
-                        <Switch checked={mobilePushEnabled} onCheckedChange={setMobilePushEnabled} />
+                        <Switch
+                          checked={mobilePushEnabled}
+                          onCheckedChange={setMobilePushEnabled}
+                        />
                       </div>
                     </div>
                   </div>
                 </ScrollArea>
               </TabsContent>
 
-              <TabsContent value="privacy" className="flex-1 m-0 data-[state=active]:flex flex-col">
+              <TabsContent
+                value="privacy"
+                className="flex-1 m-0 data-[state=active]:flex flex-col"
+              >
                 <ScrollArea className="flex-1 px-6 py-5">
                   <div className="max-w-[600px] space-y-6">
-                    <h3 className="text-white text-lg font-semibold">Privacy & Safety</h3>
+                    <h3 className="text-white text-lg font-semibold">
+                      Privacy & Safety
+                    </h3>
 
                     <div className="space-y-4">
                       <div className="flex items-start justify-between p-4 bg-[#2b2d31] rounded-lg border border-[#1e1f22]">
                         <div className="flex-1">
-                          <div className="text-white font-medium mb-1">Allow Invites</div>
-                          <div className="text-[#b5bac1] text-sm">Let members invite new people to the server</div>
+                          <div className="text-white font-medium mb-1">
+                            Allow Invites
+                          </div>
+                          <div className="text-[#b5bac1] text-sm">
+                            Let members invite new people to the server
+                          </div>
                         </div>
-                        <Switch checked={allowInvites} onCheckedChange={setAllowInvites} />
+                        <Switch
+                          checked={allowInvites}
+                          onCheckedChange={setAllowInvites}
+                        />
                       </div>
 
                       <div className="flex items-start justify-between p-4 bg-[#2b2d31] rounded-lg border border-[#1e1f22]">
                         <div className="flex-1">
-                          <div className="text-white font-medium mb-1">Require Approval</div>
-                          <div className="text-[#b5bac1] text-sm">New members must be approved by admins</div>
+                          <div className="text-white font-medium mb-1">
+                            Require Approval
+                          </div>
+                          <div className="text-[#b5bac1] text-sm">
+                            New members must be approved by admins
+                          </div>
                         </div>
-                        <Switch checked={requireApproval} onCheckedChange={setRequireApproval} />
+                        <Switch
+                          checked={requireApproval}
+                          onCheckedChange={setRequireApproval}
+                        />
                       </div>
 
                       <div className="flex items-start justify-between p-4 bg-[#2b2d31] rounded-lg border border-[#1e1f22]">
                         <div className="flex-1">
-                          <div className="text-white font-medium mb-1">Show Online Members</div>
-                          <div className="text-[#b5bac1] text-sm">Display who's currently online in the sidebar</div>
+                          <div className="text-white font-medium mb-1">
+                            Show Online Members
+                          </div>
+                          <div className="text-[#b5bac1] text-sm">
+                            Display who's currently online in the sidebar
+                          </div>
                         </div>
-                        <Switch checked={showOnlineMembers} onCheckedChange={setShowOnlineMembers} />
+                        <Switch
+                          checked={showOnlineMembers}
+                          onCheckedChange={setShowOnlineMembers}
+                        />
                       </div>
                     </div>
                   </div>

@@ -1,16 +1,17 @@
-import { useState } from 'react';
-import { Plus, Edit2, Trash2, Check, X, Tag } from 'lucide-react';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Label } from './LabelBadge';
+"use client";
+
+import { Check, Edit2, Plus, Trash2, X } from "lucide-react";
+import { useState } from "react";
+import { Label } from "./LabelBadge";
+import { Button } from "./ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
-} from './ui/dialog';
+} from "./ui/dialog";
+import { Input } from "./ui/input";
 
 interface LabelManagerProps {
   labels: Label[];
@@ -22,16 +23,16 @@ interface LabelManagerProps {
 }
 
 const LABEL_COLORS = [
-  { name: 'Red', value: 'bg-red-500' },
-  { name: 'Orange', value: 'bg-orange-500' },
-  { name: 'Yellow', value: 'bg-yellow-500' },
-  { name: 'Green', value: 'bg-green-500' },
-  { name: 'Teal', value: 'bg-teal-500' },
-  { name: 'Blue', value: 'bg-blue-500' },
-  { name: 'Indigo', value: 'bg-indigo-500' },
-  { name: 'Purple', value: 'bg-purple-500' },
-  { name: 'Pink', value: 'bg-pink-500' },
-  { name: 'Gray', value: 'bg-gray-500' },
+  { name: "Red", value: "bg-red-500" },
+  { name: "Orange", value: "bg-orange-500" },
+  { name: "Yellow", value: "bg-yellow-500" },
+  { name: "Green", value: "bg-green-500" },
+  { name: "Teal", value: "bg-teal-500" },
+  { name: "Blue", value: "bg-blue-500" },
+  { name: "Indigo", value: "bg-indigo-500" },
+  { name: "Purple", value: "bg-purple-500" },
+  { name: "Pink", value: "bg-pink-500" },
+  { name: "Gray", value: "bg-gray-500" },
 ];
 
 export function LabelManager({
@@ -44,16 +45,16 @@ export function LabelManager({
 }: LabelManagerProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [newLabelName, setNewLabelName] = useState('');
-  const [newLabelColor, setNewLabelColor] = useState('bg-blue-500');
-  const [editLabelName, setEditLabelName] = useState('');
-  const [editLabelColor, setEditLabelColor] = useState('');
+  const [newLabelName, setNewLabelName] = useState("");
+  const [newLabelColor, setNewLabelColor] = useState("bg-blue-500");
+  const [editLabelName, setEditLabelName] = useState("");
+  const [editLabelColor, setEditLabelColor] = useState("");
 
   const handleCreate = () => {
     if (newLabelName.trim()) {
       onAddLabel(newLabelName.trim(), newLabelColor);
-      setNewLabelName('');
-      setNewLabelColor('bg-blue-500');
+      setNewLabelName("");
+      setNewLabelColor("bg-blue-500");
       setIsCreating(false);
     }
   };
@@ -62,8 +63,8 @@ export function LabelManager({
     if (editLabelName.trim()) {
       onEditLabel(labelId, editLabelName.trim(), editLabelColor);
       setEditingId(null);
-      setEditLabelName('');
-      setEditLabelColor('');
+      setEditLabelName("");
+      setEditLabelColor("");
     }
   };
 
@@ -75,8 +76,8 @@ export function LabelManager({
 
   const cancelEdit = () => {
     setEditingId(null);
-    setEditLabelName('');
-    setEditLabelColor('');
+    setEditLabelName("");
+    setEditLabelColor("");
   };
 
   return (
@@ -173,10 +174,10 @@ export function LabelManager({
                 className="flex-1"
                 autoFocus
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleCreate();
-                  if (e.key === 'Escape') {
+                  if (e.key === "Enter") handleCreate();
+                  if (e.key === "Escape") {
                     setIsCreating(false);
-                    setNewLabelName('');
+                    setNewLabelName("");
                   }
                 }}
               />
@@ -204,7 +205,7 @@ export function LabelManager({
                 variant="ghost"
                 onClick={() => {
                   setIsCreating(false);
-                  setNewLabelName('');
+                  setNewLabelName("");
                 }}
                 className="h-8 w-8 p-0"
               >

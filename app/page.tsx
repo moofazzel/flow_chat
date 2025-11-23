@@ -1,13 +1,15 @@
 "use client";
 
-import { storage, type BoardData } from "@/utils/storage";
-import { AnimatePresence } from "motion/react";
+import { getCurrentUser, User } from "@/utils/auth";
+import type { BoardData } from "@/utils/storage";
+import { storage } from "@/utils/storage";
+import { AnimatePresence } from "framer-motion";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { AuthPage } from "./components/AuthPage";
 import { BoardsContainer } from "./components/BoardsContainer";
-import type { NewTaskData } from "./components/CreateTaskModal";
 import { DirectMessageCenter } from "./components/DirectMessageCenter";
-import { EnhancedChatArea } from "./components/EnhancedChatArea";
+import { EnhancedChatArea, NewTaskData } from "./components/EnhancedChatArea";
 import { FloatingChat } from "./components/FloatingChat";
 import { KeyboardShortcuts } from "./components/KeyboardShortcuts";
 import type { Label } from "./components/LabelBadge";
@@ -100,24 +102,254 @@ export interface ChatMessage {
   channelId: string;
 }
 
+const STORAGE_KEYS = {
+  currentView: "Flow Chat_currentView",
+  selectedChannel: "Flow Chat_selectedChannel",
+  sidebarCollapsed: "Flow Chat_sidebarCollapsed",
+  messages: "Flow Chat_messages",
+};
+
+const isBrowser = typeof window !== "undefined";
+
+const readJSON = <T,>(key: string, fallback: T): T => {
+  if (!isBrowser) return fallback;
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const readString = (key: string, fallback: string) => {
+  if (!isBrowser) return fallback;
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ?? fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const DEFAULT_MESSAGES: ChatMessage[] = [
+  {
+    id: "m1",
+    author: "Sarah Chen",
+    avatar: "SC",
+    timestamp: "10:30 AM",
+    content:
+      "Hey team! Just created a new task for the authentication bug we discussed yesterday. @Mike Johnson can you take a look?",
+    isCurrentUser: false,
+    mentions: ["Mike Johnson"],
+    isPinned: true,
+    reactions: [
+      { emoji: "??", count: 3, users: ["You", "Mike", "Alex"] },
+      { emoji: "??", count: 2, users: ["Mike", "Alex"] },
+    ],
+    thread: {
+      id: "t1",
+      messageId: "m1",
+      count: 5,
+      lastReply: "2 hours ago",
+      participants: ["SC", "MJ", "AK"],
+    },
+    channelId: "general",
+  },
+  {
+    id: "m2",
+    author: "You",
+    avatar: "YO",
+    timestamp: "10:35 AM",
+    content: "I'll take a look at this. Should be a quick fix.",
+    isCurrentUser: true,
+    reactions: [{ emoji: "??", count: 1, users: ["Sarah"] }],
+    replyTo: {
+      id: "m1",
+      author: "Sarah Chen",
+      content:
+        "Hey team! Just created a new task for the authentication bug we discussed yesterday.",
+    },
+    channelId: "general",
+  },
+];
+
+// This app blends Discord-style chat with Trello-like task boards.
+const DEFAULT_TASKS: Task[] = [
+  {
+    id: "PROJ-123",
+    title: "Fix authentication redirect issue",
+    description: "Users are being redirected to the wrong page after login",
+    status: "column-1-2", // Mapped to "In Progress"
+    boardId: "board-1",
+    priority: "high",
+    assignee: "Mike Johnson",
+    reporter: "Sarah Chen",
+    labels: ["bug", "auth"],
+    createdAt: "2025-11-21",
+    dueDate: "2025-11-23",
+    comments: [
+      {
+        id: "1",
+        author: "Mike Johnson",
+        content: "I'll take a look at this",
+        timestamp: "10:35 AM",
+        avatar: "MJ",
+      },
+    ],
+    subtasks: [
+      { id: "s1", title: "Identify redirect issue", completed: true },
+      { id: "s2", title: "Fix redirect logic", completed: true },
+      { id: "s3", title: "Write tests", completed: false },
+    ],
+    attachments: [
+      { id: "a1", name: "screenshot.png", size: "1.2 MB", type: "image" },
+    ],
+  },
+  {
+    id: "PROJ-124",
+    title: "Dashboard redesign mockups",
+    description: "Create new mockups for the analytics dashboard",
+    status: "column-1-3", // Mapped to "Done"
+    boardId: "board-1",
+    priority: "medium",
+    assignee: "Alex Kim",
+    reporter: "Alex Kim",
+    labels: ["design", "frontend"],
+    createdAt: "2025-11-21",
+    dueDate: "2025-11-25",
+    comments: [],
+    subtasks: [
+      { id: "s1", title: "Wireframes", completed: true },
+      { id: "s2", title: "High-fidelity mockups", completed: true },
+      { id: "s3", title: "Review with team", completed: false },
+    ],
+    attachments: [
+      { id: "a1", name: "dashboard-v2.fig", size: "4.5 MB", type: "file" },
+      { id: "a2", name: "design-system.pdf", size: "2.1 MB", type: "file" },
+    ],
+  },
+  {
+    id: "PROJ-125",
+    title: "Implement dark mode toggle",
+    description: "Add a toggle switch for dark/light mode in settings",
+    status: "column-1-1", // Mapped to "To Do"
+    boardId: "board-1",
+    priority: "medium",
+    reporter: "Sarah Chen",
+    labels: ["feature", "frontend"],
+    createdAt: "2025-11-20",
+    dueDate: "2025-11-28",
+    comments: [],
+  },
+  {
+    id: "PROJ-126",
+    title: "API rate limiting",
+    description: "Implement rate limiting on all public API endpoints",
+    status: "column-1-1", // Mapped to "To Do"
+    boardId: "board-1",
+    priority: "high",
+    reporter: "Mike Johnson",
+    labels: ["backend", "security"],
+    createdAt: "2025-11-20",
+    dueDate: "2025-11-22",
+    comments: [],
+    subtasks: [
+      {
+        id: "s1",
+        title: "Research rate limiting libraries",
+        completed: false,
+      },
+      { id: "s2", title: "Implement middleware", completed: false },
+      { id: "s3", title: "Add monitoring", completed: false },
+    ],
+  },
+  {
+    id: "PROJ-127",
+    title: "User onboarding flow",
+    description: "Design and implement new user onboarding experience",
+    status: "column-1-1", // Mapped to "To Do"
+    boardId: "board-1",
+    priority: "low",
+    reporter: "Alex Kim",
+    labels: ["feature", "design"],
+    createdAt: "2025-11-19",
+    comments: [],
+  },
+  {
+    id: "PROJ-128",
+    title: "Database query optimization",
+    description: "Optimize slow queries in the analytics module",
+    status: "column-1-2", // Mapped to "In Progress"
+    boardId: "board-1",
+    priority: "urgent",
+    assignee: "Sarah Chen",
+    reporter: "Mike Johnson",
+    labels: ["backend", "performance"],
+    createdAt: "2025-11-21",
+    dueDate: "2025-11-21", // Today - overdue!
+    comments: [],
+    subtasks: [
+      { id: "s1", title: "Profile slow queries", completed: true },
+      { id: "s2", title: "Add indexes", completed: true },
+      { id: "s3", title: "Test performance", completed: false },
+      { id: "s4", title: "Deploy to staging", completed: false },
+    ],
+  },
+  {
+    id: "PROJ-129",
+    title: "Update documentation",
+    description: "Update API documentation with new endpoints",
+    status: "column-1-3", // Mapped to "Done"
+    boardId: "board-1",
+    priority: "low",
+    assignee: "Mike Johnson",
+    reporter: "Sarah Chen",
+    labels: ["docs"],
+    createdAt: "2025-11-18",
+    comments: [],
+  },
+];
+
+const loadInitialView = (): ViewType =>
+  (readString(STORAGE_KEYS.currentView, "chat") as ViewType) || "chat";
+
+const loadInitialChannel = () =>
+  readString(STORAGE_KEYS.selectedChannel, "general");
+
+const loadInitialSidebar = () =>
+  readString(STORAGE_KEYS.sidebarCollapsed, "false") === "true";
+
+const loadInitialBoards = () => {
+  if (!isBrowser) return [];
+  try {
+    return storage.boards.load() || [];
+  } catch {
+    return [];
+  }
+};
+
+const loadInitialTasks = () => {
+  if (!isBrowser) return DEFAULT_TASKS;
+  try {
+    const saved = storage.tasks.load();
+    return saved && saved.length > 0 ? saved : DEFAULT_TASKS;
+  } catch {
+    return DEFAULT_TASKS;
+  }
+};
+
+const loadInitialMessages = () =>
+  readJSON<ChatMessage[]>(STORAGE_KEYS.messages, DEFAULT_MESSAGES);
+
 export default function Home() {
-  const [currentView, setCurrentView] = useState<ViewType>(() => {
-    // Load saved view from localStorage
-    const saved = localStorage.getItem("chatapp_currentView");
-    return (saved as ViewType) || "chat";
-  });
+  const [user, setUser] = useState<User | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
 
-  const [selectedChannel, setSelectedChannel] = useState<string>(() => {
-    // Load saved channel from localStorage
-    return localStorage.getItem("chatapp_selectedChannel") || "general";
-  });
-
+  const [currentView, setCurrentView] = useState<ViewType>(loadInitialView);
+  const [selectedChannel, setSelectedChannel] =
+    useState<string>(loadInitialChannel);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    // Load saved sidebar state
-    const saved = localStorage.getItem("chatapp_sidebarCollapsed");
-    return saved === "true";
-  });
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(loadInitialSidebar);
 
   const [floatingChatOpen, setFloatingChatOpen] = useState(false);
   const [, setSelectedDM] = useState<{
@@ -127,280 +359,101 @@ export default function Home() {
     userStatus: "online" | "idle" | "dnd" | "offline";
   } | null>(null);
 
-  // 🆕 Boards and labels state (initialize from storage to avoid setState in mount effect)
-  const [boards, setBoards] = useState<BoardData[]>(() => {
-    try {
-      const saved = storage.boards.load();
-      return saved || [];
-    } catch {
-      return [];
+  useEffect(() => {
+    const initAuth = async () => {
+      const currentUser = await getCurrentUser();
+      setUser(currentUser);
+      setAuthChecked(true);
+    };
+    initAuth();
+  }, []);
+
+  const handleAuthSuccess = async () => {
+    const authedUser = await getCurrentUser();
+    setUser(authedUser);
+    setAuthChecked(true);
+    if (!authedUser) {
+      toast.error("Unable to load session after login. Please try again.");
     }
-  });
+  };
+
+  // Boards and labels state (initialize from storage to avoid setState in mount effect)
+  const [boards, setBoards] = useState<BoardData[]>(loadInitialBoards);
   const [showLabelManagerForTask, setShowLabelManagerForTask] = useState(false);
 
-  // 🆕 Auto-save boards whenever they change
+  // Auto-save boards whenever they change
   useEffect(() => {
-    if (boards.length > 0) {
-      storage.boards.save(boards);
-      console.log(`💾 Auto-saved ${boards.length} boards`);
-    }
-  }, [boards]);
+    if (!user || boards.length === 0) return;
+    storage.boards.save(boards);
+    console.log(`Auto-saved ${boards.length} boards`);
+  }, [boards, user]);
 
-  // 🆕 Initialize storage on mount
+  // Initialize storage after authentication
   useEffect(() => {
+    if (!user) return;
     storage.initialize();
-    console.log("✅ Storage initialized");
-
-    // Log storage stats
     const stats = storage.getStats();
-    console.log("📊 Storage Stats:", stats);
-  }, []);
+    console.log("Storage Stats:", stats);
+  }, [user]);
 
   // Show welcome back message if returning to saved state
   useEffect(() => {
+    if (!user) return;
     const hasReturnedState =
-      localStorage.getItem("chatapp_currentView") ||
-      localStorage.getItem("chatapp_activeBoard") ||
-      localStorage.getItem("chatapp_pageScrollLeft") ||
-      localStorage.getItem("chatapp_boardScrollLeft") ||
-      storage.session.hasStored(); // 🆕 Check new storage system
+      localStorage.getItem(STORAGE_KEYS.currentView) ||
+      localStorage.getItem("Flow Chat_activeBoard") ||
+      localStorage.getItem("Flow Chat_pageScrollLeft") ||
+      localStorage.getItem("Flow Chat_boardScrollLeft") ||
+      storage.session.hasStored();
 
     if (hasReturnedState) {
-      // Small delay to ensure app is fully loaded
       setTimeout(() => {
-        toast("👋 Welcome Back!", {
+        toast("Welcome Back!", {
           description: "Restored your last session",
           duration: 2500,
         });
       }, 500);
     }
-  }, []); // Only run once on mount
+  }, [user]);
 
   // Save view state to localStorage whenever it changes
   useEffect(() => {
-    localStorage.setItem("chatapp_currentView", currentView);
-  }, [currentView]);
+    if (!user) return;
+    localStorage.setItem(STORAGE_KEYS.currentView, currentView);
+  }, [currentView, user]);
 
   // Save channel state to localStorage whenever it changes
   useEffect(() => {
-    localStorage.setItem("chatapp_selectedChannel", selectedChannel);
-  }, [selectedChannel]);
+    if (!user) return;
+    localStorage.setItem(STORAGE_KEYS.selectedChannel, selectedChannel);
+  }, [selectedChannel, user]);
 
   // Save sidebar state to localStorage whenever it changes
   useEffect(() => {
-    localStorage.setItem("chatapp_sidebarCollapsed", String(sidebarCollapsed));
-  }, [sidebarCollapsed]);
+    if (!user) return;
+    localStorage.setItem(
+      STORAGE_KEYS.sidebarCollapsed,
+      String(sidebarCollapsed)
+    );
+  }, [sidebarCollapsed, user]);
 
-  // Global task state - starts with mock data, load from storage if available
-  const defaultTasks: Task[] = [
-    {
-      id: "PROJ-123",
-      title: "Fix authentication redirect issue",
-      description: "Users are being redirected to the wrong page after login",
-      status: "column-1-2", // Mapped to "In Progress"
-      boardId: "board-1",
-      priority: "high",
-      assignee: "Mike Johnson",
-      reporter: "Sarah Chen",
-      labels: ["bug", "auth"],
-      createdAt: "2025-11-21",
-      dueDate: "2025-11-23",
-      comments: [
-        {
-          id: "1",
-          author: "Mike Johnson",
-          content: "I'll take a look at this",
-          timestamp: "10:35 AM",
-          avatar: "MJ",
-        },
-      ],
-      subtasks: [
-        { id: "s1", title: "Identify redirect issue", completed: true },
-        { id: "s2", title: "Fix redirect logic", completed: true },
-        { id: "s3", title: "Write tests", completed: false },
-      ],
-      attachments: [
-        { id: "a1", name: "screenshot.png", size: "1.2 MB", type: "image" },
-      ],
-    },
-    {
-      id: "PROJ-124",
-      title: "Dashboard redesign mockups",
-      description: "Create new mockups for the analytics dashboard",
-      status: "column-1-3", // Mapped to "Done"
-      boardId: "board-1",
-      priority: "medium",
-      assignee: "Alex Kim",
-      reporter: "Alex Kim",
-      labels: ["design", "frontend"],
-      createdAt: "2025-11-21",
-      dueDate: "2025-11-25",
-      comments: [],
-      subtasks: [
-        { id: "s1", title: "Wireframes", completed: true },
-        { id: "s2", title: "High-fidelity mockups", completed: true },
-        { id: "s3", title: "Review with team", completed: false },
-      ],
-      attachments: [
-        { id: "a1", name: "dashboard-v2.fig", size: "4.5 MB", type: "file" },
-        { id: "a2", name: "design-system.pdf", size: "2.1 MB", type: "file" },
-      ],
-    },
-    {
-      id: "PROJ-125",
-      title: "Implement dark mode toggle",
-      description: "Add a toggle switch for dark/light mode in settings",
-      status: "column-1-1", // Mapped to "To Do"
-      boardId: "board-1",
-      priority: "medium",
-      reporter: "Sarah Chen",
-      labels: ["feature", "frontend"],
-      createdAt: "2025-11-20",
-      dueDate: "2025-11-28",
-      comments: [],
-    },
-    {
-      id: "PROJ-126",
-      title: "API rate limiting",
-      description: "Implement rate limiting on all public API endpoints",
-      status: "column-1-1", // Mapped to "To Do"
-      boardId: "board-1",
-      priority: "high",
-      reporter: "Mike Johnson",
-      labels: ["backend", "security"],
-      createdAt: "2025-11-20",
-      dueDate: "2025-11-22",
-      comments: [],
-      subtasks: [
-        {
-          id: "s1",
-          title: "Research rate limiting libraries",
-          completed: false,
-        },
-        { id: "s2", title: "Implement middleware", completed: false },
-        { id: "s3", title: "Add monitoring", completed: false },
-      ],
-    },
-    {
-      id: "PROJ-127",
-      title: "User onboarding flow",
-      description: "Design and implement new user onboarding experience",
-      status: "column-1-1", // Mapped to "To Do"
-      boardId: "board-1",
-      priority: "low",
-      reporter: "Alex Kim",
-      labels: ["feature", "design"],
-      createdAt: "2025-11-19",
-      comments: [],
-    },
-    {
-      id: "PROJ-128",
-      title: "Database query optimization",
-      description: "Optimize slow queries in the analytics module",
-      status: "column-1-2", // Mapped to "In Progress"
-      boardId: "board-1",
-      priority: "urgent",
-      assignee: "Sarah Chen",
-      reporter: "Mike Johnson",
-      labels: ["backend", "performance"],
-      createdAt: "2025-11-21",
-      dueDate: "2025-11-21", // Today - overdue!
-      comments: [],
-      subtasks: [
-        { id: "s1", title: "Profile slow queries", completed: true },
-        { id: "s2", title: "Add indexes", completed: true },
-        { id: "s3", title: "Test performance", completed: false },
-        { id: "s4", title: "Deploy to staging", completed: false },
-      ],
-    },
-    {
-      id: "PROJ-129",
-      title: "Update documentation",
-      description: "Update API documentation with new endpoints",
-      status: "column-1-3", // Mapped to "Done"
-      boardId: "board-1",
-      priority: "low",
-      assignee: "Mike Johnson",
-      reporter: "Sarah Chen",
-      labels: ["docs"],
-      createdAt: "2025-11-18",
-      comments: [],
-    },
-  ];
+  const [tasks, setTasks] = useState<Task[]>(loadInitialTasks);
 
-  const [tasks, setTasks] = useState<Task[]>(() => {
-    try {
-      const saved = storage.tasks.load();
-      return saved && saved.length > 0 ? saved : defaultTasks;
-    } catch {
-      return defaultTasks;
-    }
-  });
-
-  // 🆕 Auto-save tasks whenever they change
+  // Auto-save tasks whenever they change
   useEffect(() => {
-    // Skip first render (when loading from storage)
-    if (tasks.length > 0) {
-      storage.tasks.save(tasks);
-      console.log(`💾 Auto-saved ${tasks.length} tasks`);
-    }
-  }, [tasks]);
+    if (!user || tasks.length === 0) return;
+    storage.tasks.save(tasks);
+    console.log(`Auto-saved ${tasks.length} tasks`);
+  }, [tasks, user]);
 
   // Chat messages state
-  const [messages, setMessages] = useState<ChatMessage[]>(() => {
-    // Load messages from localStorage
-    const saved = localStorage.getItem("chatapp_messages");
-    if (saved) {
-      return JSON.parse(saved);
-    }
-    // Default messages
-    return [
-      {
-        id: "m1",
-        author: "Sarah Chen",
-        avatar: "SC",
-        timestamp: "10:30 AM",
-        content:
-          "Hey team! Just created a new task for the authentication bug we discussed yesterday. @Mike Johnson can you take a look?",
-        isCurrentUser: false,
-        mentions: ["Mike Johnson"],
-        isPinned: true,
-        reactions: [
-          { emoji: "👍", count: 3, users: ["You", "Mike", "Alex"] },
-          { emoji: "❤️", count: 2, users: ["Mike", "Alex"] },
-        ],
-        thread: {
-          id: "t1",
-          messageId: "m1",
-          count: 5,
-          lastReply: "2 hours ago",
-          participants: ["SC", "MJ", "AK"],
-        },
-        channelId: "general",
-      },
-      {
-        id: "m2",
-        author: "You",
-        avatar: "YO",
-        timestamp: "10:35 AM",
-        content: "I'll take a look at this. Should be a quick fix.",
-        isCurrentUser: true,
-        reactions: [{ emoji: "💪", count: 1, users: ["Sarah"] }],
-        replyTo: {
-          id: "m1",
-          author: "Sarah Chen",
-          content:
-            "Hey team! Just created a new task for the authentication bug we discussed yesterday.",
-        },
-        channelId: "general",
-      },
-    ];
-  });
+  const [messages, setMessages] = useState<ChatMessage[]>(loadInitialMessages);
 
   // Save messages to localStorage whenever they change
   useEffect(() => {
-    localStorage.setItem("chatapp_messages", JSON.stringify(messages));
-  }, [messages]);
+    if (!user) return;
+    localStorage.setItem(STORAGE_KEYS.messages, JSON.stringify(messages));
+  }, [messages, user]);
 
   // Handle sending a message
   const handleSendMessage = (content: string, taskId?: string) => {
@@ -471,12 +524,12 @@ export default function Home() {
     setTasks((prevTasks) => [...prevTasks, newTask]);
 
     // Show success notification
-    toast("✅ Task Created!", {
+    toast.success("Task created!", {
       description: `#${newTaskId}: ${taskData.title}`,
       duration: 3000,
     });
 
-    console.log("✅ Task created:", newTask);
+    console.log("Task created:", newTask);
 
     // Return the new task so chat can post about it
     return newTask;
@@ -648,6 +701,14 @@ export default function Home() {
     }
   };
 
+  if (!authChecked) {
+    return null;
+  }
+
+  if (!user) {
+    return <AuthPage onAuthSuccess={handleAuthSuccess} />;
+  }
+
   return (
     <div className="flex h-screen bg-[#313338]">
       <Sidebar
@@ -668,7 +729,6 @@ export default function Home() {
             onCreateTask={handleCreateTask}
             onSendMessage={handleSendMessage}
             tasks={tasks}
-            messages={messages.filter((m) => m.channelId === selectedChannel)}
           />
         ) : currentView === "dm" ? (
           <DirectMessageCenter />

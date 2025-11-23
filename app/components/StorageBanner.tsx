@@ -1,6 +1,8 @@
-import { Info, Database, HardDrive, X } from 'lucide-react';
-import { useState } from 'react';
-import { Button } from './ui/button';
+"use client";
+
+import { Database, HardDrive, Info, X } from "lucide-react";
+import { useState } from "react";
+import { Button } from "./ui/button";
 
 export function StorageBanner() {
   const [isVisible, setIsVisible] = useState(true);
@@ -21,7 +23,8 @@ export function StorageBanner() {
           <div className="flex items-center gap-2">
             <Database size={16} className="opacity-70" />
             <span className="opacity-90">
-              <strong>Chat:</strong> Last 50 messages cached • Full history coming with database
+              <strong>Chat:</strong> Last 50 messages cached • Full history
+              coming with database
             </span>
           </div>
         </div>

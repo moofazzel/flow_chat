@@ -1,11 +1,27 @@
-import { X, Paperclip, Link2, MoreHorizontal, User, Calendar, Tag } from 'lucide-react';
-import { Button } from './ui/button';
-import { Badge } from './ui/badge';
-import { Avatar, AvatarFallback } from './ui/avatar';
-import { ScrollArea } from './ui/scroll-area';
-import { Textarea } from './ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import type { Task } from '../App';
+"use client";
+
+import {
+  Calendar,
+  Link2,
+  MoreHorizontal,
+  Paperclip,
+  Tag,
+  User,
+  X,
+} from "lucide-react";
+import type { Task } from "../App";
+import { Avatar, AvatarFallback } from "./ui/avatar";
+import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
+import { ScrollArea } from "./ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
+import { Textarea } from "./ui/textarea";
 
 interface TaskDetailsProps {
   task: Task;
@@ -15,9 +31,9 @@ interface TaskDetailsProps {
 export function TaskDetails({ task, onClose }: TaskDetailsProps) {
   const getInitials = (name: string) => {
     return name
-      .split(' ')
+      .split(" ")
       .map((n) => n[0])
-      .join('')
+      .join("")
       .toUpperCase();
   };
 
@@ -53,7 +69,7 @@ export function TaskDetails({ task, onClose }: TaskDetailsProps) {
                 <User size={16} />
                 Assignee
               </label>
-              <Select defaultValue={task.assignee || 'unassigned'}>
+              <Select defaultValue={task.assignee || "unassigned"}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -83,7 +99,9 @@ export function TaskDetails({ task, onClose }: TaskDetailsProps) {
             </div>
 
             <div>
-              <label className="text-sm text-gray-600 mb-2 block">Priority</label>
+              <label className="text-sm text-gray-600 mb-2 block">
+                Priority
+              </label>
               <Select defaultValue={task.priority}>
                 <SelectTrigger>
                   <SelectValue />
@@ -126,7 +144,9 @@ export function TaskDetails({ task, onClose }: TaskDetailsProps) {
 
           {/* Description */}
           <div>
-            <label className="text-sm text-gray-600 mb-2 block">Description</label>
+            <label className="text-sm text-gray-600 mb-2 block">
+              Description
+            </label>
             <p className="text-gray-700 text-sm mb-3">{task.description}</p>
             <Button variant="outline" size="sm">
               Edit Description
@@ -160,8 +180,12 @@ export function TaskDetails({ task, onClose }: TaskDetailsProps) {
                   </Avatar>
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm text-gray-900">{comment.author}</span>
-                      <span className="text-xs text-gray-500">{comment.timestamp}</span>
+                      <span className="text-sm text-gray-900">
+                        {comment.author}
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        {comment.timestamp}
+                      </span>
                     </div>
                     <p className="text-sm text-gray-700">{comment.content}</p>
                   </div>

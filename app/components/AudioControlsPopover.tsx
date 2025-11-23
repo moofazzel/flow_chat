@@ -1,28 +1,57 @@
-import { useState } from 'react';
-import { Mic, MicOff, Headphones, VolumeX, Settings, Volume2 } from 'lucide-react';
-import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
-import { Button } from './ui/button';
-import { Slider } from './ui/slider';
-import { Separator } from './ui/separator';
+"use client";
+
+import {
+  Headphones,
+  Mic,
+  MicOff,
+  Settings,
+  Volume2,
+  VolumeX,
+} from "lucide-react";
+import { useState } from "react";
+import { Button } from "./ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
+import { Separator } from "./ui/separator";
+import { Slider } from "./ui/slider";
 
 interface AudioControlsPopoverProps {
-  type: 'mic' | 'headphones';
+  type: "mic" | "headphones";
   isMuted?: boolean;
   onToggle?: () => void;
 }
 
-export function AudioControlsPopover({ type, isMuted = false, onToggle }: AudioControlsPopoverProps) {
+export function AudioControlsPopover({
+  type,
+  isMuted = false,
+  onToggle,
+}: AudioControlsPopoverProps) {
   const [volume, setVolume] = useState([80]);
   const [inputVolume, setInputVolume] = useState([75]);
-  const [selectedDevice, setSelectedDevice] = useState('default');
-  
-  const isMicControl = type === 'mic';
-  const Icon = isMicControl ? (isMuted ? MicOff : Mic) : (isMuted ? VolumeX : Headphones);
-  const title = isMicControl ? 'Microphone Settings' : 'Audio Output Settings';
+  const [selectedDevice, setSelectedDevice] = useState("default");
 
-  const devices = isMicControl 
-    ? ['Default - MacBook Pro Microphone', 'AirPods Pro', 'External USB Microphone', 'Logitech Webcam']
-    : ['Default - MacBook Pro Speakers', 'AirPods Pro', 'External Speakers', 'HDMI Audio'];
+  const isMicControl = type === "mic";
+  const Icon = isMicControl
+    ? isMuted
+      ? MicOff
+      : Mic
+    : isMuted
+    ? VolumeX
+    : Headphones;
+  const title = isMicControl ? "Microphone Settings" : "Audio Output Settings";
+
+  const devices = isMicControl
+    ? [
+        "Default - MacBook Pro Microphone",
+        "AirPods Pro",
+        "External USB Microphone",
+        "Logitech Webcam",
+      ]
+    : [
+        "Default - MacBook Pro Speakers",
+        "AirPods Pro",
+        "External Speakers",
+        "HDMI Audio",
+      ];
 
   return (
     <Popover>
@@ -31,13 +60,13 @@ export function AudioControlsPopover({ type, isMuted = false, onToggle }: AudioC
           variant="ghost"
           size="sm"
           className="h-8 w-8 p-0 text-gray-400 hover:text-white hover:bg-[#35363c]"
-          title={isMicControl ? 'Voice Settings' : 'Audio Settings'}
+          title={isMicControl ? "Voice Settings" : "Audio Settings"}
         >
           <Icon size={18} />
         </Button>
       </PopoverTrigger>
-      <PopoverContent 
-        className="w-[340px] bg-[#2b2d31] border-[#1e1f22] text-white p-0" 
+      <PopoverContent
+        className="w-[340px] bg-[#2b2d31] border-[#1e1f22] text-white p-0"
         align="start"
         side="top"
         sideOffset={8}
@@ -59,15 +88,17 @@ export function AudioControlsPopover({ type, isMuted = false, onToggle }: AudioC
           {/* Device Selection */}
           <div className="space-y-2 mb-4">
             <label className="text-xs text-gray-400 uppercase tracking-wider font-semibold">
-              {isMicControl ? 'Input Device' : 'Output Device'}
+              {isMicControl ? "Input Device" : "Output Device"}
             </label>
-            <select 
+            <select
               value={selectedDevice}
               onChange={(e) => setSelectedDevice(e.target.value)}
               className="w-full bg-[#1e1f22] border-none rounded p-2 text-white text-sm focus:ring-2 focus:ring-[#5865f2] outline-none"
             >
               {devices.map((device, idx) => (
-                <option key={idx} value={device}>{device}</option>
+                <option key={idx} value={device}>
+                  {device}
+                </option>
               ))}
             </select>
           </div>
@@ -97,12 +128,14 @@ export function AudioControlsPopover({ type, isMuted = false, onToggle }: AudioC
               <div className="bg-[#1e1f22] rounded p-3">
                 <div className="text-sm text-white mb-2">Mic Test</div>
                 <div className="h-2 bg-[#313338] rounded-full overflow-hidden">
-                  <div 
+                  <div
                     className="h-full bg-[#3ba55d] transition-all duration-100"
                     style={{ width: `${Math.random() * 70 + 20}%` }}
                   />
                 </div>
-                <div className="text-xs text-gray-400 mt-1">Speak to test your microphone</div>
+                <div className="text-xs text-gray-400 mt-1">
+                  Speak to test your microphone
+                </div>
               </div>
 
               {/* Quick Actions */}
@@ -112,11 +145,11 @@ export function AudioControlsPopover({ type, isMuted = false, onToggle }: AudioC
                   size="sm"
                   onClick={onToggle}
                   className={`w-full justify-start gap-2 ${
-                    isMuted ? 'text-red-400 hover:text-red-300' : 'text-white'
+                    isMuted ? "text-red-400 hover:text-red-300" : "text-white"
                   }`}
                 >
                   {isMuted ? <MicOff size={16} /> : <Mic size={16} />}
-                  {isMuted ? 'Unmute Microphone' : 'Mute Microphone'}
+                  {isMuted ? "Unmute Microphone" : "Mute Microphone"}
                 </Button>
               </div>
             </div>
@@ -155,11 +188,11 @@ export function AudioControlsPopover({ type, isMuted = false, onToggle }: AudioC
                   size="sm"
                   onClick={onToggle}
                   className={`w-full justify-start gap-2 ${
-                    isMuted ? 'text-red-400 hover:text-red-300' : 'text-white'
+                    isMuted ? "text-red-400 hover:text-red-300" : "text-white"
                   }`}
                 >
                   {isMuted ? <VolumeX size={16} /> : <Headphones size={16} />}
-                  {isMuted ? 'Undeafen' : 'Deafen'}
+                  {isMuted ? "Undeafen" : "Deafen"}
                 </Button>
               </div>
             </div>
@@ -172,12 +205,17 @@ export function AudioControlsPopover({ type, isMuted = false, onToggle }: AudioC
             {isMicControl ? (
               <div className="flex items-start gap-2">
                 <Mic size={12} className="mt-0.5 flex-shrink-0" />
-                <span>Your microphone input is being processed. Use push-to-talk for better control.</span>
+                <span>
+                  Your microphone input is being processed. Use push-to-talk for
+                  better control.
+                </span>
               </div>
             ) : (
               <div className="flex items-start gap-2">
                 <Headphones size={12} className="mt-0.5 flex-shrink-0" />
-                <span>Adjust output volume or deafen to mute all incoming audio.</span>
+                <span>
+                  Adjust output volume or deafen to mute all incoming audio.
+                </span>
               </div>
             )}
           </div>

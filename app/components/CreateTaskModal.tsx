@@ -1,4 +1,7 @@
+"use client";
+
 import { AlertCircle, Calendar, MessageSquare, Tag, User } from "lucide-react";
+
 import { useState } from "react";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Badge } from "./ui/badge";

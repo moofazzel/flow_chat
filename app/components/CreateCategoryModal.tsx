@@ -1,10 +1,19 @@
-import { useState } from 'react';
-import { Folder, Lock } from 'lucide-react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
-import { Input } from './ui/input';
-import { Button } from './ui/button';
-import { Label } from './ui/label';
-import { Switch } from './ui/switch';
+"use client";
+
+import { Folder, Lock } from "lucide-react";
+import { useState } from "react";
+import { Button } from "./ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import { Switch } from "./ui/switch";
 
 interface CreateCategoryModalProps {
   isOpen: boolean;
@@ -12,8 +21,12 @@ interface CreateCategoryModalProps {
   onCreate: (categoryData: { name: string; isPrivate: boolean }) => void;
 }
 
-export function CreateCategoryModal({ isOpen, onClose, onCreate }: CreateCategoryModalProps) {
-  const [categoryName, setCategoryName] = useState('');
+export function CreateCategoryModal({
+  isOpen,
+  onClose,
+  onCreate,
+}: CreateCategoryModalProps) {
+  const [categoryName, setCategoryName] = useState("");
   const [isPrivate, setIsPrivate] = useState(false);
 
   const handleCreate = () => {
@@ -23,14 +36,14 @@ export function CreateCategoryModal({ isOpen, onClose, onCreate }: CreateCategor
         isPrivate: isPrivate,
       });
       // Reset form
-      setCategoryName('');
+      setCategoryName("");
       setIsPrivate(false);
       onClose();
     }
   };
 
   const handleClose = () => {
-    setCategoryName('');
+    setCategoryName("");
     setIsPrivate(false);
     onClose();
   };
@@ -51,7 +64,10 @@ export function CreateCategoryModal({ isOpen, onClose, onCreate }: CreateCategor
         <div className="px-6 py-5 space-y-5">
           {/* Category Name */}
           <div className="space-y-2">
-            <Label htmlFor="category-name" className="text-[#b5bac1] text-xs uppercase tracking-wider font-semibold">
+            <Label
+              htmlFor="category-name"
+              className="text-[#b5bac1] text-xs uppercase tracking-wider font-semibold"
+            >
               Category Name
             </Label>
             <div className="relative">
@@ -64,7 +80,7 @@ export function CreateCategoryModal({ isOpen, onClose, onCreate }: CreateCategor
                 autoFocus
                 maxLength={32}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
+                  if (e.key === "Enter") {
                     handleCreate();
                   }
                 }}
@@ -82,10 +98,13 @@ export function CreateCategoryModal({ isOpen, onClose, onCreate }: CreateCategor
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
                 <Lock size={18} className="text-[#b5bac1]" />
-                <span className="text-white font-semibold">Private Category</span>
+                <span className="text-white font-semibold">
+                  Private Category
+                </span>
               </div>
               <p className="text-[13px] text-[#b5bac1] leading-relaxed">
-                By making a category private, only selected members and roles will be able to view this category and its channels
+                By making a category private, only selected members and roles
+                will be able to view this category and its channels
               </p>
             </div>
             <Switch
@@ -98,7 +117,8 @@ export function CreateCategoryModal({ isOpen, onClose, onCreate }: CreateCategor
           {/* Info Box */}
           <div className="p-3 bg-[#5865f2]/10 border-l-4 border-[#5865f2] rounded">
             <p className="text-[#b5bac1] text-sm leading-relaxed">
-              💡 You can drag and drop channels into this category after creating it
+              💡 You can drag and drop channels into this category after
+              creating it
             </p>
           </div>
         </div>

@@ -1,10 +1,9 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { LoginForm } from './LoginForm';
-import { RegisterForm } from './RegisterForm';
-import { login } from '../utils/auth';
+import { AnimatePresence, motion } from "motion/react";
+import { useState } from "react";
+import { LoginForm } from "./LoginForm";
+import { RegisterForm } from "./RegisterForm";
 
 interface AuthPageProps {
   onAuthSuccess: () => void;
@@ -26,7 +25,7 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
           transition={{
             duration: 20,
             repeat: Infinity,
-            ease: 'linear',
+            ease: "linear",
           }}
           className="absolute -top-1/2 -left-1/2 w-full h-full bg-gradient-to-br from-[#5865f2]/20 to-transparent rounded-full blur-3xl"
         />
@@ -39,7 +38,7 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
           transition={{
             duration: 15,
             repeat: Infinity,
-            ease: 'linear',
+            ease: "linear",
           }}
           className="absolute -bottom-1/2 -right-1/2 w-full h-full bg-gradient-to-tl from-[#5865f2]/20 to-transparent rounded-full blur-3xl"
         />
@@ -57,7 +56,7 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
           <motion.div
             initial={{ scale: 0.8 }}
             animate={{ scale: 1 }}
-            transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
+            transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
             className="mb-8"
           >
             <div className="w-24 h-24 bg-[#5865f2] rounded-2xl flex items-center justify-center text-white text-5xl shadow-2xl">
@@ -72,7 +71,7 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
             className="text-white text-5xl mb-4"
           >
             Welcome to <br />
-            <span className="text-[#5865f2]">Chatapp</span>
+            <span className="text-[#5865f2]">Flow Chat</span>
           </motion.h1>
 
           <motion.p
@@ -81,7 +80,8 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
             transition={{ delay: 0.4 }}
             className="text-[#b5bac1] text-lg mb-8"
           >
-            The all-in-one collaboration platform combining Discord-style chat with powerful Kanban task management.
+            The all-in-one collaboration platform combining Discord-style chat
+            with powerful Kanban task management.
           </motion.p>
 
           <motion.div
@@ -96,7 +96,9 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
               </div>
               <div>
                 <h3 className="text-white">Real-time Chat</h3>
-                <p className="text-[#b5bac1] text-sm">Discord-style messaging with mentions & reactions</p>
+                <p className="text-[#b5bac1] text-sm">
+                  Discord-style messaging with mentions & reactions
+                </p>
               </div>
             </div>
 
@@ -106,27 +108,9 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
               </div>
               <div>
                 <h3 className="text-white">Kanban Boards</h3>
-                <p className="text-[#b5bac1] text-sm">Drag & drop task management</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-[#5865f2]/20 rounded-lg flex items-center justify-center text-xl">
-                🎨
-              </div>
-              <div>
-                <h3 className="text-white">Beautiful UI</h3>
-                <p className="text-[#b5bac1] text-sm">iOS-style animations & smooth UX</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-[#5865f2]/20 rounded-lg flex items-center justify-center text-xl">
-                💾
-              </div>
-              <div>
-                <h3 className="text-white">Auto-Save</h3>
-                <p className="text-[#b5bac1] text-sm">Everything persists automatically</p>
+                <p className="text-[#b5bac1] text-sm">
+                  Drag & drop task management
+                </p>
               </div>
             </div>
           </motion.div>
@@ -138,18 +122,12 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
             {isLogin ? (
               <LoginForm
                 key="login"
-                onSuccess={() => {
-                  const result = login('', '');
-                  if (result.success) {
-                    onAuthSuccess();
-                  }
-                }}
+                onSuccess={onAuthSuccess}
                 onSwitchToRegister={() => setIsLogin(false)}
               />
             ) : (
               <RegisterForm
                 key="register"
-                onSuccess={onAuthSuccess}
                 onSwitchToLogin={() => setIsLogin(true)}
               />
             )}
@@ -163,11 +141,7 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
         animate={{ opacity: 1 }}
         transition={{ delay: 0.8 }}
         className="absolute bottom-4 left-1/2 -translate-x-1/2 text-center"
-      >
-        <p className="text-[#b5bac1] text-sm">
-          Built with Next.js 15 • React 18 • TypeScript • Tailwind CSS
-        </p>
-      </motion.div>
+      ></motion.div>
     </div>
   );
 }

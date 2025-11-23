@@ -1,35 +1,37 @@
-import { memo, useState } from 'react';
-import { Settings, Mic, Headphones, MicOff, VolumeX } from 'lucide-react';
-import { Avatar, AvatarFallback } from './ui/avatar';
-import { Button } from './ui/button';
-import { UserSettingsModal } from './UserSettingsModal';
-import { AudioControlsPopover } from './AudioControlsPopover';
+"use client";
+
+import { Settings } from "lucide-react";
+import { memo, useState } from "react";
+import { AudioControlsPopover } from "./AudioControlsPopover";
+import { Avatar, AvatarFallback } from "./ui/avatar";
+import { Button } from "./ui/button";
+import { UserSettingsModal } from "./UserSettingsModal";
 
 interface UserProfileProps {
   userName?: string;
   userAvatar?: string;
-  userStatus?: 'online' | 'idle' | 'dnd' | 'offline';
+  userStatus?: "online" | "idle" | "dnd" | "offline";
   customStatus?: string;
 }
 
-const getStatusColor = (status: UserProfileProps['userStatus']) => {
+const getStatusColor = (status: UserProfileProps["userStatus"]) => {
   switch (status) {
-    case 'online':
-      return 'bg-green-500';
-    case 'idle':
-      return 'bg-yellow-500';
-    case 'dnd':
-      return 'bg-red-500';
+    case "online":
+      return "bg-green-500";
+    case "idle":
+      return "bg-yellow-500";
+    case "dnd":
+      return "bg-red-500";
     default:
-      return 'bg-gray-500';
+      return "bg-gray-500";
   }
 };
 
-export const UserProfile = memo(function UserProfile({ 
-  userName = 'John Doe', 
-  userAvatar = 'JD',
-  userStatus = 'online',
-  customStatus
+export const UserProfile = memo(function UserProfile({
+  userName = "John Doe",
+  userAvatar = "JD",
+  userStatus = "online",
+  customStatus,
 }: UserProfileProps) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isMicMuted, setIsMicMuted] = useState(false);
@@ -44,7 +46,11 @@ export const UserProfile = memo(function UserProfile({
               {userAvatar}
             </AvatarFallback>
           </Avatar>
-          <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#232428] ${getStatusColor(userStatus)}`} />
+          <div
+            className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#232428] ${getStatusColor(
+              userStatus
+            )}`}
+          />
         </div>
 
         <div className="flex-1 min-w-0">
@@ -55,13 +61,13 @@ export const UserProfile = memo(function UserProfile({
         </div>
 
         <div className="flex items-center gap-1">
-          <AudioControlsPopover 
-            type="mic" 
+          <AudioControlsPopover
+            type="mic"
             isMuted={isMicMuted}
             onToggle={() => setIsMicMuted(!isMicMuted)}
           />
-          <AudioControlsPopover 
-            type="headphones" 
+          <AudioControlsPopover
+            type="headphones"
             isMuted={isDeafened}
             onToggle={() => setIsDeafened(!isDeafened)}
           />

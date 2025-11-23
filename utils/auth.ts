@@ -132,8 +132,40 @@ export const register = async (
   }
 
   if (data.user) {
-    // The trigger in SQL will handle creating the public.users record
-    const mappedUser = await mapSupabaseUser(data.user);
+    // The trigger in SQL *should* handle creating the public.users record.
+    // However, we'll implement a robust fallback in case the trigger fails or is slow.
+
+    // 1. Wait a brief moment for the trigger to fire (race condition mitigation)
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    // 2. Check if the user exists
+    let mappedUser = await mapSupabaseUser(data.user);
+
+    // 3. If not found, manually insert the record
+    if (!mappedUser) {
+      console.warn(
+        "Trigger failed or too slow, manually inserting user profile..."
+      );
+
+      const { error: insertError } = await supabase.from("users").insert({
+        id: data.user.id,
+        email: email,
+        username: username,
+        full_name: fullName,
+        avatar_url: `https://ui-avatars.com/api/?name=${encodeURIComponent(
+          fullName
+        )}&background=random`,
+        status: "online",
+      });
+
+      if (insertError) {
+        console.error("Manual user insertion failed:", insertError);
+      } else {
+        // 4. Fetch again after manual insertion
+        mappedUser = await mapSupabaseUser(data.user);
+      }
+    }
+
     return { success: true, user: mappedUser || undefined };
   }
 
@@ -157,7 +189,27 @@ export const login = async (
   }
 
   if (data.user) {
-    const mappedUser = await mapSupabaseUser(data.user);
+    let mappedUser = await mapSupabaseUser(data.user);
+
+    // Fallback: If auth exists but profile doesn't (orphaned user), try to recover
+    if (!mappedUser && data.user.user_metadata?.username) {
+      console.warn("User profile missing on login, attempting recovery...");
+      const { username, full_name, avatar_url } = data.user.user_metadata;
+
+      const { error: insertError } = await supabase.from("users").insert({
+        id: data.user.id,
+        email: data.user.email,
+        username,
+        full_name,
+        avatar_url,
+        status: "online",
+      });
+
+      if (!insertError) {
+        mappedUser = await mapSupabaseUser(data.user);
+      }
+    }
+
     return { success: true, user: mappedUser || undefined };
   }
 

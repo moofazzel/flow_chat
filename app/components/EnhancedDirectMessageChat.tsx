@@ -1,16 +1,12 @@
 "use client";
 
+import type { ChatMessage as RealtimeChatMessage } from "@/hooks/use-dm-chat";
+import { useDmChat } from "@/hooks/use-dm-chat";
+import { getDmMessages, sendDmMessage } from "@/lib/friendService";
 import {
-  Check,
-  Download,
   Edit2,
-  File,
-  Image as ImageIcon,
-  Mic,
   MoreVertical,
-  Paperclip,
   Phone,
-  Pin,
   Reply,
   Search,
   Send,
@@ -20,16 +16,10 @@ import {
   Video,
   X,
 } from "lucide-react";
-import { AnimatePresence } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { chatService } from "@/lib/chatService";
-import { AddToGroupModal } from "./AddToGroupModal";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Button } from "./ui/button";
-import { ScrollArea } from "./ui/scroll-area";
-import { VoiceRecorder } from "./VoiceRecorder";
-
 interface DirectMessageChatProps {
   selectedDM: {
     userId: string;
@@ -47,7 +37,9 @@ interface Message {
   id: string;
   content: string;
   timestamp: string;
+  fullTimestamp: string;
   isCurrentUser: boolean;
+  senderName: string;
   isEdited?: boolean;
   replyTo?: {
     id: string;
@@ -57,7 +49,7 @@ interface Message {
   reactions?: { emoji: string; count: number; users: string[] }[];
 }
 
-const EMOJI_LIST = [":)", ":D", "<3", "👍", "🔥", "🎉", "🙌", "😎"];
+const EMOJI_LIST = ["👍", "❤️", "😂", "😮", "😢", "🙏", "🔥", "🎉"];
 
 export function EnhancedDirectMessageChat({
   selectedDM,
@@ -65,41 +57,156 @@ export function EnhancedDirectMessageChat({
   currentUserName = "You",
   onBack,
 }: DirectMessageChatProps) {
-  const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [hoveredMessage, setHoveredMessage] = useState<string | null>(null);
   const [editingMessage, setEditingMessage] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [showAddToGroupModal, setShowAddToGroupModal] = useState(false);
-  const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
+  const [showReactionPicker, setShowReactionPicker] = useState<string | null>(
+    null
+  );
+  const [isLoading, setIsLoading] = useState(false);
+  const [dbMessages, setDbMessages] = useState<Message[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
+  // Use the broadcast-based realtime chat hook
+  const {
+    messages: realtimeMessages,
+    sendMessage: broadcastMessage,
+    sendReaction,
+    editMessage,
+    deleteMessage,
+    isConnected,
+    clearMessages,
+    otherUserTyping,
+    handleTyping,
+  } = useDmChat({
+    threadId: selectedDM?.threadId || "",
+    currentUserId,
+    currentUserName,
+  });
+
+  // Convert ChatMessage to Message format
+  const convertToMessage = useCallback(
+    (msg: RealtimeChatMessage): Message => ({
+      id: msg.id,
+      content: msg.content,
+      timestamp: new Date(msg.createdAt).toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+      }),
+      fullTimestamp: msg.createdAt,
+      isCurrentUser: msg.senderId === currentUserId,
+      senderName: msg.senderName,
+      isEdited: msg.isEdited,
+      replyTo: msg.replyToId
+        ? { id: msg.replyToId, content: "", author: "" }
+        : undefined,
+      reactions: msg.reactions || [],
+    }),
+    [currentUserId]
+  );
+
+  // Merge database messages with realtime messages
+  const allMessages = useMemo(() => {
+    const realtimeConverted = realtimeMessages.map(convertToMessage);
+
+    // Use a Map to merge messages properly, keeping the latest version
+    const messageMap = new Map<string, Message>();
+
+    // First add DB messages
+    dbMessages.forEach((msg) => {
+      messageMap.set(msg.id, msg);
+    });
+
+    // Then merge/update with realtime messages (these have the latest reactions/edits)
+    realtimeConverted.forEach((msg) => {
+      const existing = messageMap.get(msg.id);
+      if (existing) {
+        // Merge: keep db message but update with realtime data (reactions, edits, etc)
+        messageMap.set(msg.id, {
+          ...existing,
+          content: msg.content,
+          isEdited: msg.isEdited,
+          reactions: msg.reactions,
+        });
+      } else {
+        // New message from realtime
+        messageMap.set(msg.id, msg);
+      }
+    });
+
+    // Convert back to array and sort
+    const merged = Array.from(messageMap.values());
+    return merged.sort((a, b) => {
+      return (
+        new Date(a.fullTimestamp).getTime() -
+        new Date(b.fullTimestamp).getTime()
+      );
+    });
+  }, [dbMessages, realtimeMessages, convertToMessage]);
+
+  // Auto-scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [allMessages]);
 
+  // Debug: Log hook functions availability
   useEffect(() => {
-    if (!selectedDM) {
-      setMessages([]);
+    console.log("Hook functions check:", {
+      sendReaction: typeof sendReaction,
+      editMessage: typeof editMessage,
+      deleteMessage: typeof deleteMessage,
+      isConnected,
+    });
+  }, [sendReaction, editMessage, deleteMessage, isConnected]);
+
+  // Load messages from database when thread changes
+  useEffect(() => {
+    if (!selectedDM?.threadId) {
+      setDbMessages([]);
+      clearMessages();
       return;
     }
-    chatService.listMessages("dm", selectedDM.threadId).then((list) => {
-      const mapped: Message[] = list.map((m) => ({
-        id: m.id,
-        content: m.content,
-        timestamp: new Date(m.createdAt).toLocaleTimeString("en-US", {
-          hour: "numeric",
-          minute: "2-digit",
-        }),
-        isCurrentUser: m.authorId === currentUserId,
-        isEdited: Boolean(m.editedAt),
-        replyTo: m.replyToId ? { id: m.replyToId, content: "", author: "" } : undefined,
-      }));
-      setMessages(mapped);
-    });
-  }, [selectedDM, currentUserId]);
+
+    const loadMessages = async () => {
+      setIsLoading(true);
+      try {
+        const dmMessages = await getDmMessages(selectedDM.threadId);
+        const mapped: Message[] = dmMessages.map((m) => ({
+          id: m.id,
+          content: m.content,
+          timestamp: new Date(m.created_at).toLocaleTimeString("en-US", {
+            hour: "numeric",
+            minute: "2-digit",
+          }),
+          fullTimestamp: m.created_at,
+          isCurrentUser: m.sender_id === currentUserId,
+          senderName:
+            m.sender_id === currentUserId
+              ? currentUserName
+              : selectedDM.userName,
+        }));
+        setDbMessages(mapped);
+        clearMessages();
+      } catch (error) {
+        console.error("Failed to load messages:", error);
+        toast.error("Failed to load messages");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadMessages();
+  }, [
+    selectedDM?.threadId,
+    currentUserId,
+    currentUserName,
+    selectedDM?.userName,
+    clearMessages,
+  ]);
 
   const getStatusColor = () => {
     if (!selectedDM) return "bg-gray-500";
@@ -115,314 +222,575 @@ export function EnhancedDirectMessageChat({
     }
   };
 
-  const handleSend = () => {
-    if (!selectedDM || !newMessage.trim()) return;
-    chatService
-      .sendMessage({
-        scope: "dm",
-        threadId: selectedDM.threadId,
-        authorId: currentUserId,
-        content: newMessage,
-        replyToId: replyingTo?.id,
-      })
-      .then((msg) => {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: msg.id,
-            content: msg.content,
-            timestamp: new Date(msg.createdAt).toLocaleTimeString("en-US", {
-              hour: "numeric",
-              minute: "2-digit",
-            }),
-            isCurrentUser: true,
-            replyTo: replyingTo
-              ? { id: replyingTo.id, content: replyingTo.content, author: replyingTo.isCurrentUser ? "You" : selectedDM.userName }
-              : undefined,
-          },
-        ]);
-        setNewMessage("");
-        setReplyingTo(null);
-        toast.success("Message sent!");
-      });
+  const handleSend = async () => {
+    if (!selectedDM || !newMessage.trim() || !isConnected) return;
+
+    const tempMessage = newMessage;
+    const tempReply = replyingTo;
+
+    setNewMessage("");
+    setReplyingTo(null);
+
+    try {
+      const broadcastedMsg = await broadcastMessage(tempMessage, tempReply?.id);
+
+      if (!broadcastedMsg) {
+        throw new Error("Failed to broadcast message");
+      }
+
+      // Save to database for persistence
+      const result = await sendDmMessage(
+        selectedDM.threadId,
+        currentUserId,
+        tempMessage,
+        tempReply?.id
+      );
+
+      if (!result.success) {
+        toast.error(result.error || "Failed to save message");
+      }
+    } catch (error) {
+      console.error("Failed to send message:", error);
+      toast.error("Failed to send message");
+      setNewMessage(tempMessage);
+      setReplyingTo(tempReply);
+    }
   };
 
-  const handleAddReaction = (messageId: string, emoji: string) => {
-    setMessages((prev) =>
-      prev.map((m) => {
-        if (m.id !== messageId) return m;
-        const reactions = m.reactions || [];
-        const existing = reactions.find((r) => r.emoji === emoji);
-        if (existing) {
-          const has = existing.users.includes("You");
-          const users = has ? existing.users.filter((u) => u !== "You") : [...existing.users, "You"];
-          const nextReactions = users.length
-            ? reactions.map((r) => (r.emoji === emoji ? { ...r, users, count: users.length } : r))
-            : reactions.filter((r) => r.emoji !== emoji);
-          return { ...m, reactions: nextReactions };
-        }
-        return { ...m, reactions: [...reactions, { emoji, count: 1, users: ["You"] }] };
-      })
-    );
-    chatService.reactToMessage(messageId, emoji, currentUserId);
+  const handleAddReaction = async (messageId: string, emoji: string) => {
+    console.log("handleAddReaction called:", { messageId, emoji });
+    if (!sendReaction) {
+      console.error("sendReaction function is not available!");
+      return;
+    }
+    try {
+      await sendReaction(messageId, emoji);
+      console.log("Reaction sent successfully");
+      setShowReactionPicker(null);
+    } catch (error) {
+      console.error("Failed to send reaction:", error);
+      toast.error("Failed to add reaction");
+    }
   };
 
-  const handleDelete = (messageId: string) => {
-    setMessages((prev) => prev.filter((m) => m.id !== messageId));
-    chatService.deleteMessage(messageId, currentUserId);
+  const handleDelete = async (messageId: string) => {
+    if (!window.confirm("Delete this message?")) return;
+    console.log("handleDelete called:", messageId);
+    if (!deleteMessage) {
+      console.error("deleteMessage function is not available!");
+      return;
+    }
+    try {
+      await deleteMessage(messageId);
+      console.log("Message deleted successfully");
+    } catch (error) {
+      console.error("Failed to delete message:", error);
+      toast.error("Failed to delete message");
+    }
   };
 
-  const handleEditSave = () => {
-    if (!editingMessage) return;
-    setMessages((prev) => prev.map((m) => (m.id === editingMessage ? { ...m, content: editContent, isEdited: true } : m)));
-    chatService.editMessage(editingMessage, currentUserId, editContent);
+  const handleEditStart = (msg: Message) => {
+    console.log("handleEditStart called:", msg.id);
+    setEditingMessage(msg.id);
+    setEditContent(msg.content);
+  };
+
+  const handleEditSave = async () => {
+    if (!editingMessage || !editContent.trim()) return;
+    console.log("handleEditSave called:", { editingMessage, editContent });
+    if (!editMessage) {
+      console.error("editMessage function is not available!");
+      return;
+    }
+    try {
+      await editMessage(editingMessage, editContent);
+      console.log("Message edited successfully");
+      setEditingMessage(null);
+      setEditContent("");
+    } catch (error) {
+      console.error("Failed to edit message:", error);
+      toast.error("Failed to edit message");
+    }
+  };
+
+  const handleEditCancel = () => {
     setEditingMessage(null);
     setEditContent("");
   };
 
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-[#313338]">
+        <div className="text-white">Loading messages...</div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex-1 flex flex-col bg-[#313338]">
-      <div className="h-12 px-4 flex items-center gap-3 border-b border-[#1e1f22]">
+    <div className="flex-1 flex flex-col h-full bg-[#313338] overflow-hidden">
+      {/* Header */}
+      <div className="h-12 px-4 flex items-center gap-3 border-b border-[#1e1f22] bg-[#313338] shrink-0">
         {onBack && (
-          <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white p-2 h-auto" onClick={onBack}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-gray-400 hover:text-white p-2 h-auto"
+            onClick={onBack}
+          >
             <Reply size={16} className="rotate-180" />
           </Button>
         )}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-1">
           <div className="relative">
             <Avatar className="h-8 w-8">
-              <AvatarFallback className="bg-[#5865f2] text-white text-xs">{selectedDM?.userAvatar}</AvatarFallback>
+              <AvatarFallback className="bg-[#5865f2] text-white text-xs">
+                {selectedDM?.userAvatar}
+              </AvatarFallback>
             </Avatar>
-            <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#313338] ${getStatusColor()}`} />
+            <span
+              className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#313338] ${getStatusColor()}`}
+            />
           </div>
           <div>
-            <div className="text-white text-sm">{selectedDM?.userName}</div>
-            <div className="text-gray-400 text-xs capitalize">{selectedDM?.userStatus}</div>
+            <div className="text-white text-sm font-medium">
+              {selectedDM?.userName}
+            </div>
+            <div className="text-gray-400 text-xs capitalize flex items-center gap-1.5">
+              {selectedDM?.userStatus}
+              {isConnected && (
+                <span className="w-1 h-1 bg-green-400 rounded-full" />
+              )}
+            </div>
           </div>
         </div>
-        <div className="ml-auto flex items-center gap-1">
-          <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white p-2 h-auto">
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-gray-400 hover:text-white hover:bg-[#3f4147] transition-colors p-2 h-auto rounded"
+          >
             <Phone size={16} />
           </Button>
-          <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white p-2 h-auto">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-gray-400 hover:text-white hover:bg-[#3f4147] transition-colors p-2 h-auto rounded"
+          >
             <Video size={16} />
           </Button>
-          <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white p-2 h-auto">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-gray-400 hover:text-white hover:bg-[#3f4147] transition-colors p-2 h-auto rounded"
+          >
             <UserPlus size={16} />
           </Button>
-          <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white p-2 h-auto">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-gray-400 hover:text-white hover:bg-[#3f4147] transition-colors p-2 h-auto rounded"
+          >
             <Search size={16} />
           </Button>
-          <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white p-2 h-auto">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-gray-400 hover:text-white hover:bg-[#3f4147] transition-colors p-2 h-auto rounded"
+          >
             <MoreVertical size={16} />
           </Button>
         </div>
       </div>
 
-      <ScrollArea className="flex-1">
-        <div className="p-4 space-y-3">
-          {messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`flex gap-3 ${msg.isCurrentUser ? "flex-row-reverse text-right" : ""}`}
-              onMouseEnter={() => setHoveredMessage(msg.id)}
-              onMouseLeave={() => setHoveredMessage(null)}
-            >
-              <Avatar className="h-8 w-8">
-                <AvatarFallback className={msg.isCurrentUser ? "bg-[#5865f2] text-white" : "bg-[#404249] text-gray-200"}>
-                  {msg.isCurrentUser ? "You" : selectedDM?.userAvatar || "DM"}
+      {/* Messages Area */}
+      <div
+        ref={scrollContainerRef}
+        className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4"
+      >
+        {allMessages.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-center">
+            <div className="w-16 h-16 bg-[#2b2d31] rounded-full flex items-center justify-center mb-3">
+              <Avatar className="h-12 w-12">
+                <AvatarFallback className="bg-[#5865f2] text-white">
+                  {selectedDM?.userAvatar}
                 </AvatarFallback>
               </Avatar>
+            </div>
+            <h3 className="text-white font-semibold mb-1">
+              {selectedDM?.userName}
+            </h3>
+            <p className="text-gray-400 text-sm">
+              This is the beginning of your direct message history with{" "}
+              <span className="font-medium">{selectedDM?.userName}</span>
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {allMessages.map((msg, index) => {
+              const prevMessage = index > 0 ? allMessages[index - 1] : null;
+              const showHeader =
+                !prevMessage || prevMessage.isCurrentUser !== msg.isCurrentUser;
+              const isOwn = msg.isCurrentUser;
+              const isEditing = editingMessage === msg.id;
 
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-white text-sm">{msg.isCurrentUser ? currentUserName : selectedDM?.userName || "User"}</span>
-                  <span className="text-[10px] text-gray-500">{msg.timestamp}</span>
-                  {msg.isEdited && <span className="text-[10px] text-gray-500">(edited)</span>}
-                </div>
+              return (
+                <div
+                  key={msg.id}
+                  className={`group flex items-start gap-3 ${
+                    isOwn ? "flex-row-reverse" : ""
+                  }`}
+                  onMouseEnter={() => setHoveredMessage(msg.id)}
+                  onMouseLeave={() => setHoveredMessage(null)}
+                >
+                  {/* Avatar */}
+                  {showHeader ? (
+                    <Avatar className="h-10 w-10 shrink-0">
+                      <AvatarFallback
+                        className={
+                          isOwn
+                            ? "bg-[#5865f2] text-white"
+                            : "bg-[#f23f43] text-white"
+                        }
+                      >
+                        {isOwn
+                          ? currentUserName.slice(0, 2).toUpperCase()
+                          : selectedDM?.userAvatar}
+                      </AvatarFallback>
+                    </Avatar>
+                  ) : (
+                    <div className="h-10 w-10 shrink-0" />
+                  )}
 
-                {msg.replyTo && (
-                  <div className="text-[11px] text-gray-400 border-l-2 border-[#5865f2] pl-2 mb-1 line-clamp-1">
-                    Replying to {msg.replyTo.author}: {msg.replyTo.content}
-                  </div>
-                )}
+                  {/* Message Content */}
+                  <div
+                    className={`flex flex-col gap-1 flex-1 max-w-[70%] ${
+                      isOwn ? "items-end" : "items-start"
+                    }`}
+                  >
+                    {/* Header */}
+                    {showHeader && (
+                      <div
+                        className={`flex items-center gap-2 px-1 ${
+                          isOwn ? "flex-row-reverse" : ""
+                        }`}
+                      >
+                        <span className="text-white text-sm font-semibold">
+                          {msg.senderName}
+                        </span>
+                        <span className="text-[10px] text-gray-500">
+                          {msg.timestamp}
+                        </span>
+                      </div>
+                    )}
 
-                <div className={`rounded-lg px-3 py-2 ${msg.isCurrentUser ? "bg-[#4b4deb]" : "bg-[#2b2d31]"} text-gray-100 text-sm whitespace-pre-wrap`}>
-                  {msg.content}
-                </div>
+                    {/* Reply indicator */}
+                    {msg.replyTo && (
+                      <div
+                        className={`text-[11px] text-gray-400 border-l-2 border-[#5865f2] pl-2 mb-1 ${
+                          isOwn ? "ml-auto" : ""
+                        }`}
+                      >
+                        <span className="opacity-70">
+                          Replying to {msg.replyTo.author}
+                        </span>
+                      </div>
+                    )}
 
-                {hoveredMessage === msg.id && (
-                  <div className={`flex items-center gap-1 mt-1 ${msg.isCurrentUser ? "justify-end" : ""}`}>
-                    <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white p-1 h-auto" onClick={() => setReplyingTo(msg)}>
-                      <Reply size={14} />
-                    </Button>
-                    <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white p-1 h-auto" onClick={() => handleAddReaction(msg.id, "👍")}>
-                      <Smile size={14} />
-                    </Button>
-                    {msg.isCurrentUser && (
-                      <>
-                        <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white p-1 h-auto" onClick={() => { setEditingMessage(msg.id); setEditContent(msg.content); }}>
-                          <Edit2 size={14} />
-                        </Button>
-                        <Button variant="ghost" size="sm" className="text-gray-400 hover:text-red-400 p-1 h-auto" onClick={() => handleDelete(msg.id)}>
-                          <Trash2 size={14} />
-                        </Button>
-                      </>
+                    {/* Message bubble */}
+                    <div className="relative group/message w-full">
+                      {isEditing ? (
+                        <div className="flex flex-col gap-2">
+                          <input
+                            value={editContent}
+                            onChange={(e) => setEditContent(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") handleEditSave();
+                              if (e.key === "Escape") handleEditCancel();
+                            }}
+                            className="w-full bg-[#40444b] border border-[#5865f2] rounded-lg px-3 py-2 text-sm text-white outline-none"
+                            autoFocus
+                          />
+                          <div className="flex gap-2 text-xs">
+                            <button
+                              onClick={handleEditSave}
+                              className="text-[#5865f2] hover:underline"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={handleEditCancel}
+                              className="text-gray-400 hover:underline"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div
+                            className={`rounded-2xl px-4 py-2.5 text-sm transition-all ${
+                              isOwn
+                                ? "bg-[#5865f2] text-white rounded-tr-sm"
+                                : "bg-[#2b2d31] text-gray-100 rounded-tl-sm"
+                            }`}
+                          >
+                            <p className="whitespace-pre-wrap break-words">
+                              {msg.content}
+                            </p>
+                            {msg.isEdited && (
+                              <span className="text-[10px] opacity-60 ml-2">
+                                (edited)
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Hover actions - Improved UX */}
+                          {hoveredMessage === msg.id && !isEditing && (
+                            <div
+                              className={`absolute -top-8 flex items-center gap-0.5 bg-[#1e1f22] border border-[#3f4147] rounded-md shadow-xl z-10 ${
+                                isOwn ? "right-0" : "left-0"
+                              }`}
+                            >
+                              <button
+                                onClick={() =>
+                                  setShowReactionPicker(
+                                    msg.id === showReactionPicker
+                                      ? null
+                                      : msg.id
+                                  )
+                                }
+                                className="p-2 hover:bg-[#2b2d31] rounded-md transition-colors"
+                                title="Add reaction"
+                              >
+                                <Smile
+                                  size={16}
+                                  className="text-gray-400 hover:text-white"
+                                />
+                              </button>
+                              <button
+                                onClick={() => setReplyingTo(msg)}
+                                className="p-2 hover:bg-[#2b2d31] rounded-md transition-colors"
+                                title="Reply"
+                              >
+                                <Reply
+                                  size={16}
+                                  className="text-gray-400 hover:text-white"
+                                />
+                              </button>
+                              {isOwn && (
+                                <>
+                                  <button
+                                    onClick={() => handleEditStart(msg)}
+                                    className="p-2 hover:bg-[#2b2d31] rounded-md transition-colors"
+                                    title="Edit"
+                                  >
+                                    <Edit2
+                                      size={16}
+                                      className="text-gray-400 hover:text-white"
+                                    />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDelete(msg.id)}
+                                    className="p-2 hover:bg-[#2b2d31] rounded-md transition-colors"
+                                    title="Delete"
+                                  >
+                                    <Trash2
+                                      size={16}
+                                      className="text-gray-400 hover:text-red-400"
+                                    />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Reaction picker */}
+                          {showReactionPicker === msg.id && (
+                            <div
+                              className={`absolute -top-14 bg-[#1e1f22] border border-[#3f4147] rounded-lg p-2 shadow-xl z-20 ${
+                                isOwn ? "right-0" : "left-0"
+                              }`}
+                            >
+                              <div className="flex gap-1">
+                                {EMOJI_LIST.map((emoji) => (
+                                  <button
+                                    key={emoji}
+                                    onClick={() =>
+                                      handleAddReaction(msg.id, emoji)
+                                    }
+                                    className="text-xl hover:scale-125 transition-transform p-1.5 hover:bg-[#2b2d31] rounded"
+                                  >
+                                    {emoji}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+
+                    {/* Reactions */}
+                    {msg.reactions && msg.reactions.length > 0 && (
+                      <div
+                        className={`flex gap-1 flex-wrap ${
+                          isOwn ? "justify-end" : ""
+                        }`}
+                      >
+                        {msg.reactions.map((reaction, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() =>
+                              handleAddReaction(msg.id, reaction.emoji)
+                            }
+                            className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs hover:scale-110 transition-all ${
+                              reaction.users.includes(currentUserName)
+                                ? "bg-[#5865f2] text-white border border-[#5865f2]"
+                                : "bg-[#2b2d31] text-gray-300 border border-[#3f4147] hover:border-[#5865f2]"
+                            }`}
+                            title={reaction.users.join(", ")}
+                          >
+                            <span>{reaction.emoji}</span>
+                            <span className="font-medium">
+                              {reaction.count}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
                     )}
                   </div>
-                )}
+                </div>
+              );
+            })}
 
-                {msg.reactions && msg.reactions.length > 0 && (
-                  <div className="flex gap-1 mt-1 flex-wrap">
-                    {msg.reactions.map((reaction, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => handleAddReaction(msg.id, reaction.emoji)}
-                        className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#2b2d31] border border-[#3f4147] text-xs text-gray-200"
-                        title={reaction.users.join(", ")}
-                      >
-                        <span>{reaction.emoji}</span>
-                        <span className="text-[10px] text-gray-400">{reaction.count}</span>
-                      </button>
-                    ))}
+            {/* Typing indicator */}
+            {otherUserTyping && (
+              <div className="flex items-center gap-3">
+                <Avatar className="h-10 w-10">
+                  <AvatarFallback className="bg-[#f23f43] text-white">
+                    {selectedDM?.userAvatar}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="bg-[#2b2d31] rounded-2xl rounded-tl-sm px-4 py-3">
+                  <div className="flex gap-1">
+                    <div
+                      className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                      style={{ animationDelay: "0ms" }}
+                    />
+                    <div
+                      className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                      style={{ animationDelay: "150ms" }}
+                    />
+                    <div
+                      className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                      style={{ animationDelay: "300ms" }}
+                    />
                   </div>
-                )}
+                </div>
               </div>
-            </div>
-          ))}
-          <div ref={messagesEndRef} />
-        </div>
-      </ScrollArea>
+            )}
 
-      <div className="p-3 border-t border-[#1e1f22] bg-[#313338]">
-        {replyingTo && (
-          <div className="mb-2 px-2 py-1 bg-[#2b2d31] rounded border-l-2 border-[#5865f2] flex items-center justify-between text-xs text-gray-300">
-            <span>Replying to {replyingTo.isCurrentUser ? "You" : selectedDM?.userName || "User"}: {replyingTo.content}</span>
-            <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white p-1 h-auto" onClick={() => setReplyingTo(null)}>
-              <X size={12} />
-            </Button>
-          </div>
-        )}
-
-        {editingMessage && (
-          <div className="mb-2 px-2 py-1 bg-[#2b2d31] rounded border-l-2 border-yellow-500 flex items-center justify-between text-xs text-gray-300">
-            <span>Editing message</span>
-            <div className="flex gap-1">
-              <Button variant="ghost" size="sm" className="text-green-400 hover:text-green-300 p-1 h-auto" onClick={handleEditSave}>
-                <Check size={12} />
-              </Button>
-              <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white p-1 h-auto" onClick={() => { setEditingMessage(null); setEditContent(""); }}>
-                <X size={12} />
-              </Button>
-            </div>
-          </div>
-        )}
-
-        <div className="flex items-end gap-2">
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white p-2 h-auto">
-              <Paperclip size={16} />
-            </Button>
-            <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white p-2 h-auto">
-              <ImageIcon size={16} />
-            </Button>
-            <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white p-2 h-auto" onClick={() => setShowVoiceRecorder(true)}>
-              <Mic size={16} />
-            </Button>
-          </div>
-
-          <div className="flex-1 bg-[#2b2d31] rounded-lg border border-[#3f4147] px-3 py-2">
-            <input
-              value={editingMessage ? editContent : newMessage}
-              onChange={(e) => (editingMessage ? setEditContent(e.target.value) : setNewMessage(e.target.value))}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  if (editingMessage) {
-                    handleEditSave();
-                  } else {
-                    handleSend();
-                  }
-                }
-              }}
-              className="w-full bg-transparent outline-none text-sm text-white placeholder:text-gray-500"
-              placeholder={`Message ${selectedDM?.userName || "user"}`}
-            />
-          </div>
-
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white p-2 h-auto" onClick={() => setShowEmojiPicker(!showEmojiPicker)}>
-              <Smile size={16} />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-[#5865f2] hover:text-[#4752c4] p-2 h-auto"
-              disabled={!newMessage.trim() && !editingMessage}
-              onClick={() => {
-                if (editingMessage) {
-                  handleEditSave();
-                } else {
-                  handleSend();
-                }
-              }}
-            >
-              <Send size={16} />
-            </Button>
-          </div>
-        </div>
-
-        {showEmojiPicker && (
-          <div className="mt-2 bg-[#2b2d31] rounded border border-[#3f4147] p-2 grid grid-cols-8 gap-1">
-            {EMOJI_LIST.map((emoji) => (
-              <button
-                key={emoji}
-                className="text-lg hover:bg-[#35363c] rounded p-1"
-                onClick={() => {
-                  setNewMessage((prev) => prev + emoji);
-                  setShowEmojiPicker(false);
-                }}
-              >
-                {emoji}
-              </button>
-            ))}
+            <div ref={messagesEndRef} />
           </div>
         )}
       </div>
 
-      <AnimatePresence>
-        {showVoiceRecorder && (
-          <VoiceRecorder
-            isOpen={showVoiceRecorder}
-            onClose={() => setShowVoiceRecorder(false)}
-            onSave={(audioUrl) => {
-              chatService.sendMessage({
-                scope: "dm",
-                threadId: selectedDM?.threadId || "",
-                authorId: currentUserId,
-                content: "[voice message]",
-              });
-              setShowVoiceRecorder(false);
-              toast.success("Voice message saved");
-            }}
-          />
+      {/* Input Area */}
+      <div className="border-t border-[#1e1f22] bg-[#313338] shrink-0">
+        {replyingTo && (
+          <div className="px-4 pt-2">
+            <div className="bg-[#2b2d31] rounded-lg border-l-4 border-[#5865f2] px-3 py-2 flex items-center justify-between">
+              <div className="flex-1">
+                <div className="text-[#5865f2] text-xs font-medium mb-0.5">
+                  Replying to {replyingTo.senderName}
+                </div>
+                <div className="text-gray-400 text-sm truncate">
+                  {replyingTo.content}
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-gray-400 hover:text-white p-1 h-auto ml-2"
+                onClick={() => setReplyingTo(null)}
+              >
+                <X size={14} />
+              </Button>
+            </div>
+          </div>
         )}
-      </AnimatePresence>
 
-      <AnimatePresence>
-        {showAddToGroupModal && (
-          <AddToGroupModal
-            isOpen={showAddToGroupModal}
-            onClose={() => setShowAddToGroupModal(false)}
-            selectedUser={{
-              userId: selectedDM?.userId || "",
-              userName: selectedDM?.userName || "",
-              userAvatar: selectedDM?.userAvatar || "",
-              userStatus: selectedDM?.userStatus || "offline",
-            }}
-          />
-        )}
-      </AnimatePresence>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleSend();
+          }}
+          className="p-4"
+        >
+          <div className="flex items-end gap-2">
+            <div className="flex-1 bg-[#40444b] rounded-lg border border-[#3f4147] focus-within:border-[#5865f2] hover:border-[#4a4f58] transition-colors">
+              <input
+                value={newMessage}
+                onChange={(e) => {
+                  setNewMessage(e.target.value);
+                  handleTyping();
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+                className="w-full bg-transparent outline-none text-sm text-white placeholder:text-gray-500 px-4 py-3"
+                placeholder={`Message @${selectedDM?.userName || "user"}`}
+                disabled={!isConnected}
+              />
+            </div>
+
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-gray-400 hover:text-white hover:bg-[#3f4147] transition-all p-2.5 h-auto rounded"
+                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                type="button"
+              >
+                <Smile size={20} />
+              </Button>
+              {newMessage.trim() && (
+                <Button
+                  type="submit"
+                  size="sm"
+                  className="bg-[#5865f2] hover:bg-[#4752c4] text-white p-2.5 h-auto rounded"
+                  disabled={!isConnected || !newMessage.trim()}
+                >
+                  <Send size={20} />
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {showEmojiPicker && (
+            <div className="mt-2 bg-[#2b2d31] rounded-lg border border-[#3f4147] p-3 shadow-lg">
+              <div className="grid grid-cols-8 gap-2">
+                {EMOJI_LIST.map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    className="text-2xl hover:scale-125 hover:bg-[#35363c] rounded p-2 transition-all"
+                    onClick={() => {
+                      setNewMessage((prev) => prev + emoji);
+                      setShowEmojiPicker(false);
+                    }}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </form>
+      </div>
     </div>
   );
 }

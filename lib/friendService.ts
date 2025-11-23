@@ -88,9 +88,9 @@ export async function acceptFriendRequest(
   // Update friendship status
   const { error: updateError } = await supabase
     .from("friendships")
-    .update({ 
+    .update({
       status: "accepted",
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     })
     .eq("requester_id", requesterId)
     .eq("addressee_id", currentUserId)
@@ -101,19 +101,21 @@ export async function acceptFriendRequest(
   }
 
   // Create DM thread between the users
-  const { data: threadId, error: threadError } = await supabase
-    .rpc("create_dm_thread", {
+  const { data: threadId, error: threadError } = await supabase.rpc(
+    "create_dm_thread",
+    {
       user_id_1: currentUserId,
       user_id_2: requesterId,
-    });
+    }
+  );
 
   if (threadError) {
     console.warn("Failed to create DM thread:", threadError.message);
   }
 
-  return { 
-    success: true, 
-    threadId: threadId || undefined 
+  return {
+    success: true,
+    threadId: threadId || undefined,
   };
 }
 
@@ -242,8 +244,10 @@ export async function getDmThread(
   const supabase = createClient();
 
   // First try to find existing thread
-  const orderedUserA = currentUserId < otherUserId ? currentUserId : otherUserId;
-  const orderedUserB = currentUserId < otherUserId ? otherUserId : currentUserId;
+  const orderedUserA =
+    currentUserId < otherUserId ? currentUserId : otherUserId;
+  const orderedUserB =
+    currentUserId < otherUserId ? otherUserId : currentUserId;
 
   let { data: thread } = await supabase
     .from("dm_threads")
@@ -324,13 +328,15 @@ export async function sendDmMessage(
 /**
  * Get user's DM conversations with last message info
  */
-export async function getDmConversations(userId: string): Promise<{
-  id: string;
-  otherUser: User;
-  lastMessage: string;
-  lastMessageTime: string;
-  unreadCount: number;
-}[]> {
+export async function getDmConversations(userId: string): Promise<
+  {
+    id: string;
+    otherUser: User;
+    lastMessage: string;
+    lastMessageTime: string;
+    unreadCount: number;
+  }[]
+> {
   const supabase = createClient();
 
   // Get all DM threads for the user
@@ -345,8 +351,9 @@ export async function getDmConversations(userId: string): Promise<{
   const conversations = [];
 
   for (const thread of threads) {
-    const otherUserId = thread.user_a === userId ? thread.user_b : thread.user_a;
-    
+    const otherUserId =
+      thread.user_a === userId ? thread.user_b : thread.user_a;
+
     // Get other user details
     const { data: otherUser } = await supabase
       .from("users")

@@ -1,4 +1,5 @@
 import { addFriendByInvitation, searchUsers } from "@/lib/userService";
+import { sendFriendRequest } from "@/lib/friendService";
 import { User } from "@/utils/auth";
 import {
   Hash,
@@ -82,7 +83,7 @@ export function AddFriendModal({
     };
   }, [searchQuery, currentUserId]);
 
-  const handleAddFriend = (user: User, startDm: boolean = false) => {
+  const handleAddFriend = async (user: User, startDm: boolean = false) => {
     if (existingFriendIds.includes(user.id)) {
       toast.error("Already friends with this user");
       return;
@@ -93,20 +94,38 @@ export function AddFriendModal({
       return;
     }
 
-    onAddFriend(user);
-    toast.success(`Added ${user.full_name} as a friend!`, {
-      description: startDm ? "Opening direct message..." : undefined,
-      duration: 2000,
-    });
+    setIsProcessing(true);
 
-    if (startDm && onStartDM) {
-      setTimeout(() => {
-        onStartDM(user);
-        onClose();
-      }, 500);
-    } else {
-      setSearchQuery("");
-      setSearchResults([]);
+    try {
+      // Send friend request to database
+      const result = await sendFriendRequest(currentUserId, user.id);
+
+      if (result.success) {
+        // Call parent component to update UI state
+        onAddFriend(user);
+
+        toast.success(`Friend request sent to ${user.full_name}!`, {
+          description: "They'll be notified of your request",
+          duration: 2000,
+        });
+
+        if (startDm && onStartDM) {
+          setTimeout(() => {
+            onStartDM(user);
+            onClose();
+          }, 500);
+        } else {
+          setSearchQuery("");
+          setSearchResults([]);
+        }
+      } else {
+        toast.error(result.error || "Failed to send friend request");
+      }
+    } catch (error) {
+      console.error("Error sending friend request:", error);
+      toast.error("Failed to send friend request");
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -187,23 +206,38 @@ export function AddFriendModal({
             onClick={() => handleAddFriend(user, true)}
             size="sm"
             variant="outline"
-            className="bg-transparent border-[#5865f2] text-[#5865f2] hover:bg-[#5865f2] hover:text-white"
+            disabled={isProcessing}
+            className="bg-transparent border-[#5865f2] text-[#5865f2] hover:bg-[#5865f2] hover:text-white disabled:opacity-50"
           >
-            <MessageCircle size={14} className="mr-1" />
-            Add & Message
+            {isProcessing ? (
+              <>
+                <Loader2 size={14} className="mr-1 animate-spin" />
+                Sending...
+              </>
+            ) : (
+              <>
+                <MessageCircle size={14} className="mr-1" />
+                Add & Message
+              </>
+            )}
           </Button>
         )}
         <Button
           onClick={() => handleAddFriend(user, false)}
           size="sm"
-          disabled={existingFriendIds.includes(user.id)}
+          disabled={existingFriendIds.includes(user.id) || isProcessing}
           className={`${
             existingFriendIds.includes(user.id)
               ? "bg-gray-600 cursor-not-allowed"
               : "bg-[#5865f2] hover:bg-[#4752c4]"
           } text-white`}
         >
-          {existingFriendIds.includes(user.id) ? (
+          {isProcessing ? (
+            <>
+              <Loader2 size={14} className="mr-1 animate-spin" />
+              Sending...
+            </>
+          ) : existingFriendIds.includes(user.id) ? (
             "Friends"
           ) : (
             <>

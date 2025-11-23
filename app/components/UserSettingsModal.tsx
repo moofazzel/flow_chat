@@ -1,5 +1,6 @@
 "use client";
 
+import { User as AuthUser, getCurrentUser } from "@/utils/auth";
 import {
   Bell,
   ChevronRight,
@@ -11,7 +12,7 @@ import {
   User,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent } from "./ui/dialog";
@@ -42,11 +43,38 @@ export function UserSettingsModal({
   const [allowDMs, setAllowDMs] = useState(true);
   const [notifications, setNotifications] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+
+  // Fetch current user when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      getCurrentUser().then((user) => {
+        setCurrentUser(user);
+      });
+    }
+  }, [isOpen]);
+
+  const handleLogout = async () => {
+    if (!confirm("Are you sure you want to log out?")) return;
+
+    try {
+      const { logout } = await import("@/utils/auth");
+      await logout();
+    } catch (error) {
+      // Ignore RLS errors - we'll clear session anyway
+      console.log("Logout error (ignoring):", error);
+    }
+
+    // Clear everything and reload regardless of database errors
+    localStorage.clear();
+    sessionStorage.clear();
+    window.location.reload();
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent
-        className="max-w-[900px] h-[600px] p-0 bg-[#313338] border-[#1e1f22]"
+        className="max-w-[95vw] md:max-w-[900px] h-[90vh] md:h-[650px] p-0 bg-[#313338] border-[#1e1f22] overflow-hidden"
         aria-describedby={undefined}
       >
         <div className="flex h-full">
@@ -157,12 +185,15 @@ export function UserSettingsModal({
               </div>
             </ScrollArea>
 
-            <Separator className="bg-[#1e1f22] my-3" />
-
-            <button className="flex items-center gap-2 px-2 py-2 rounded text-sm text-red-400 hover:bg-[#35363c] hover:text-red-300">
-              <LogOut size={18} />
-              Log Out
-            </button>
+            <div className="mt-auto pt-3 border-t border-[#1e1f22]">
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 px-2 py-2 rounded text-sm text-red-400 hover:bg-[#35363c] hover:text-red-300 transition-all w-full"
+              >
+                <LogOut size={18} />
+                Log Out
+              </button>
+            </div>
           </div>
 
           {/* Main Content */}
@@ -198,15 +229,23 @@ export function UserSettingsModal({
                     <div className="relative flex items-center gap-4">
                       <Avatar className="h-20 w-20 border-4 border-[#313338]">
                         <AvatarFallback className="bg-[#313338] text-white text-2xl">
-                          {userAvatar}
+                          {currentUser?.full_name
+                            ? currentUser.full_name
+                                .split(" ")
+                                .map((n) => n[0])
+                                .join("")
+                                .toUpperCase()
+                            : userAvatar}
                         </AvatarFallback>
                       </Avatar>
                       <div>
                         <div className="text-white text-xl font-semibold">
-                          {userName}
+                          {currentUser?.full_name || userName}
                         </div>
                         <div className="text-white/80 text-sm">
-                          #{Math.random().toString().slice(2, 6)}
+                          @
+                          {currentUser?.username ||
+                            userName.toLowerCase().replace(" ", "_")}
                         </div>
                       </div>
                       <Button
@@ -225,7 +264,11 @@ export function UserSettingsModal({
                         Username
                       </Label>
                       <div className="bg-[#1e1f22] rounded p-3 flex items-center justify-between">
-                        <span className="text-white">{userName}</span>
+                        <span className="text-white">
+                          @
+                          {currentUser?.username ||
+                            userName.toLowerCase().replace(" ", "_")}
+                        </span>
                         <Button
                           variant="ghost"
                           size="sm"
@@ -238,11 +281,37 @@ export function UserSettingsModal({
 
                     <div>
                       <Label className="text-gray-400 text-xs uppercase tracking-wider font-semibold mb-2 block">
+                        User ID
+                      </Label>
+                      <div className="bg-[#1e1f22] rounded p-3 flex items-center justify-between">
+                        <span className="text-white font-mono text-sm">
+                          {currentUser?.id || "Loading..."}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-white hover:bg-[#35363c] h-8 px-3"
+                          onClick={() => {
+                            if (currentUser?.id) {
+                              navigator.clipboard.writeText(currentUser.id);
+                            }
+                          }}
+                        >
+                          Copy
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label className="text-gray-400 text-xs uppercase tracking-wider font-semibold mb-2 block">
                         Email
                       </Label>
                       <div className="bg-[#1e1f22] rounded p-3 flex items-center justify-between">
                         <span className="text-white">
-                          {userName.toLowerCase().replace(" ", ".")}@company.com
+                          {currentUser?.email ||
+                            `${userName
+                              .toLowerCase()
+                              .replace(" ", ".")}@company.com`}
                         </span>
                         <Button
                           variant="ghost"
@@ -305,7 +374,7 @@ export function UserSettingsModal({
                             Display Activity
                           </div>
                           <div className="text-gray-400 text-sm">
-                            Show what you're working on
+                            Show what youMy Account re working on
                           </div>
                         </div>
                         <Switch

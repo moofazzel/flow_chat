@@ -137,7 +137,6 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
 
     try {
       const result = await register(email, password, username, fullName);
-      console.log("🚀 ~ result:", result);
 
       setIsLoading(false);
 

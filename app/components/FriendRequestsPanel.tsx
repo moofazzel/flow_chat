@@ -30,6 +30,7 @@ export function FriendRequestsPanel({
   onDecline,
   onCancel,
 }: FriendRequestsPanelProps) {
+  console.log("🚀 ~ requests:", requests);
   const incomingRequests = requests.filter((r) => r.type === "incoming");
   const outgoingRequests = requests.filter((r) => r.type === "outgoing");
 
@@ -161,7 +162,7 @@ export function FriendRequestsPanel({
                     No pending requests
                   </h3>
                   <p className="text-gray-400 text-sm">
-                    Friend requests you've sent will appear here
+                    Friend requests you&apos;ve sent will appear here
                   </p>
                 </div>
               ) : (

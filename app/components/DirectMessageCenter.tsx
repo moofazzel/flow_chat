@@ -1,15 +1,14 @@
 "use client";
 
-import { chatService } from "@/lib/chatService";
-import { 
-  getFriends, 
-  getPendingFriendRequests,
+import {
   acceptFriendRequest,
-  declineFriendRequest,
   cancelFriendRequest,
+  declineFriendRequest,
   getDmConversations,
   getDmThread,
-  sendFriendRequest
+  getFriends,
+  getPendingFriendRequests,
+  sendFriendRequest,
 } from "@/lib/friendService";
 import { getCurrentUser, User } from "@/utils/auth";
 import {
@@ -87,9 +86,7 @@ export function DirectMessageCenter() {
   const [dms, setDms] = useState<DMConversation[]>([]);
   const [friendRequests, setFriendRequests] = useState<FriendRequestData[]>([]);
   const [showAddFriendModal, setShowAddFriendModal] = useState(false);
-  const [threads, setThreads] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(true);
-  const [pendingRequests, setPendingRequests] = useState({ incoming: [] as User[], outgoing: [] as User[] });
 
   // Load current user
   useEffect(() => {
@@ -113,8 +110,7 @@ export function DirectMessageCenter() {
 
         // Load friend requests
         const requests = await getPendingFriendRequests(currentUser.id);
-        setPendingRequests(requests);
-        
+
         // Format requests for the UI
         const formattedRequests: FriendRequestData[] = [
           ...requests.incoming.map((user) => ({
@@ -143,6 +139,18 @@ export function DirectMessageCenter() {
         }));
         setDms(dmConversations);
 
+        // Restore last selected DM from localStorage after loading
+        const savedDMId =
+          typeof window !== "undefined"
+            ? localStorage.getItem("lastSelectedDM")
+            : null;
+        if (savedDMId) {
+          const savedDM = dmConversations.find((conv) => conv.id === savedDMId);
+          if (savedDM) {
+            setSelectedDM(savedDM);
+            setActiveView("dms");
+          }
+        }
       } catch (error) {
         console.error("Failed to load data:", error);
         toast.error("Failed to load friends and conversations");
@@ -152,21 +160,6 @@ export function DirectMessageCenter() {
 
     loadFriendsAndRequests();
   }, [currentUser]);
-
-  // Restore last selected DM from localStorage
-  useEffect(() => {
-    const savedDMId =
-      typeof window !== "undefined"
-        ? localStorage.getItem("lastSelectedDM")
-        : null;
-    if (savedDMId && dms.length > 0) {
-      const dm = dms.find((d) => d.id === savedDMId);
-      if (dm) {
-        setSelectedDM(dm);
-        setActiveView("dms");
-      }
-    }
-  }, []); // Run only once on mount
 
   // Save selected DM to localStorage
   useEffect(() => {
@@ -193,14 +186,14 @@ export function DirectMessageCenter() {
       const result = await acceptFriendRequest(currentUser.id, requesterId);
       if (result.success) {
         toast.success("Friend request accepted!");
-        
+
         // Refresh friends and requests
         const friendsList = await getFriends(currentUser.id);
         setFriends(friendsList);
-        
+
         const requests = await getPendingFriendRequests(currentUser.id);
-        setPendingRequests(requests);
         
+
         const formattedRequests: FriendRequestData[] = [
           ...requests.incoming.map((user) => ({
             id: user.id,
@@ -216,7 +209,7 @@ export function DirectMessageCenter() {
           })),
         ];
         setFriendRequests(formattedRequests);
-        
+
         // Update DM conversations
         const conversations = await getDmConversations(currentUser.id);
         const dmConversations: DMConversation[] = conversations.map((conv) => ({
@@ -243,11 +236,11 @@ export function DirectMessageCenter() {
       const result = await declineFriendRequest(currentUser.id, requesterId);
       if (result.success) {
         toast.success("Friend request declined");
-        
+
         // Refresh requests
         const requests = await getPendingFriendRequests(currentUser.id);
-        setPendingRequests(requests);
         
+
         const formattedRequests: FriendRequestData[] = [
           ...requests.incoming.map((user) => ({
             id: user.id,
@@ -279,11 +272,11 @@ export function DirectMessageCenter() {
       const result = await cancelFriendRequest(currentUser.id, addresseeId);
       if (result.success) {
         toast.success("Friend request cancelled");
-        
+
         // Refresh requests
         const requests = await getPendingFriendRequests(currentUser.id);
-        setPendingRequests(requests);
         
+
         const formattedRequests: FriendRequestData[] = [
           ...requests.incoming.map((user) => ({
             id: user.id,
@@ -315,11 +308,11 @@ export function DirectMessageCenter() {
       const result = await sendFriendRequest(currentUser.id, user.id);
       if (result.success) {
         toast.success(`Friend request sent to ${user.full_name}!`);
-        
+
         // Refresh requests to show the new outgoing request
         const requests = await getPendingFriendRequests(currentUser.id);
-        setPendingRequests(requests);
         
+
         const formattedRequests: FriendRequestData[] = [
           ...requests.incoming.map((user) => ({
             id: user.id,
@@ -350,7 +343,7 @@ export function DirectMessageCenter() {
     try {
       // Get or create DM thread
       const { thread, error } = await getDmThread(currentUser.id, friend.id);
-      
+
       if (error || !thread) {
         toast.error("Failed to create conversation");
         return;
@@ -386,10 +379,15 @@ export function DirectMessageCenter() {
     }
   };
 
-  if (!currentUser) {
+  if (!currentUser || isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center bg-[#313338]">
-        <div className="text-white">Loading...</div>
+        <div className="text-center">
+          <div className="text-white text-lg mb-2">Loading...</div>
+          <div className="text-gray-400 text-sm">
+            Getting your conversations ready
+          </div>
+        </div>
       </div>
     );
   }
@@ -546,7 +544,7 @@ export function DirectMessageCenter() {
               userName: selectedDM.friend.full_name,
               userAvatar: getInitials(selectedDM.friend.full_name),
               userStatus: selectedDM.friend.status,
-              threadId: threads[selectedDM.friend.id] || selectedDM.id,
+              threadId: selectedDM.id,
             }}
             currentUserId={currentUser.id}
             currentUserName={currentUser.full_name}

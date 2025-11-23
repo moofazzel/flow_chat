@@ -141,9 +141,9 @@ export function BoardMenu({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Board?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete <strong>"{boardName}"</strong>?
-              This action cannot be undone. All tasks in this board will remain
-              but will need to be reassigned to other boards.
+              Are you sure you want to delete <strong>{boardName}</strong>? This
+              action cannot be undone. All tasks in this board will remain but
+              will need to be reassigned to other boards.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -31,19 +31,25 @@ export interface Card {
   due_date: string | null;
 }
 
-export const useBoard = (boardId?: string) => {
+export const useBoard = (boardId?: string, serverId?: string | null) => {
   const [boards, setBoards] = useState<Board[]>([]);
   const [currentBoard, setCurrentBoard] = useState<Board | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const supabase = createClient();
 
-  // Fetch all boards
+  // Fetch all boards (filtered by serverId if provided)
   useEffect(() => {
     const fetchBoards = async () => {
-      const { data, error } = await supabase
-        .from("boards")
-        .select("*")
-        .order("created_at", { ascending: false });
+      let query = supabase.from("boards").select("*");
+
+      // Filter by serverId if provided, otherwise get personal boards (null server_id)
+      if (serverId !== undefined) {
+        query = query.eq("server_id", serverId);
+      }
+
+      const { data, error } = await query.order("created_at", {
+        ascending: false,
+      });
 
       if (error) {
         toast.error("Failed to load boards");
@@ -55,7 +61,7 @@ export const useBoard = (boardId?: string) => {
     };
 
     fetchBoards();
-  }, []);
+  }, [serverId]);
 
   // Fetch specific board details (lists and cards)
   useEffect(() => {
@@ -121,7 +127,11 @@ export const useBoard = (boardId?: string) => {
     };
   }, [boardId]);
 
-  const createBoard = async (title: string, background: string) => {
+  const createBoard = async (
+    title: string,
+    background: string,
+    serverId?: string | null
+  ) => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -133,6 +143,7 @@ export const useBoard = (boardId?: string) => {
         title,
         background,
         created_by: user.id,
+        server_id: serverId || null,
       })
       .select()
       .single();

@@ -19,6 +19,7 @@ export interface BoardColumn {
 }
 
 interface BoardsContainerProps {
+  currentServerId?: string | null;
   tasks: Task[];
   onTaskClick: (task: Task) => void;
   onToggleChat: () => void;
@@ -51,6 +52,7 @@ import { useBoard } from "@/hooks/useBoard";
 // ... existing imports ...
 
 export function BoardsContainer({
+  currentServerId,
   tasks,
   onTaskClick,
   onToggleChat,
@@ -70,7 +72,7 @@ export function BoardsContainer({
     deleteBoard,
     createList,
     // isLoading, // Unused for now
-  } = useBoard();
+  } = useBoard(undefined, currentServerId);
   const [showAddBoardModal, setShowAddBoardModal] = useState(false);
 
   // Map Supabase boards to BoardData format
@@ -175,7 +177,8 @@ export function BoardsContainer({
 
     const newBoard = await createBoard(
       `${boardToDuplicate.name} (Copy)`,
-      boardToDuplicate.color
+      boardToDuplicate.color,
+      currentServerId
     );
 
     if (newBoard) {
@@ -358,7 +361,11 @@ export function BoardsContainer({
         isOpen={showAddBoardModal}
         onClose={() => setShowAddBoardModal(false)}
         onCreateBoard={async (boardData) => {
-          const newBoard = await createBoard(boardData.name, boardData.color);
+          const newBoard = await createBoard(
+            boardData.name,
+            boardData.color,
+            currentServerId
+          );
 
           if (newBoard) {
             // Create default columns

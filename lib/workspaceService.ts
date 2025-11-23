@@ -1,4 +1,4 @@
-// Workspace + channel + member scaffolding ready to swap to Supabase.
+import { createClient } from "@/utils/supabase/client";
 
 export interface Workspace {
   id: string;
@@ -21,54 +21,28 @@ export interface Channel {
   createdAt: string;
 }
 
-const STORAGE_KEY = "Flow Chat_workspace_data";
-
-type Persisted = {
-  workspaces: Workspace[];
-  members: WorkspaceMember[];
-  channels: Channel[];
-};
-
-const initialData: Persisted = {
-  workspaces: [],
-  members: [],
-  channels: [],
-};
-
-const load = (): Persisted => {
-  if (typeof window === "undefined") return initialData;
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as Persisted) : initialData;
-  } catch {
-    return initialData;
-  }
-};
-
-const save = (data: Persisted) => {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-};
-
-const now = () => new Date().toISOString();
-
 export const workspaceService = {
   createWorkspace: async (name: string, ownerId: string) => {
-    const data = load();
-    const workspace: Workspace = {
-      id: `ws-${Date.now()}`,
-      name,
-      ownerId,
-      createdAt: now(),
-    };
-    data.workspaces.push(workspace);
-    data.members.push({
-      workspaceId: workspace.id,
-      userId: ownerId,
+    const supabase = createClient();
+    const { data: server, error } = await supabase
+      .from("servers")
+      .insert({ name, owner_id: ownerId })
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+
+    await supabase.from("server_members").insert({
+      server_id: server.id,
+      user_id: ownerId,
       role: "owner",
     });
-    save(data);
-    return workspace;
+
+    return {
+      id: server.id,
+      name: server.name,
+      ownerId: server.owner_id,
+      createdAt: server.created_at,
+    } as Workspace;
   },
 
   addMember: async (
@@ -76,14 +50,12 @@ export const workspaceService = {
     userId: string,
     role: WorkspaceMember["role"] = "member"
   ) => {
-    const data = load();
-    const exists = data.members.find(
-      (m) => m.workspaceId === workspaceId && m.userId === userId
-    );
-    if (!exists) {
-      data.members.push({ workspaceId, userId, role });
-      save(data);
-    }
+    const supabase = createClient();
+    await supabase.from("server_members").insert({
+      server_id: workspaceId,
+      user_id: userId,
+      role,
+    });
   },
 
   addChannel: async (
@@ -91,30 +63,68 @@ export const workspaceService = {
     name: string,
     description?: string
   ) => {
-    const data = load();
-    const channel: Channel = {
-      id: `ch-${Date.now()}`,
-      workspaceId,
-      name,
-      description,
-      createdAt: now(),
-    };
-    data.channels.push(channel);
-    save(data);
-    return channel;
+    const supabase = createClient();
+
+    const { data: existing } = await supabase
+      .from("channels")
+      .select("position")
+      .eq("server_id", workspaceId)
+      .order("position", { ascending: false })
+      .limit(1);
+
+    const position = existing?.[0]?.position ?? 0;
+
+    const { data: channel, error } = await supabase
+      .from("channels")
+      .insert({
+        server_id: workspaceId,
+        name,
+        description,
+        type: "text",
+        position: position + 1,
+      })
+      .select()
+      .single();
+
+    if (error) throw new Error(error.message);
+
+    return {
+      id: channel.id,
+      workspaceId: channel.server_id,
+      name: channel.name,
+      description: channel.description,
+      createdAt: channel.created_at,
+    } as Channel;
   },
 
   listChannels: async (workspaceId: string) => {
-    const data = load();
-    return data.channels.filter((c) => c.workspaceId === workspaceId);
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("channels")
+      .select("*")
+      .eq("server_id", workspaceId)
+      .order("position", { ascending: true });
+
+    return (data || []).map((c: any) => ({
+      id: c.id,
+      workspaceId: c.server_id,
+      name: c.name,
+      description: c.description,
+      createdAt: c.created_at,
+    })) as Channel[];
   },
 
   listMembers: async (workspaceId: string) => {
-    const data = load();
-    return data.members.filter((m) => m.workspaceId === workspaceId);
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("server_members")
+      .select("*")
+      .eq("server_id", workspaceId);
+
+    return (data || []).map((m: any) => ({
+      workspaceId: m.server_id,
+      userId: m.user_id,
+      role: m.role,
+    })) as WorkspaceMember[];
   },
 };
-
-// Supabase mapping guidance (replace load/save):
-// tables: workspaces, workspace_members, channels
-// RLS: members can select channels; owner/admin can insert; members can send messages to channels they belong to.

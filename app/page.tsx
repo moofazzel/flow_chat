@@ -349,6 +349,7 @@ export default function Home() {
     useState<string>(loadInitialChannel);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(loadInitialSidebar);
+  const [currentServerId, setCurrentServerId] = useState<string | null>(null);
 
   const [floatingChatOpen, setFloatingChatOpen] = useState(false);
   const [, setSelectedDM] = useState<{
@@ -718,6 +719,7 @@ export default function Home() {
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
         onSelectDM={handleSelectDM}
+        onServerChange={setCurrentServerId}
       />
 
       <div className="flex-1 flex overflow-hidden">
@@ -733,6 +735,7 @@ export default function Home() {
           <DirectMessageCenter />
         ) : (
           <BoardsContainer
+            currentServerId={currentServerId}
             tasks={tasks}
             onTaskClick={setSelectedTask}
             onToggleChat={() => setFloatingChatOpen(!floatingChatOpen)}

@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  createServer,
+  getServerChannels,
+  getUserServers,
+} from "@/lib/serverService";
+import { getCurrentUser } from "@/utils/auth";
 import { motion } from "framer-motion";
 import {
   ChevronDown,
@@ -13,7 +19,7 @@ import {
   Volume2,
 } from "lucide-react";
 import { Resizable } from "re-resizable";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { CreateCategoryModal } from "./CreateCategoryModal";
 import { CreateChannelModal } from "./CreateChannelModal";
@@ -21,7 +27,6 @@ import { CreateServerModal, type ServerData } from "./CreateServerModal";
 import { EditServerProfileModal } from "./EditServerProfileModal";
 import { InvitePeopleModal } from "./InvitePeopleModal";
 import { ServerSettingsModal } from "./ServerSettingsModal";
-import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Badge } from "./ui/badge";
 import { DropdownMenuTrigger } from "./ui/dropdown-menu";
 import { ScrollArea } from "./ui/scroll-area";
@@ -41,6 +46,7 @@ interface SidebarProps {
     userAvatar: string,
     userStatus: "online" | "idle" | "dnd" | "offline"
   ) => void;
+  onServerChange?: (serverId: string | null) => void;
 }
 
 // Add local types for Sidebar
@@ -49,7 +55,7 @@ type ViewType = "chat" | "board" | "dm";
 interface Channel {
   id: string;
   name: string;
-  type: "text" | "voice";
+  type: "text" | "voice" | "announcement";
   category: string;
   unread?: number;
 }
@@ -93,64 +99,41 @@ function NotificationBadges({
   );
 }
 
-const channels: Channel[] = [
-  {
-    id: "general",
-    name: "general",
-    type: "text",
-    category: "TEXT CHANNELS",
-    unread: 3,
-  },
-  {
-    id: "dev-team",
-    name: "dev-team",
-    type: "text",
-    category: "TEXT CHANNELS",
-    unread: 0,
-  },
-  {
-    id: "design",
-    name: "design",
-    type: "text",
-    category: "TEXT CHANNELS",
-    unread: 12,
-  },
-  {
-    id: "sprint-planning",
-    name: "sprint-planning",
-    type: "text",
-    category: "TEXT CHANNELS",
-    unread: 0,
-  },
-  {
-    id: "bugs",
-    name: "bugs",
-    type: "text",
-    category: "TEXT CHANNELS",
-    unread: 1,
-  },
-];
-
-const voiceChannels: Channel[] = [
-  {
-    id: "standup",
-    name: "Daily Standup",
-    type: "voice",
-    category: "VOICE CHANNELS",
-  },
-  {
-    id: "general-voice",
-    name: "General",
-    type: "voice",
-    category: "VOICE CHANNELS",
-  },
-];
-
 const directMessages: DirectMessage[] = [
   { id: "dm1", name: "Sarah Chen", avatar: "SC", status: "online" },
   { id: "dm2", name: "Mike Johnson", avatar: "MJ", status: "idle" },
   { id: "dm3", name: "Alex Kim", avatar: "AK", status: "dnd" },
 ];
+
+// Persist channel creation to the database
+async function createChannel(
+  serverId: string,
+  name: string,
+  type: "text" | "voice"
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const res = await fetch(`/api/servers/${serverId}/channels`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, type }),
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return {
+        success: false,
+        error: data.error || `Request failed: ${res.status}`,
+      };
+    }
+
+    return { success: true };
+  } catch (e) {
+    return {
+      success: false,
+      error: e instanceof Error ? e.message : "Unknown error",
+    };
+  }
+}
 
 export function Sidebar({
   currentView,
@@ -160,6 +143,7 @@ export function Sidebar({
   collapsed,
   onToggleCollapse,
   onSelectDM,
+  onServerChange,
 }: SidebarProps) {
   const [textChannelsOpen, setTextChannelsOpen] = useState(true);
   const [voiceChannelsOpen, setVoiceChannelsOpen] = useState(true);
@@ -170,20 +154,116 @@ export function Sidebar({
   const [showInvitePeople, setShowInvitePeople] = useState(false);
   const [showServerSettings, setShowServerSettings] = useState(false);
   const [showEditServerProfile, setShowEditServerProfile] = useState(false);
+  const [currentServerId, setCurrentServerId] = useState<string | null>(null);
+  const [servers, setServers] = useState<{ id: string; name: string }[]>([]);
+  const [channels, setChannels] = useState<Channel[]>([]);
+  const [voiceChannels, setVoiceChannels] = useState<Channel[]>([]);
 
-  const handleCreateServer = (serverData: ServerData) => {
-    console.log("Creating server:", serverData);
-    // In a real app, you would create the server here
+  useEffect(() => {
+    async function init() {
+      const user = await getCurrentUser();
+      if (!user) return;
+
+      const serversList = await getUserServers(user.id);
+      setServers(serversList.map((s) => ({ id: s.id, name: s.name })));
+      const defaultServerId = serversList[0]?.id || null;
+      if (defaultServerId) {
+        setCurrentServerId(defaultServerId);
+      }
+    }
+    init();
+  }, []);
+
+  useEffect(() => {
+    async function load() {
+      if (!currentServerId) return;
+      const serverChannels = await getServerChannels(currentServerId);
+      const mapped = serverChannels.map((c) => ({
+        id: c.id,
+        name: c.name,
+        type: c.type,
+        category: c.category || "TEXT CHANNELS",
+      }));
+      setChannels(mapped.filter((c) => c.type === "text"));
+      setVoiceChannels(mapped.filter((c) => c.type === "voice"));
+    }
+    load();
+  }, [currentServerId]);
+
+  // Notify parent component when server changes
+  useEffect(() => {
+    onServerChange?.(currentServerId);
+  }, [currentServerId, onServerChange]);
+
+  const handleCreateServer = async (serverData: ServerData) => {
+    const user = await getCurrentUser();
+    if (!user) {
+      toast.error("Please log in to create a server");
+      return;
+    }
+
+    const { success, server, error } = await createServer(
+      serverData.name,
+      user.id,
+      serverData.description,
+      serverData.icon
+    );
+
+    if (!success || !server) {
+      toast.error(error || "Failed to create server");
+      return;
+    }
+
+    for (const ch of serverData.channels) {
+      await createChannel(
+        server.id,
+        ch.name,
+        ch.type === "text" ? "text" : "voice"
+      );
+    }
+
+    // Refresh servers list and select the new server
+    const serversList = await getUserServers(user.id);
+    setServers(serversList.map((s) => ({ id: s.id, name: s.name })));
+    setCurrentServerId(server.id);
+
     toast.success("Server created successfully!");
+    setShowCreateServer(false);
   };
 
-  const handleCreateChannel = (channelData: {
+  const handleCreateChannel = async (channelData: {
     name: string;
     type: "text" | "voice";
   }) => {
-    console.log("Creating channel:", channelData);
-    // In a real app, you would create the channel here
+    if (!currentServerId) {
+      toast.error("Create or select a server first");
+      return;
+    }
+
+    const { success, error } = await createChannel(
+      currentServerId,
+      channelData.name,
+      channelData.type
+    );
+
+    if (!success) {
+      toast.error(error || "Failed to create channel");
+      return;
+    }
+
+    // Refresh channels list
+    const serverChannels = await getServerChannels(currentServerId);
+    const mapped = serverChannels.map((c) => ({
+      id: c.id,
+      name: c.name,
+      type: c.type,
+      category: c.category || "TEXT CHANNELS",
+    }));
+    setChannels(mapped.filter((c) => c.type === "text"));
+    setVoiceChannels(mapped.filter((c) => c.type === "voice"));
+
     toast.success("Channel created successfully!");
+    setShowCreateChannel(false);
   };
 
   const handleCreateCategory = (categoryData: { name: string }) => {
@@ -252,83 +332,39 @@ export function Sidebar({
 
         <div className="w-8 h-[2px] bg-[#35363c] rounded-full" />
 
-        <motion.div
-          onClick={() => onViewChange("chat")}
-          whileHover={{ scale: 1.1, rotate: [0, -5, 5, 0] }}
-          whileTap={{ scale: 0.9 }}
-          transition={{
-            scale: { duration: 0.2, ease: [0.16, 1, 0.3, 1] },
-            rotate: { duration: 0.4, ease: [0.16, 1, 0.3, 1] },
-          }}
-          className="w-12 h-12 bg-[#5865f2] rounded-[24px] flex items-center justify-center hover:rounded-[16px] transition-all cursor-pointer"
-        >
-          <span className="text-white">WS</span>
-        </motion.div>
+        {/* Dynamic Server List in Collapsed Mode */}
+        {servers.map((server) => (
+          <motion.div
+            key={server.id}
+            onClick={() => {
+              setCurrentServerId(server.id);
+              onViewChange("chat");
+            }}
+            whileHover={{ scale: 1.1, rotate: [0, -5, 5, 0] }}
+            whileTap={{ scale: 0.9 }}
+            transition={{
+              scale: { duration: 0.2, ease: [0.16, 1, 0.3, 1] },
+              rotate: { duration: 0.4, ease: [0.16, 1, 0.3, 1] },
+            }}
+            className={`w-12 h-12 rounded-[24px] flex items-center justify-center hover:rounded-[16px] transition-all cursor-pointer ${
+              currentServerId === server.id
+                ? "bg-[#5865f2]"
+                : "bg-[#313338] hover:bg-[#5865f2]"
+            }`}
+            title={server.name}
+          >
+            <span className="text-white text-sm font-semibold">
+              {server.name
+                .split(" ")
+                .map((word) => word[0])
+                .join("")
+                .toUpperCase()
+                .slice(0, 2)}
+            </span>
+          </motion.div>
+        ))}
+
         <div className="w-8 h-[2px] bg-[#35363c] rounded-full" />
-
-        <motion.button
-          onClick={() => onViewChange("chat")}
-          whileHover={{ scale: 1.1, rotate: [0, -5, 5, 0] }}
-          whileTap={{ scale: 0.9 }}
-          animate={{
-            scale: currentView === "chat" ? 1.05 : 1,
-          }}
-          transition={{
-            scale: { duration: 0.2, ease: [0.16, 1, 0.3, 1] },
-            rotate: { duration: 0.4, ease: [0.16, 1, 0.3, 1] },
-          }}
-          className={`w-12 h-12 rounded-[24px] flex items-center justify-center hover:rounded-[16px] transition-all ${
-            currentView === "chat"
-              ? "bg-[#5865f2] text-white"
-              : "bg-[#313338] text-gray-400 hover:bg-[#5865f2] hover:text-white"
-          }`}
-          title="Chat"
-        >
-          <motion.div
-            animate={{
-              rotate: currentView === "chat" ? [0, -10, 10, -10, 0] : 0,
-              scale: currentView === "chat" ? [1, 1.2, 1] : 1,
-            }}
-            transition={{
-              duration: 0.6,
-              ease: [0.16, 1, 0.3, 1],
-            }}
-          >
-            <MessageSquare size={20} />
-          </motion.div>
-        </motion.button>
-
-        <motion.button
-          onClick={() => onViewChange("board")}
-          whileHover={{ scale: 1.1, rotate: [0, -5, 5, 0] }}
-          whileTap={{ scale: 0.9 }}
-          animate={{
-            scale: currentView === "board" ? 1.05 : 1,
-          }}
-          transition={{
-            scale: { duration: 0.2, ease: [0.16, 1, 0.3, 1] },
-            rotate: { duration: 0.4, ease: [0.16, 1, 0.3, 1] },
-          }}
-          className={`w-12 h-12 rounded-[24px] flex items-center justify-center hover:rounded-[16px] transition-all ${
-            currentView === "board"
-              ? "bg-[#5865f2] text-white"
-              : "bg-[#313338] text-gray-400 hover:bg-[#5865f2] hover:text-white"
-          }`}
-          title="Board"
-        >
-          <motion.div
-            animate={{
-              rotate: currentView === "board" ? [0, -10, 10, -10, 0] : 0,
-              scale: currentView === "board" ? [1, 1.2, 1] : 1,
-            }}
-            transition={{
-              duration: 0.6,
-              ease: [0.16, 1, 0.3, 1],
-            }}
-          >
-            <LayoutGrid size={20} />
-          </motion.div>
-        </motion.button>
 
         <div className="flex-1" />
 
@@ -409,27 +445,49 @@ export function Sidebar({
           />
         </div>
 
-        <div className="w-8 h-[2px] bg-[#35363c] rounded-full" />
+        {servers.length > 0 && (
+          <div className="w-8 h-[2px] bg-[#35363c] rounded-full" />
+        )}
 
-        {/* Workspace Server Button */}
-        <div className="relative">
-          <motion.div
-            onClick={() => onViewChange("chat")}
-            whileHover={{ scale: 1.1, rotate: [0, -5, 5, 0] }}
-            whileTap={{ scale: 0.9 }}
-            transition={{
-              scale: { duration: 0.2, ease: [0.16, 1, 0.3, 1] },
-              rotate: { duration: 0.4, ease: [0.16, 1, 0.3, 1] },
-            }}
-            className="w-12 h-12 bg-[#5865f2] rounded-[24px] flex items-center justify-center hover:rounded-[16px] transition-all cursor-pointer"
-          >
-            <span className="text-white">WS</span>
-          </motion.div>
-          <NotificationBadges
-            chat={serverNotifications.workspace.chat}
-            board={serverNotifications.workspace.board}
-          />
-        </div>
+        {/* Dynamic Server List */}
+        {servers.map((server) => (
+          <div key={server.id} className="relative">
+            <motion.div
+              onClick={() => {
+                setCurrentServerId(server.id);
+                onViewChange("chat");
+              }}
+              whileHover={{ scale: 1.1, rotate: [0, -5, 5, 0] }}
+              whileTap={{ scale: 0.9 }}
+              transition={{
+                scale: { duration: 0.2, ease: [0.16, 1, 0.3, 1] },
+                rotate: { duration: 0.4, ease: [0.16, 1, 0.3, 1] },
+              }}
+              className={`w-12 h-12 rounded-[24px] flex items-center justify-center hover:rounded-[16px] transition-all cursor-pointer ${
+                currentServerId === server.id
+                  ? "bg-[#5865f2]"
+                  : "bg-[#313338] hover:bg-[#5865f2]"
+              }`}
+              title={server.name}
+            >
+              <span className="text-white text-sm font-semibold">
+                {server.name
+                  .split(" ")
+                  .map((word) => word[0])
+                  .join("")
+                  .toUpperCase()
+                  .slice(0, 2)}
+              </span>
+            </motion.div>
+            {currentServerId === server.id && (
+              <NotificationBadges
+                chat={serverNotifications.workspace.chat}
+                board={serverNotifications.workspace.board}
+              />
+            )}
+          </div>
+        ))}
+
         <div className="w-8 h-[2px] bg-[#35363c] rounded-full" />
         <motion.div
           onClick={() => setShowCreateServer(true)}
@@ -489,7 +547,10 @@ export function Sidebar({
               >
                 <DropdownMenuTrigger asChild>
                   <div className="h-12 px-4 flex items-center shadow-md border-b border-[#1e1f22] cursor-pointer hover:bg-[#35363c] transition-colors">
-                    <span className="text-white font-semibold">Workspace</span>
+                    <span className="text-white font-semibold">
+                      {servers.find((s) => s.id === currentServerId)?.name ||
+                        "Select Server"}
+                    </span>
                     <ChevronDown className="ml-auto text-gray-400" size={18} />
                   </div>
                 </DropdownMenuTrigger>
@@ -686,59 +747,6 @@ export function Sidebar({
                         >
                           <Volume2 size={18} className="text-gray-500" />
                           <span className="text-[15px]">{channel.name}</span>
-                        </button>
-                      ))}
-                  </div>
-
-                  {/* Direct Messages */}
-                  <div>
-                    <button
-                      onClick={() => setDirectMessagesOpen(!directMessagesOpen)}
-                      className="flex items-center px-2 mb-1 w-full hover:text-gray-200 transition-colors"
-                    >
-                      {directMessagesOpen ? (
-                        <ChevronDown size={12} className="text-gray-400 mr-1" />
-                      ) : (
-                        <ChevronRight
-                          size={12}
-                          className="text-gray-400 mr-1"
-                        />
-                      )}
-                      <span className="text-gray-400 text-xs tracking-wide">
-                        DIRECT MESSAGES
-                      </span>
-                      <Plus
-                        size={16}
-                        className="ml-auto text-gray-400 hover:text-gray-200 cursor-pointer"
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    </button>
-                    {directMessagesOpen &&
-                      directMessages.map((dm) => (
-                        <button
-                          key={dm.id}
-                          className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[#35363c] text-gray-400 hover:text-gray-200"
-                          onClick={() =>
-                            onSelectDM?.(dm.id, dm.name, dm.avatar, dm.status)
-                          }
-                        >
-                          <div className="relative">
-                            <Avatar className="h-7 w-7">
-                              <AvatarFallback className="text-xs">
-                                {dm.avatar}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div
-                              className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#2b2d31] ${
-                                dm.status === "online"
-                                  ? "bg-[#3ba55d]"
-                                  : dm.status === "idle"
-                                  ? "bg-[#f0b232]"
-                                  : "bg-[#ed4245]"
-                              }`}
-                            />
-                          </div>
-                          <span className="text-[15px]">{dm.name}</span>
                         </button>
                       ))}
                   </div>

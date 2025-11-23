@@ -636,9 +636,7 @@ export function EnhancedChatArea({
           <span className="text-white text-sm">{channelId}</span>
         </div>
         <div className="h-5 w-px bg-[#3f4147]" />
-        <span className="text-gray-400 text-xs">
-          Team collaboration and task updates
-        </span>
+
         <div className="ml-auto flex items-center gap-1">
           {/* Thread button */}
           <Button

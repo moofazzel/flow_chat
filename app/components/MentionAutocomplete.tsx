@@ -34,55 +34,6 @@ interface MentionAutocompleteProps {
   onClose: () => void;
 }
 
-// Mock data
-const members: Member[] = [
-  { id: "1", name: "John Doe", avatar: "JD", status: "online", role: "Admin" },
-  {
-    id: "2",
-    name: "Sarah Chen",
-    avatar: "SC",
-    status: "online",
-    role: "Developer",
-  },
-  {
-    id: "3",
-    name: "Mike Johnson",
-    avatar: "MJ",
-    status: "idle",
-    role: "Designer",
-  },
-  {
-    id: "4",
-    name: "Alex Kim",
-    avatar: "AK",
-    status: "dnd",
-    role: "Product Manager",
-  },
-  {
-    id: "5",
-    name: "Emma Wilson",
-    avatar: "EW",
-    status: "offline",
-    role: "Developer",
-  },
-  {
-    id: "6",
-    name: "David Lee",
-    avatar: "DL",
-    status: "online",
-    role: "QA Engineer",
-  },
-];
-
-const channels: Channel[] = [
-  { id: "1", name: "general", description: "General discussion" },
-  { id: "2", name: "dev-team", description: "Development team channel" },
-  { id: "3", name: "design", description: "Design discussions" },
-  { id: "4", name: "sprint-planning", description: "Sprint planning meetings" },
-  { id: "5", name: "bugs", description: "Bug tracking and reports" },
-  { id: "6", name: "random", description: "Random conversations" },
-];
-
 const commands: Command[] = [
   {
     name: "giphy",

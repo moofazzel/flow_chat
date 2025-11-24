@@ -76,6 +76,7 @@ interface TaskBoardProps {
   onLabelsChange?: (labels: Label[]) => void;
 }
 
+// Default columns only used for new board initialization
 const DEFAULT_COLUMNS: BoardColumn[] = [
   { id: "backlog", title: "Backlog", color: "bg-gray-500" },
   { id: "todo", title: "To Do", color: "bg-blue-500" },

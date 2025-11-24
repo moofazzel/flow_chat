@@ -31,20 +31,12 @@ interface Group {
   isAdmin: boolean;
 }
 
-// Mock groups
-const MOCK_GROUPS: Group[] = [
-  { id: 'g1', name: 'Project Team', avatar: 'PT', memberCount: 8, isAdmin: true },
-  { id: 'g2', name: 'Design Squad', avatar: 'DS', memberCount: 5, isAdmin: true },
-  { id: 'g3', name: 'Dev Chat', avatar: 'DC', memberCount: 12, isAdmin: false },
-  { id: 'g4', name: 'Marketing Team', avatar: 'MT', memberCount: 6, isAdmin: true },
-  { id: 'g5', name: 'Product Discussion', avatar: 'PD', memberCount: 10, isAdmin: false },
-];
-
 export function AddToGroupModal({ open, onClose, currentUser }: AddToGroupModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
+  const [groups] = useState<Group[]>([]); // TODO: Fetch from database
 
-  const filteredGroups = MOCK_GROUPS.filter(group =>
+  const filteredGroups = groups.filter(group =>
     group.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -62,7 +54,7 @@ export function AddToGroupModal({ open, onClose, currentUser }: AddToGroupModalP
       return;
     }
 
-    const groupNames = MOCK_GROUPS.filter(g => selectedGroups.includes(g.id))
+    const groupNames = groups.filter(g => selectedGroups.includes(g.id))
       .map(g => g.name)
       .join(', ');
 

@@ -39,6 +39,7 @@ import {
   Zap,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import type { Task } from "../page";
 import { CreateTaskModal } from "./CreateTaskModal";
 import { TeamMembersPanel } from "./TeamMembersPanel";
@@ -114,108 +115,7 @@ interface Message {
   links?: string[];
 }
 
-// Mock users for @mentions
-const availableUsers = [
-  { id: "u1", name: "Sarah Chen", avatar: "SC", status: "online" },
-  { id: "u2", name: "Mike Johnson", avatar: "MJ", status: "idle" },
-  { id: "u3", name: "Alex Kim", avatar: "AK", status: "dnd" },
-  { id: "u4", name: "John Doe", avatar: "JD", status: "online" },
-];
-
 const quickEmojis = ["👍", "❤️", "😂", "😮", "😢", "🎉", "🚀", "👀"];
-
-const mockMessages: Message[] = [
-  {
-    id: "1",
-    author: "Sarah Chen",
-    avatar: "SC",
-    timestamp: "10:30 AM",
-    content:
-      "Hey team! Just created a new task for the authentication bug we discussed yesterday. @Mike Johnson can you take a look?",
-    isCurrentUser: false,
-    mentions: ["Mike Johnson"],
-    isPinned: true,
-    reactions: [
-      { emoji: "👍", count: 3, users: ["You", "Mike", "Alex"] },
-      { emoji: "❤️", count: 2, users: ["Mike", "Alex"] },
-    ],
-    thread: {
-      id: "t1",
-      messageId: "1",
-      count: 5,
-      lastReply: "2 hours ago",
-      participants: ["SC", "MJ", "AK"],
-    },
-    task: {
-      id: "PROJ-123",
-      title: "Fix authentication redirect issue",
-      description: "Users are being redirected to the wrong page after login",
-      status: "todo",
-      boardId: "board-1",
-      priority: "high",
-      reporter: "Sarah Chen",
-      labels: ["bug", "auth"],
-      createdAt: "2025-11-21",
-      comments: [],
-    },
-  },
-  {
-    id: "2",
-    author: "You",
-    avatar: "YO",
-    timestamp: "10:35 AM",
-    content: "I'll take a look at this. Should be a quick fix.",
-    isCurrentUser: true,
-    reactions: [{ emoji: "💪", count: 1, users: ["Sarah"] }],
-    replyTo: {
-      id: "1",
-      author: "Sarah Chen",
-      content:
-        "Hey team! Just created a new task for the authentication bug we discussed yesterday.",
-    },
-  },
-];
-
-const availableTasks: Task[] = [
-  {
-    id: "PROJ-123",
-    title: "Fix authentication redirect issue",
-    description: "Users are being redirected to the wrong page after login",
-    status: "in-progress",
-    boardId: "board-1",
-    priority: "high",
-    assignee: "Mike Johnson",
-    reporter: "Sarah Chen",
-    labels: ["bug", "auth"],
-    createdAt: "2025-11-21",
-    comments: [],
-  },
-  {
-    id: "PROJ-124",
-    title: "Dashboard redesign mockups",
-    description: "Create new mockups for the analytics dashboard",
-    status: "review",
-    boardId: "board-1",
-    priority: "medium",
-    assignee: "Alex Kim",
-    reporter: "Alex Kim",
-    labels: ["design", "frontend"],
-    createdAt: "2025-11-21",
-    comments: [],
-  },
-  {
-    id: "PROJ-125",
-    title: "Implement dark mode toggle",
-    description: "Add a toggle switch for dark/light mode in settings",
-    status: "todo",
-    boardId: "board-1",
-    priority: "medium",
-    reporter: "Sarah Chen",
-    labels: ["feature", "frontend"],
-    createdAt: "2025-11-20",
-    comments: [],
-  },
-];
 
 // Slash commands for project management
 const slashCommands = [
@@ -263,6 +163,7 @@ const slashCommands = [
 
 import { useChat } from "@/hooks/useChat";
 import { getCurrentUser } from "@/utils/auth";
+import { createClient } from "@/utils/supabase/client";
 
 // ... existing imports ...
 
@@ -274,15 +175,43 @@ export function EnhancedChatArea({
   tasks,
 }: Omit<ChatAreaProps, "messages">) {
   // Remove messages from props
-  const { messages: chatMessages, sendMessage } = useChat(channelId);
+  const {
+    messages: chatMessages,
+    sendMessage,
+    isLoading,
+    editMessage,
+    deleteMessage,
+    broadcastTyping,
+    typingUsers,
+  } = useChat(channelId);
   const [message, setMessage] = useState("");
   // const [messages, setMessages] = useState<Message[]>(messagesFromProps); // Removed local state
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [editingMessage, setEditingMessage] = useState<string | null>(null);
+  const [channelName, setChannelName] = useState<string>("loading...");
+
+  // Fetch channel name
+  useEffect(() => {
+    const fetchChannelName = async () => {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("channels")
+        .select("name")
+        .eq("id", channelId)
+        .single();
+
+      if (!error && data) {
+        setChannelName(data.name);
+      }
+    };
+
+    if (channelId) {
+      fetchChannelName();
+    }
+  }, [channelId]);
 
   // Missing state variables
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const [isTyping, setIsTyping] = useState<string[]>([]);
   const [showSlashCommands, setShowSlashCommands] = useState(false);
   const [commandSearchQuery, setCommandSearchQuery] = useState("");
   const [showTaskMentions, setShowTaskMentions] = useState(false);
@@ -302,20 +231,71 @@ export function EnhancedChatArea({
     console.log("State updates not supported in DB mode yet", action);
   };
 
+  // Get current user and available users
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [availableUsers, setAvailableUsers] = useState<
+    Array<{ id: string; name: string; avatar: string; status: string }>
+  >([]);
+
+  useEffect(() => {
+    const loadUser = async () => {
+      const user = await getCurrentUser();
+      setCurrentUser(user);
+    };
+    loadUser();
+  }, []);
+
+  // Load users from database for mentions
+  useEffect(() => {
+    const loadUsers = async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("users")
+        .select("id, username, full_name, avatar_url")
+        .limit(50);
+
+      if (data) {
+        const users = data.map((u) => ({
+          id: u.id,
+          name: u.full_name || u.username,
+          avatar: (u.full_name || u.username || "U")
+            .split(" ")
+            .map((n: string) => n[0])
+            .join("")
+            .toUpperCase()
+            .slice(0, 2),
+          status: "online",
+        }));
+        setAvailableUsers(users);
+      }
+    };
+    loadUsers();
+  }, []);
+
   // Convert Supabase messages to UI Message format
-  const messages: Message[] = chatMessages.map((msg) => ({
-    id: msg.id,
-    author: msg.user?.full_name || msg.user?.username || "Unknown",
-    avatar: msg.user?.avatar_url || "??", // You might want a default avatar helper
-    timestamp: new Date(msg.created_at).toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    }),
-    content: msg.content,
-    isCurrentUser: false, // We'll need to check this against current user ID
-    reactions: [], // TODO: Add reaction support to DB
-    attachments: [], // TODO: Add attachment support to DB
-  }));
+  const messages: Message[] = chatMessages.map((msg) => {
+    const userName = msg.author?.full_name || msg.author?.username || "Unknown";
+    const initials = userName
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+
+    return {
+      id: msg.id,
+      author: userName,
+      avatar: initials,
+      timestamp: new Date(msg.created_at).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+      content: msg.content,
+      isCurrentUser: currentUser ? msg.author_id === currentUser.id : false,
+      reactions: [], // TODO: Add reaction support to DB
+      attachments: [], // TODO: Add attachment support to DB
+    };
+  });
 
   // ... rest of state ...
 
@@ -324,34 +304,31 @@ export function EnhancedChatArea({
     if (!message.trim()) return;
 
     const user = await getCurrentUser();
-    if (!user) return;
+    if (!user) {
+      toast.error("Please log in to send messages");
+      return;
+    }
 
     const success = await sendMessage(message, user.id);
     if (success) {
       setMessage("");
-      onSendMessage(message); // Keep this for parent side effects if any
+      // Stop broadcasting typing
+      if (user.username) {
+        broadcastTyping(user.username, false);
+      }
     }
   };
 
   // ... rest of component ...
 
-  // Handle typing indicator
-  useEffect(() => {
-    if (message.length > 0) {
-      // Simulate other users typing
-      const timeout = setTimeout(() => {
-        if (Math.random() > 0.7) {
-          setIsTyping(["Sarah Chen"]);
-          setTimeout(() => setIsTyping([]), 3000);
-        }
-      }, 1000);
-      return () => clearTimeout(timeout);
-    }
-  }, [message]);
-
   const handleMessageChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
     setMessage(value);
+
+    // Broadcast typing indicator
+    if (currentUser?.username) {
+      broadcastTyping(currentUser.username, value.length > 0);
+    }
 
     const lastWord = value.split(/\s/).pop() || "";
 
@@ -438,32 +415,34 @@ export function EnhancedChatArea({
   };
 
   const handleAddReaction = (messageId: string, emoji: string) => {
-    setMessages((prevMessages) =>
-      prevMessages.map((msg) => {
+    setMessages((prevMessages: Message[]) =>
+      prevMessages.map((msg: Message) => {
         if (msg.id === messageId) {
           const reactions = msg.reactions || [];
-          const existingReaction = reactions.find((r) => r.emoji === emoji);
+          const existingReaction = reactions.find(
+            (r: Reaction) => r.emoji === emoji
+          );
 
           if (existingReaction) {
             if (existingReaction.users.includes("You")) {
               return {
                 ...msg,
                 reactions: reactions
-                  .map((r) =>
+                  .map((r: Reaction) =>
                     r.emoji === emoji
                       ? {
                           ...r,
                           count: r.count - 1,
-                          users: r.users.filter((u) => u !== "You"),
+                          users: r.users.filter((u: string) => u !== "You"),
                         }
                       : r
                   )
-                  .filter((r) => r.count > 0),
+                  .filter((r: Reaction) => r.count > 0),
               };
             } else {
               return {
                 ...msg,
-                reactions: reactions.map((r) =>
+                reactions: reactions.map((r: Reaction) =>
                   r.emoji === emoji
                     ? {
                         ...r,
@@ -499,30 +478,26 @@ export function EnhancedChatArea({
     setMessage("");
   };
 
-  const handleSaveEdit = (messageId: string) => {
-    setMessages((prevMessages) =>
-      prevMessages.map((msg) =>
-        msg.id === messageId
-          ? { ...msg, content: message, isEdited: true }
-          : msg
-      )
-    );
-    setEditingMessage(null);
-    setMessage("");
+  const handleSaveEdit = async (messageId: string) => {
+    if (!message.trim()) return;
+
+    const success = await editMessage(messageId, message.trim());
+    if (success) {
+      setEditingMessage(null);
+      setMessage("");
+    }
   };
 
-  const handleDeleteMessage = (messageId: string) => {
+  const handleDeleteMessage = async (messageId: string) => {
     if (confirm("Are you sure you want to delete this message?")) {
-      setMessages((prevMessages) =>
-        prevMessages.filter((msg) => msg.id !== messageId)
-      );
+      await deleteMessage(messageId);
       setShowMoreMenu(null);
     }
   };
 
   const handlePinMessage = (msg: Message) => {
-    setMessages((prevMessages) =>
-      prevMessages.map((m) =>
+    setMessages((prevMessages: Message[]) =>
+      prevMessages.map((m: Message) =>
         m.id === msg.id ? { ...m, isPinned: !m.isPinned } : m
       )
     );
@@ -633,7 +608,9 @@ export function EnhancedChatArea({
       <div className="h-10 px-3 flex items-center gap-3 border-b border-[#1e1f22] shadow-sm bg-[#313338]">
         <div className="flex items-center gap-2">
           <Hash size={18} className="text-gray-400" />
-          <span className="text-white text-sm">{channelId}</span>
+          <span className="text-white text-sm font-semibold">
+            {channelName}
+          </span>
         </div>
         <div className="h-5 w-px bg-[#3f4147]" />
 
@@ -784,384 +761,406 @@ export function EnhancedChatArea({
 
       {/* Messages */}
       <ScrollArea className="flex-1 px-3 py-2">
-        <div className="space-y-2">
-          {messages.map((msg, index) => {
-            const prevMsg = messages[index - 1];
-            const isGrouped =
-              prevMsg && prevMsg.author === msg.author && !msg.replyTo;
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center h-full text-center px-4 py-20">
+            <div className="w-12 h-12 border-4 border-[#5865f2] border-t-transparent rounded-full animate-spin mb-4" />
+            <p className="text-gray-400 text-sm">Loading messages...</p>
+          </div>
+        ) : messages.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-center px-4 py-20">
+            <div className="w-16 h-16 bg-[#2b2d31] rounded-full flex items-center justify-center mb-4">
+              <Hash className="text-gray-500" size={32} />
+            </div>
+            <h3 className="text-white text-lg font-semibold mb-2">
+              Welcome to #{channelName}
+            </h3>
+            <p className="text-gray-400 text-sm max-w-md">
+              This is the beginning of the #{channelName} channel. Start the
+              conversation by sending a message below!
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {messages.map((msg, index) => {
+              const prevMsg = messages[index - 1];
+              const isGrouped =
+                prevMsg && prevMsg.author === msg.author && !msg.replyTo;
 
-            return (
-              <div
-                key={msg.id}
-                className={`flex gap-2 hover:bg-[#2e3035] -mx-3 px-3 ${
-                  isGrouped ? "py-0" : "py-0.5"
-                } group rounded ${
-                  msg.isCurrentUser ? "flex-row-reverse" : ""
-                } ${showMoreMenu === msg.id ? "relative z-50" : "relative"}`}
-              >
-                {/* Hover action buttons */}
+              return (
                 <div
-                  className={`absolute -top-3 ${
-                    msg.isCurrentUser ? "left-3" : "right-3"
-                  } opacity-0 group-hover:opacity-100 transition-opacity bg-[#1e1f22] rounded-md border border-[#3f4147] shadow-lg flex items-center gap-0.5 p-0.5 z-10`}
+                  key={msg.id}
+                  className={`flex gap-2 hover:bg-[#2e3035] -mx-3 px-3 ${
+                    isGrouped ? "py-0" : "py-0.5"
+                  } group rounded ${
+                    msg.isCurrentUser ? "flex-row-reverse" : ""
+                  } ${showMoreMenu === msg.id ? "relative z-50" : "relative"}`}
                 >
-                  {/* Quick reactions */}
-                  {quickEmojis.slice(0, 4).map((emoji) => (
+                  {/* Hover action buttons */}
+                  <div
+                    className={`absolute -top-3 ${
+                      msg.isCurrentUser ? "left-3" : "right-3"
+                    } opacity-0 group-hover:opacity-100 transition-opacity bg-[#1e1f22] rounded-md border border-[#3f4147] shadow-lg flex items-center gap-0.5 p-0.5 z-10`}
+                  >
+                    {/* Quick reactions */}
+                    {quickEmojis.slice(0, 4).map((emoji) => (
+                      <Button
+                        key={emoji}
+                        variant="ghost"
+                        size="sm"
+                        className="text-gray-400 hover:text-white hover:bg-[#35363c] p-1 h-auto"
+                        onClick={() => handleAddReaction(msg.id, emoji)}
+                      >
+                        {emoji}
+                      </Button>
+                    ))}
+                    <div className="w-px h-4 bg-[#3f4147] mx-0.5" />
+
+                    {/* Action buttons */}
                     <Button
-                      key={emoji}
                       variant="ghost"
                       size="sm"
                       className="text-gray-400 hover:text-white hover:bg-[#35363c] p-1 h-auto"
-                      onClick={() => handleAddReaction(msg.id, emoji)}
+                      onClick={() => handleReply(msg)}
+                      title="Reply"
                     >
-                      {emoji}
+                      <Reply size={16} />
                     </Button>
-                  ))}
-                  <div className="w-px h-4 bg-[#3f4147] mx-0.5" />
 
-                  {/* Action buttons */}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-gray-400 hover:text-white hover:bg-[#35363c] p-1 h-auto"
-                    onClick={() => handleReply(msg)}
-                    title="Reply"
-                  >
-                    <Reply size={16} />
-                  </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-gray-400 hover:text-white hover:bg-[#35363c] p-1 h-auto"
+                      onClick={() => handleCreateThread(msg)}
+                      title="Create Thread"
+                    >
+                      <MessageSquare size={16} />
+                    </Button>
 
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-gray-400 hover:text-white hover:bg-[#35363c] p-1 h-auto"
-                    onClick={() => handleCreateThread(msg)}
-                    title="Create Thread"
-                  >
-                    <MessageSquare size={16} />
-                  </Button>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-gray-400 hover:text-white hover:bg-[#35363c] p-1 h-auto"
+                          title="Add Reaction"
+                        >
+                          <Smile size={16} />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-64 p-2 bg-[#1e1f22] border-[#3f4147]">
+                        <div className="grid grid-cols-8 gap-1">
+                          {quickEmojis.map((emoji) => (
+                            <button
+                              key={emoji}
+                              onClick={() => {
+                                handleAddReaction(msg.id, emoji);
+                              }}
+                              className="text-lg hover:bg-[#35363c] p-1 rounded"
+                            >
+                              {emoji}
+                            </button>
+                          ))}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
 
-                  <Popover>
-                    <PopoverTrigger asChild>
+                    <div className="relative">
                       <Button
                         variant="ghost"
                         size="sm"
                         className="text-gray-400 hover:text-white hover:bg-[#35363c] p-1 h-auto"
-                        title="Add Reaction"
+                        onClick={() =>
+                          setShowMoreMenu(
+                            showMoreMenu === msg.id ? null : msg.id
+                          )
+                        }
+                        title="More"
                       >
-                        <Smile size={16} />
+                        <MoreHorizontal size={16} />
                       </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-64 p-2 bg-[#1e1f22] border-[#3f4147]">
-                      <div className="grid grid-cols-8 gap-1">
-                        {quickEmojis.map((emoji) => (
-                          <button
-                            key={emoji}
-                            onClick={() => {
-                              handleAddReaction(msg.id, emoji);
-                            }}
-                            className="text-lg hover:bg-[#35363c] p-1 rounded"
-                          >
-                            {emoji}
-                          </button>
-                        ))}
-                      </div>
-                    </PopoverContent>
-                  </Popover>
 
-                  <div className="relative">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-gray-400 hover:text-white hover:bg-[#35363c] p-1 h-auto"
-                      onClick={() =>
-                        setShowMoreMenu(showMoreMenu === msg.id ? null : msg.id)
-                      }
-                      title="More"
-                    >
-                      <MoreHorizontal size={16} />
-                    </Button>
+                      {showMoreMenu === msg.id && (
+                        <>
+                          {/* Backdrop to close menu when clicking outside */}
+                          <div
+                            className="fixed inset-0 z-30"
+                            onClick={() => setShowMoreMenu(null)}
+                          />
 
-                    {showMoreMenu === msg.id && (
-                      <>
-                        {/* Backdrop to close menu when clicking outside */}
-                        <div
-                          className="fixed inset-0 z-30"
-                          onClick={() => setShowMoreMenu(null)}
-                        />
-
-                        {/* Dropdown menu */}
-                        <div className="absolute top-full mt-1 right-0 bg-[#1e1f22] border border-[#3f4147] rounded-lg shadow-xl min-w-[180px] overflow-hidden z-40">
-                          <button
-                            onClick={() => handleMarkUnread(msg)}
-                            className="w-full px-3 py-1.5 text-left text-gray-300 hover:bg-[#35363c] hover:text-white flex items-center gap-2 text-xs"
-                          >
-                            <Eye size={14} />
-                            Mark as Unread
-                          </button>
-                          <button
-                            onClick={() => handlePinMessage(msg)}
-                            className="w-full px-3 py-1.5 text-left text-gray-300 hover:bg-[#35363c] hover:text-white flex items-center gap-2 text-xs"
-                          >
-                            <Pin size={14} />
-                            {msg.isPinned ? "Unpin" : "Pin"} Message
-                          </button>
-                          <button
-                            onClick={() => handleCopyMessage(msg)}
-                            className="w-full px-3 py-1.5 text-left text-gray-300 hover:bg-[#35363c] hover:text-white flex items-center gap-2 text-xs"
-                          >
-                            <LinkIcon size={14} />
-                            Copy Message Link
-                          </button>
-                          <button
-                            onClick={() => handleCopyMessage(msg)}
-                            className="w-full px-3 py-1.5 text-left text-gray-300 hover:bg-[#35363c] hover:text-white flex items-center gap-2 text-xs"
-                          >
-                            <FileText size={14} />
-                            Copy Text
-                          </button>
-                          <Separator className="bg-[#3f4147]" />
-                          <button
-                            onClick={() => handleCreateTaskFromMessage(msg)}
-                            className="w-full px-3 py-1.5 text-left text-green-400 hover:bg-green-900/20 hover:text-green-300 flex items-center gap-2 text-xs"
-                          >
-                            <ClipboardList size={14} />
-                            Create Task from Message
-                          </button>
-                          {msg.isCurrentUser && (
-                            <>
-                              <Separator className="bg-[#3f4147]" />
-                              <button
-                                onClick={() => handleStartEdit(msg)}
-                                className="w-full px-3 py-1.5 text-left text-gray-300 hover:bg-[#35363c] hover:text-white flex items-center gap-2 text-xs"
-                              >
-                                <Edit2 size={14} />
-                                Edit Message
-                              </button>
-                              <button
-                                onClick={() => handleDeleteMessage(msg.id)}
-                                className="w-full px-3 py-1.5 text-left text-red-400 hover:bg-red-900/20 hover:text-red-300 flex items-center gap-2 text-xs"
-                              >
-                                <X size={14} />
-                                Delete Message
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                {/* Avatar - only show if not grouped or if has reply */}
-                {!isGrouped || msg.replyTo ? (
-                  <Avatar className="h-8 w-8 mt-0.5 flex-shrink-0">
-                    <AvatarFallback
-                      className={msg.isCurrentUser ? "bg-[#5865f2]" : ""}
-                    >
-                      {msg.avatar}
-                    </AvatarFallback>
-                  </Avatar>
-                ) : (
-                  <div className="w-8 flex-shrink-0 flex items-center justify-center">
-                    <span className="text-[10px] text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                      {msg.timestamp.split(" ")[0]}
-                    </span>
-                  </div>
-                )}
-
-                <div
-                  className={`flex-1 min-w-0 ${
-                    msg.isCurrentUser ? "flex flex-col items-end" : ""
-                  }`}
-                >
-                  {/* Author and timestamp - only show if not grouped */}
-                  {(!isGrouped || msg.replyTo) && (
-                    <div
-                      className={`flex items-baseline gap-2 ${
-                        msg.isCurrentUser ? "flex-row-reverse" : ""
-                      }`}
-                    >
-                      <span
-                        className={`text-sm ${
-                          msg.isCurrentUser ? "text-[#5865f2]" : "text-white"
-                        }`}
-                      >
-                        {msg.author}
-                      </span>
-                      <span className="text-gray-400 text-[11px]">
-                        {msg.timestamp}
-                      </span>
-                      {msg.isPinned && (
-                        <Pin size={10} className="text-yellow-500" />
+                          {/* Dropdown menu */}
+                          <div className="absolute top-full mt-1 right-0 bg-[#1e1f22] border border-[#3f4147] rounded-lg shadow-xl min-w-[180px] overflow-hidden z-40">
+                            <button
+                              onClick={() => handleMarkUnread(msg)}
+                              className="w-full px-3 py-1.5 text-left text-gray-300 hover:bg-[#35363c] hover:text-white flex items-center gap-2 text-xs"
+                            >
+                              <Eye size={14} />
+                              Mark as Unread
+                            </button>
+                            <button
+                              onClick={() => handlePinMessage(msg)}
+                              className="w-full px-3 py-1.5 text-left text-gray-300 hover:bg-[#35363c] hover:text-white flex items-center gap-2 text-xs"
+                            >
+                              <Pin size={14} />
+                              {msg.isPinned ? "Unpin" : "Pin"} Message
+                            </button>
+                            <button
+                              onClick={() => handleCopyMessage(msg)}
+                              className="w-full px-3 py-1.5 text-left text-gray-300 hover:bg-[#35363c] hover:text-white flex items-center gap-2 text-xs"
+                            >
+                              <LinkIcon size={14} />
+                              Copy Message Link
+                            </button>
+                            <button
+                              onClick={() => handleCopyMessage(msg)}
+                              className="w-full px-3 py-1.5 text-left text-gray-300 hover:bg-[#35363c] hover:text-white flex items-center gap-2 text-xs"
+                            >
+                              <FileText size={14} />
+                              Copy Text
+                            </button>
+                            <Separator className="bg-[#3f4147]" />
+                            <button
+                              onClick={() => handleCreateTaskFromMessage(msg)}
+                              className="w-full px-3 py-1.5 text-left text-green-400 hover:bg-green-900/20 hover:text-green-300 flex items-center gap-2 text-xs"
+                            >
+                              <ClipboardList size={14} />
+                              Create Task from Message
+                            </button>
+                            {msg.isCurrentUser && (
+                              <>
+                                <Separator className="bg-[#3f4147]" />
+                                <button
+                                  onClick={() => handleStartEdit(msg)}
+                                  className="w-full px-3 py-1.5 text-left text-gray-300 hover:bg-[#35363c] hover:text-white flex items-center gap-2 text-xs"
+                                >
+                                  <Edit2 size={14} />
+                                  Edit Message
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteMessage(msg.id)}
+                                  className="w-full px-3 py-1.5 text-left text-red-400 hover:bg-red-900/20 hover:text-red-300 flex items-center gap-2 text-xs"
+                                >
+                                  <X size={14} />
+                                  Delete Message
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </>
                       )}
                     </div>
-                  )}
-
-                  {/* Reply indicator */}
-                  {msg.replyTo && (
-                    <div
-                      className={`mt-0.5 mb-0.5 p-1.5 bg-[#2b2d31] rounded border-l-2 border-gray-500 cursor-pointer hover:border-gray-400 transition-colors ${
-                        msg.isCurrentUser ? "ml-auto max-w-md" : "max-w-md"
-                      }`}
-                    >
-                      <div className="flex items-center gap-1.5 mb-0.5">
-                        <Reply size={10} className="text-gray-400" />
-                        <span className="text-gray-400 text-[10px]">
-                          {msg.replyTo.author}
-                        </span>
-                      </div>
-                      <div className="text-gray-400 text-[11px] truncate">
-                        {msg.replyTo.content}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Message content */}
-                  <div
-                    className={`text-gray-300 text-[13px] ${
-                      !isGrouped || msg.replyTo ? "mt-0.5" : ""
-                    } ${
-                      msg.isCurrentUser
-                        ? "bg-[#5865f2] px-2.5 py-1.5 rounded-lg max-w-md"
-                        : ""
-                    }`}
-                  >
-                    {msg.content}
-                    {msg.isEdited && (
-                      <span className="text-[10px] text-gray-400 ml-1">
-                        (edited)
-                      </span>
-                    )}
                   </div>
 
-                  {/* Task card */}
-                  {msg.task && (
-                    <button
-                      onClick={() => onTaskClick(msg.task!)}
-                      className={`mt-1.5 p-2 bg-[#2b2d31] rounded-md border-l-4 border-blue-500 hover:bg-[#35363c] transition-colors text-left w-full max-w-md ${
-                        msg.isCurrentUser ? "ml-auto" : ""
-                      }`}
-                    >
-                      <div className="flex items-start gap-1.5 mb-1">
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] px-1.5 py-0"
-                        >
-                          {msg.task.id}
-                        </Badge>
-                        <Badge
-                          variant="outline"
-                          className={`text-[10px] px-1.5 py-0 ${
-                            msg.task.priority === "urgent"
-                              ? "border-red-500 text-red-500"
-                              : msg.task.priority === "high"
-                              ? "border-orange-500 text-orange-500"
-                              : msg.task.priority === "medium"
-                              ? "border-yellow-500 text-yellow-500"
-                              : "border-gray-500 text-gray-500"
-                          }`}
-                        >
-                          {msg.task.priority}
-                        </Badge>
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] px-1.5 py-0"
-                        >
-                          {msg.task.status}
-                        </Badge>
-                      </div>
-                      <div className="text-white text-sm mb-0.5">
-                        {msg.task.title}
-                      </div>
-                      <div className="text-gray-400 text-xs line-clamp-2">
-                        {msg.task.description}
-                      </div>
-                      <div className="flex gap-1 mt-1.5 flex-wrap">
-                        {msg.task.labels.map((label) => (
-                          <Badge
-                            key={label}
-                            variant="secondary"
-                            className="text-[10px] px-1.5 py-0"
-                          >
-                            {label}
-                          </Badge>
-                        ))}
-                      </div>
-                    </button>
-                  )}
-
-                  {/* Thread info */}
-                  {msg.thread && (
-                    <button className="mt-1 flex items-center gap-1.5 text-[11px] text-[#5865f2] hover:text-[#4752c4] transition-colors">
-                      <div className="flex -space-x-2">
-                        {msg.thread.participants.map((avatar, i) => (
-                          <Avatar
-                            key={i}
-                            className="h-4 w-4 border border-[#313338]"
-                          >
-                            <AvatarFallback className="text-[8px]">
-                              {avatar}
-                            </AvatarFallback>
-                          </Avatar>
-                        ))}
-                      </div>
-                      <span>{msg.thread.count} replies</span>
-                      <span className="text-gray-400">
-                        Last reply {msg.thread.lastReply}
-                      </span>
-                      <MessageSquare size={12} />
-                    </button>
-                  )}
-
-                  {/* Reactions */}
-                  {msg.reactions && msg.reactions.length > 0 && (
-                    <div
-                      className={`flex gap-1 mt-1 flex-wrap ${
-                        msg.isCurrentUser ? "justify-end" : ""
-                      }`}
-                    >
-                      {msg.reactions.map((reaction, index) => (
-                        <button
-                          key={index}
-                          onClick={() =>
-                            handleAddReaction(msg.id, reaction.emoji)
-                          }
-                          className={`flex items-center gap-1 px-1.5 py-0.5 rounded border transition-colors ${
-                            reaction.users.includes("You")
-                              ? "bg-[#5865f2]/20 border-[#5865f2] hover:bg-[#5865f2]/30"
-                              : "bg-[#2b2d31] border-[#3f4147] hover:bg-[#35363c]"
-                          }`}
-                          title={reaction.users.join(", ")}
-                        >
-                          <span className="text-xs">{reaction.emoji}</span>
-                          <span
-                            className={`text-[10px] ${
-                              reaction.users.includes("You")
-                                ? "text-[#5865f2]"
-                                : "text-gray-400"
-                            }`}
-                          >
-                            {reaction.count}
-                          </span>
-                        </button>
-                      ))}
-                      <button
-                        className="flex items-center justify-center w-6 h-6 rounded border border-[#3f4147] hover:bg-[#35363c] transition-colors"
-                        onClick={() => handleAddReaction(msg.id, "👍")}
-                        title="Add reaction"
+                  {/* Avatar - only show if not grouped or if has reply */}
+                  {!isGrouped || msg.replyTo ? (
+                    <Avatar className="h-8 w-8 mt-0.5 flex-shrink-0">
+                      <AvatarFallback
+                        className={msg.isCurrentUser ? "bg-[#5865f2]" : ""}
                       >
-                        <Smile size={12} className="text-gray-400" />
-                      </button>
+                        {msg.avatar}
+                      </AvatarFallback>
+                    </Avatar>
+                  ) : (
+                    <div className="w-8 flex-shrink-0 flex items-center justify-center">
+                      <span className="text-[10px] text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {msg.timestamp.split(" ")[0]}
+                      </span>
                     </div>
                   )}
+
+                  <div
+                    className={`flex-1 min-w-0 ${
+                      msg.isCurrentUser ? "flex flex-col items-end" : ""
+                    }`}
+                  >
+                    {/* Author and timestamp - only show if not grouped */}
+                    {(!isGrouped || msg.replyTo) && (
+                      <div
+                        className={`flex items-baseline gap-2 ${
+                          msg.isCurrentUser ? "flex-row-reverse" : ""
+                        }`}
+                      >
+                        <span
+                          className={`text-sm ${
+                            msg.isCurrentUser ? "text-[#5865f2]" : "text-white"
+                          }`}
+                        >
+                          {msg.author}
+                        </span>
+                        <span className="text-gray-400 text-[11px]">
+                          {msg.timestamp}
+                        </span>
+                        {msg.isPinned && (
+                          <Pin size={10} className="text-yellow-500" />
+                        )}
+                      </div>
+                    )}
+
+                    {/* Reply indicator */}
+                    {msg.replyTo && (
+                      <div
+                        className={`mt-0.5 mb-0.5 p-1.5 bg-[#2b2d31] rounded border-l-2 border-gray-500 cursor-pointer hover:border-gray-400 transition-colors ${
+                          msg.isCurrentUser ? "ml-auto max-w-md" : "max-w-md"
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <Reply size={10} className="text-gray-400" />
+                          <span className="text-gray-400 text-[10px]">
+                            {msg.replyTo.author}
+                          </span>
+                        </div>
+                        <div className="text-gray-400 text-[11px] truncate">
+                          {msg.replyTo.content}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Message content */}
+                    <div
+                      className={`text-gray-300 text-[13px] ${
+                        !isGrouped || msg.replyTo ? "mt-0.5" : ""
+                      } ${
+                        msg.isCurrentUser
+                          ? "bg-[#5865f2] px-2.5 py-1.5 rounded-lg max-w-md"
+                          : ""
+                      }`}
+                    >
+                      {msg.content}
+                      {msg.isEdited && (
+                        <span className="text-[10px] text-gray-400 ml-1">
+                          (edited)
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Task card */}
+                    {msg.task && (
+                      <button
+                        onClick={() => onTaskClick(msg.task!)}
+                        className={`mt-1.5 p-2 bg-[#2b2d31] rounded-md border-l-4 border-blue-500 hover:bg-[#35363c] transition-colors text-left w-full max-w-md ${
+                          msg.isCurrentUser ? "ml-auto" : ""
+                        }`}
+                      >
+                        <div className="flex items-start gap-1.5 mb-1">
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] px-1.5 py-0"
+                          >
+                            {msg.task.id}
+                          </Badge>
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] px-1.5 py-0 ${
+                              msg.task.priority === "urgent"
+                                ? "border-red-500 text-red-500"
+                                : msg.task.priority === "high"
+                                ? "border-orange-500 text-orange-500"
+                                : msg.task.priority === "medium"
+                                ? "border-yellow-500 text-yellow-500"
+                                : "border-gray-500 text-gray-500"
+                            }`}
+                          >
+                            {msg.task.priority}
+                          </Badge>
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] px-1.5 py-0"
+                          >
+                            {msg.task.status}
+                          </Badge>
+                        </div>
+                        <div className="text-white text-sm mb-0.5">
+                          {msg.task.title}
+                        </div>
+                        <div className="text-gray-400 text-xs line-clamp-2">
+                          {msg.task.description}
+                        </div>
+                        <div className="flex gap-1 mt-1.5 flex-wrap">
+                          {msg.task.labels.map((label) => (
+                            <Badge
+                              key={label}
+                              variant="secondary"
+                              className="text-[10px] px-1.5 py-0"
+                            >
+                              {label}
+                            </Badge>
+                          ))}
+                        </div>
+                      </button>
+                    )}
+
+                    {/* Thread info */}
+                    {msg.thread && (
+                      <button className="mt-1 flex items-center gap-1.5 text-[11px] text-[#5865f2] hover:text-[#4752c4] transition-colors">
+                        <div className="flex -space-x-2">
+                          {msg.thread.participants.map((avatar, i) => (
+                            <Avatar
+                              key={i}
+                              className="h-4 w-4 border border-[#313338]"
+                            >
+                              <AvatarFallback className="text-[8px]">
+                                {avatar}
+                              </AvatarFallback>
+                            </Avatar>
+                          ))}
+                        </div>
+                        <span>{msg.thread.count} replies</span>
+                        <span className="text-gray-400">
+                          Last reply {msg.thread.lastReply}
+                        </span>
+                        <MessageSquare size={12} />
+                      </button>
+                    )}
+
+                    {/* Reactions */}
+                    {msg.reactions && msg.reactions.length > 0 && (
+                      <div
+                        className={`flex gap-1 mt-1 flex-wrap ${
+                          msg.isCurrentUser ? "justify-end" : ""
+                        }`}
+                      >
+                        {msg.reactions.map((reaction, index) => (
+                          <button
+                            key={index}
+                            onClick={() =>
+                              handleAddReaction(msg.id, reaction.emoji)
+                            }
+                            className={`flex items-center gap-1 px-1.5 py-0.5 rounded border transition-colors ${
+                              reaction.users.includes("You")
+                                ? "bg-[#5865f2]/20 border-[#5865f2] hover:bg-[#5865f2]/30"
+                                : "bg-[#2b2d31] border-[#3f4147] hover:bg-[#35363c]"
+                            }`}
+                            title={reaction.users.join(", ")}
+                          >
+                            <span className="text-xs">{reaction.emoji}</span>
+                            <span
+                              className={`text-[10px] ${
+                                reaction.users.includes("You")
+                                  ? "text-[#5865f2]"
+                                  : "text-gray-400"
+                              }`}
+                            >
+                              {reaction.count}
+                            </span>
+                          </button>
+                        ))}
+                        <button
+                          className="flex items-center justify-center w-6 h-6 rounded border border-[#3f4147] hover:bg-[#35363c] transition-colors"
+                          onClick={() => handleAddReaction(msg.id, "👍")}
+                          title="Add reaction"
+                        >
+                          <Smile size={12} className="text-gray-400" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Typing indicator */}
-        {isTyping.length > 0 && (
+        {typingUsers.length > 0 && (
           <div className="flex items-center gap-2 px-3 py-2 text-xs text-gray-400">
             <div className="flex gap-1">
               <span
@@ -1178,7 +1177,7 @@ export function EnhancedChatArea({
               />
             </div>
             <span>
-              {isTyping.join(", ")} {isTyping.length === 1 ? "is" : "are"}{" "}
+              {typingUsers.join(", ")} {typingUsers.length === 1 ? "is" : "are"}{" "}
               typing...
             </span>
           </div>
@@ -1329,44 +1328,68 @@ export function EnhancedChatArea({
           </div>
         )}
 
+        {/* Typing indicator */}
+        {typingUsers.length > 0 && (
+          <div className="mb-2 px-4 py-2 text-sm text-gray-400 flex items-center gap-2">
+            <div className="flex gap-1">
+              <span
+                className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                style={{ animationDelay: "0ms" }}
+              />
+              <span
+                className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                style={{ animationDelay: "150ms" }}
+              />
+              <span
+                className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                style={{ animationDelay: "300ms" }}
+              />
+            </div>
+            <span>
+              {typingUsers.length === 1
+                ? `${typingUsers[0]} is typing...`
+                : typingUsers.length === 2
+                ? `${typingUsers[0]} and ${typingUsers[1]} are typing...`
+                : `${typingUsers[0]} and ${
+                    typingUsers.length - 1
+                  } others are typing...`}
+            </span>
+          </div>
+        )}
+
         {/* Input area */}
         <div
           className={`bg-[#383a40] ${
-            replyingTo || editingMessage ? "rounded-b-md" : "rounded-md"
-          } relative`}
+            replyingTo || editingMessage ? "rounded-b-lg" : "rounded-lg"
+          } relative border border-[#3f4147] focus-within:border-[#5865f2] transition-colors`}
         >
           <Textarea
             ref={inputRef}
-            placeholder={`Message #${channelId} (@ user, # task, / command)`}
+            placeholder={`Message #${channelName}`}
             value={message}
             onChange={handleMessageChange}
-            className="border-none bg-transparent text-gray-200 placeholder:text-gray-500 text-sm resize-none min-h-[32px] max-h-32 py-2"
+            className="border-none bg-transparent text-gray-200 placeholder:text-gray-500 text-sm resize-none min-h-[40px] max-h-32 py-3 px-4"
             rows={1}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
-                // Extract task ID from message if mentioned
-                const taskMatch = message.match(/#(PROJ-\d+|CHAT-\d+)/);
-                const taskId = taskMatch ? taskMatch[1] : undefined;
-
-                // Send message
-                onSendMessage(message, taskId);
-                setMessage("");
+                handleSend();
                 setReplyingTo(null);
               }
             }}
           />
 
           {/* Input toolbar */}
-          <div className="flex items-center justify-between px-2 pb-1.5 gap-2">
-            <div className="flex items-center gap-1">
+          <div className="flex items-center justify-between px-3 pb-2 gap-2 border-t border-[#3f4147]/50">
+            <div className="flex items-center gap-0.5">
               {/* File attachment */}
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-gray-400 hover:text-gray-200 p-1 h-auto"
+                className="text-gray-400 hover:text-white hover:bg-[#4e5058] p-2 h-auto rounded-md transition-all"
+                title="Attach file"
               >
-                <Paperclip size={16} />
+                <Paperclip size={18} />
               </Button>
 
               {/* Formatting */}
@@ -1480,12 +1503,16 @@ export function EnhancedChatArea({
 
               {/* Send button */}
               <Button
-                variant="ghost"
                 size="sm"
-                className="text-[#5865f2] hover:text-[#4752c4] p-1 h-auto"
+                className={`h-8 w-8 rounded-md transition-all ${
+                  message.trim()
+                    ? "bg-[#5865f2] hover:bg-[#4752c4] text-white"
+                    : "bg-[#3f4147] text-gray-500 cursor-not-allowed"
+                }`}
                 disabled={!message.trim()}
+                onClick={handleSend}
               >
-                <Send size={16} />
+                <Send size={18} />
               </Button>
             </div>
           </div>
@@ -1535,7 +1562,7 @@ export function EnhancedChatArea({
               task: newTask,
             };
 
-            setMessages((prev) => [...prev, newMessage]);
+            setMessages((prev: Message[]) => [...prev, newMessage]);
             setCreateTaskModalOpen(false);
             setTaskPrefilledData(null);
           }

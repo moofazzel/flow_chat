@@ -169,14 +169,25 @@ export function Sidebar({
         type: c.type,
         category: c.category || "TEXT CHANNELS",
       }));
-      setChannels(mapped.filter((c) => c.type === "text"));
+      const textChannels = mapped.filter((c) => c.type === "text");
+      setChannels(textChannels);
       setVoiceChannels(mapped.filter((c) => c.type === "voice"));
       console.log(
         "✅ Set channels - Text:",
-        mapped.filter((c) => c.type === "text").length,
+        textChannels.length,
         "Voice:",
         mapped.filter((c) => c.type === "voice").length
       );
+
+      // Auto-select first text channel if available
+      if (
+        textChannels.length > 0 &&
+        (!selectedChannel || currentView === "chat")
+      ) {
+        const firstChannel = textChannels[0];
+        console.log("🎯 Auto-selecting first channel:", firstChannel.name);
+        onChannelSelect(firstChannel.id);
+      }
     }
     load();
   }, [currentServerId]);

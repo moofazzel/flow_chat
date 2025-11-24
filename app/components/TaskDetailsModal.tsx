@@ -60,13 +60,6 @@ interface TaskDetailsModalProps {
   onManageLabels?: () => void;
 }
 
-const availableMembers = [
-  { id: "sarah", name: "Sarah Chen", avatar: "SC", color: "bg-pink-500" },
-  { id: "mike", name: "Mike Johnson", avatar: "MJ", color: "bg-blue-500" },
-  { id: "alex", name: "Alex Kim", avatar: "AK", color: "bg-green-500" },
-  { id: "you", name: "You", avatar: "YO", color: "bg-purple-500" },
-];
-
 export function TaskDetailsModal({
   task,
   onClose,
@@ -311,9 +304,8 @@ export function TaskDetailsModal({
     }
   };
 
-  const handleAddMember = (memberId: string) => {
-    const member = availableMembers.find((m) => m.id === memberId);
-    if (member) {
+  const handleAddMember = (memberId: string, memberName: string) => {
+    if (memberName) {
       // Initialize assignees array if it doesn't exist
       const currentAssignees = localTask.assignees || [];
 

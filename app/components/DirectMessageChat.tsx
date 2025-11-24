@@ -46,47 +46,12 @@ interface Message {
   };
 }
 
-const mockDMMessages: Message[] = [
-  {
-    id: "1",
-    content: "Hey! Did you see the latest design updates?",
-    timestamp: "10:30 AM",
-    isCurrentUser: false,
-  },
-  {
-    id: "2",
-    content: "Yes! They look amazing. I especially like the new color scheme.",
-    timestamp: "10:32 AM",
-    isCurrentUser: true,
-  },
-  {
-    id: "3",
-    content:
-      "Right? I think it really improves the overall UX. Want to discuss it in a call?",
-    timestamp: "10:33 AM",
-    isCurrentUser: false,
-  },
-  {
-    id: "4",
-    content:
-      "Sure! Let me finish this task first. I'll ping you in about 15 mins.",
-    timestamp: "10:35 AM",
-    isCurrentUser: true,
-  },
-  {
-    id: "5",
-    content: "Perfect! Take your time 👍",
-    timestamp: "10:35 AM",
-    isCurrentUser: false,
-  },
-];
-
 export function DirectMessageChat({
   onTaskClick: _onTaskClick,
   selectedDM,
   onBack: _onBack,
 }: DirectMessageChatProps) {
-  const [messages, setMessages] = useState<Message[]>(mockDMMessages);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [hoveredMessage, setHoveredMessage] = useState<string | null>(null);
   const [editingMessage, setEditingMessage] = useState<string | null>(null);

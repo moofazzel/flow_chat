@@ -56,94 +56,6 @@ interface TeamMembersPanelProps {
   onClose: () => void;
 }
 
-const mockMembers: TeamMember[] = [
-  {
-    id: "1",
-    name: "Sarah Chen",
-    email: "sarah.chen@company.com",
-    avatar: "SC",
-    status: "online",
-    role: "owner",
-    customStatus: "Building amazing things 🚀",
-    joinedDate: "2024-01-15",
-    lastActive: "now",
-  },
-  {
-    id: "2",
-    name: "Mike Johnson",
-    email: "mike.j@company.com",
-    avatar: "MJ",
-    status: "online",
-    role: "admin",
-    customStatus: "In a meeting",
-    joinedDate: "2024-02-01",
-    lastActive: "5 min ago",
-  },
-  {
-    id: "3",
-    name: "Alex Kim",
-    email: "alex.kim@company.com",
-    avatar: "AK",
-    status: "idle",
-    role: "moderator",
-    customStatus: "Away for lunch",
-    joinedDate: "2024-02-10",
-    lastActive: "15 min ago",
-  },
-  {
-    id: "4",
-    name: "John Doe",
-    email: "john.doe@company.com",
-    avatar: "JD",
-    status: "dnd",
-    role: "member",
-    joinedDate: "2024-03-01",
-    lastActive: "1 hour ago",
-  },
-  {
-    id: "5",
-    name: "Emily Davis",
-    email: "emily.d@company.com",
-    avatar: "ED",
-    status: "online",
-    role: "member",
-    customStatus: "Coding 💻",
-    joinedDate: "2024-03-15",
-    lastActive: "now",
-  },
-  {
-    id: "6",
-    name: "Tom Wilson",
-    email: "tom.w@company.com",
-    avatar: "TW",
-    status: "offline",
-    role: "member",
-    joinedDate: "2024-04-01",
-    lastActive: "2 days ago",
-  },
-  {
-    id: "7",
-    name: "Lisa Anderson",
-    email: "lisa.a@company.com",
-    avatar: "LA",
-    status: "online",
-    role: "member",
-    customStatus: "Available for tasks",
-    joinedDate: "2024-04-10",
-    lastActive: "now",
-  },
-  {
-    id: "8",
-    name: "David Brown",
-    email: "david.b@company.com",
-    avatar: "DB",
-    status: "idle",
-    role: "member",
-    joinedDate: "2024-05-01",
-    lastActive: "30 min ago",
-  },
-];
-
 const getRoleIcon = (role: TeamMember["role"]) => {
   switch (role) {
     case "owner":
@@ -184,7 +96,7 @@ const getStatusColor = (status: TeamMember["status"]) => {
 };
 
 export function TeamMembersPanel({ isOpen, onClose }: TeamMembersPanelProps) {
-  const [members, setMembers] = useState<TeamMember[]>(mockMembers);
+  const [members, setMembers] = useState<TeamMember[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddMember, setShowAddMember] = useState(false);
   const [newMemberEmail, setNewMemberEmail] = useState("");

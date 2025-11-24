@@ -671,7 +671,7 @@ export function BoardSettingsMenu({
 
           <ScrollArea className="max-h-[60vh]">
             <div className="space-y-3 p-4">
-              {/* Mock activity items */}
+              {/* Activity items should be fetched from database */}
               <div className="flex gap-3 p-3 bg-gray-50 rounded-lg">
                 <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
                   <Tag size={16} className="text-blue-600" />

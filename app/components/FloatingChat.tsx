@@ -2,7 +2,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { Hash, Send, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { Task } from "../App";
+import type { Task } from "../page";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -23,68 +23,6 @@ interface Message {
   content: string;
   task?: Task;
 }
-
-const mockMessages: Message[] = [
-  {
-    id: "1",
-    author: "Sarah Chen",
-    avatar: "SC",
-    timestamp: "10:30 AM",
-    content:
-      "Hey team! Just created a new task for the authentication bug we discussed yesterday.",
-    task: {
-      id: "PROJ-123",
-      title: "Fix authentication redirect issue",
-      description: "Users are being redirected to the wrong page after login",
-      status: "todo",
-      priority: "high",
-      reporter: "Sarah Chen",
-      labels: ["bug", "auth"],
-      createdAt: "2025-11-21",
-      comments: [],
-    },
-  },
-  {
-    id: "2",
-    author: "Mike Johnson",
-    avatar: "MJ",
-    timestamp: "10:35 AM",
-    content: "I'll take a look at this. Should be a quick fix.",
-  },
-  {
-    id: "3",
-    author: "Alex Kim",
-    avatar: "AK",
-    timestamp: "11:15 AM",
-    content:
-      "Updated the design for the new dashboard. Moving the task to review!",
-    task: {
-      id: "PROJ-124",
-      title: "Dashboard redesign mockups",
-      description: "Create new mockups for the analytics dashboard",
-      status: "review",
-      priority: "medium",
-      reporter: "Alex Kim",
-      labels: ["design", "frontend"],
-      createdAt: "2025-11-21",
-      comments: [],
-    },
-  },
-  {
-    id: "4",
-    author: "Sarah Chen",
-    avatar: "SC",
-    timestamp: "11:45 AM",
-    content: "Looks great! The new color scheme is much better.",
-  },
-  {
-    id: "5",
-    author: "Mike Johnson",
-    avatar: "MJ",
-    timestamp: "2:15 PM",
-    content: "Auth bug is fixed and pushed to staging. Can someone test it?",
-  },
-];
 
 export function FloatingChat({
   channelId,
@@ -162,7 +100,8 @@ export function FloatingChat({
             }}
             className="space-y-3"
           >
-            {mockMessages.map((msg, index) => (
+            {/* Messages should be fetched from database */}
+            {[].map((msg: Message, index: number) => (
               <motion.div
                 key={msg.id}
                 initial={{ opacity: 0, x: 30, scale: 0.95 }}

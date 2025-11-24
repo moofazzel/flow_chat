@@ -130,185 +130,6 @@ const readString = (key: string, fallback: string) => {
   }
 };
 
-const DEFAULT_MESSAGES: ChatMessage[] = [
-  {
-    id: "m1",
-    author: "Sarah Chen",
-    avatar: "SC",
-    timestamp: "10:30 AM",
-    content:
-      "Hey team! Just created a new task for the authentication bug we discussed yesterday. @Mike Johnson can you take a look?",
-    isCurrentUser: false,
-    mentions: ["Mike Johnson"],
-    isPinned: true,
-    reactions: [
-      { emoji: "??", count: 3, users: ["You", "Mike", "Alex"] },
-      { emoji: "??", count: 2, users: ["Mike", "Alex"] },
-    ],
-    thread: {
-      id: "t1",
-      messageId: "m1",
-      count: 5,
-      lastReply: "2 hours ago",
-      participants: ["SC", "MJ", "AK"],
-    },
-    channelId: "general",
-  },
-  {
-    id: "m2",
-    author: "You",
-    avatar: "YO",
-    timestamp: "10:35 AM",
-    content: "I'll take a look at this. Should be a quick fix.",
-    isCurrentUser: true,
-    reactions: [{ emoji: "??", count: 1, users: ["Sarah"] }],
-    replyTo: {
-      id: "m1",
-      author: "Sarah Chen",
-      content:
-        "Hey team! Just created a new task for the authentication bug we discussed yesterday.",
-    },
-    channelId: "general",
-  },
-];
-
-// This app blends Discord-style chat with Trello-like task boards.
-const DEFAULT_TASKS: Task[] = [
-  {
-    id: "PROJ-123",
-    title: "Fix authentication redirect issue",
-    description: "Users are being redirected to the wrong page after login",
-    status: "column-1-2", // Mapped to "In Progress"
-    boardId: "board-1",
-    priority: "high",
-    assignee: "Mike Johnson",
-    reporter: "Sarah Chen",
-    labels: ["bug", "auth"],
-    createdAt: "2025-11-21",
-    dueDate: "2025-11-23",
-    comments: [
-      {
-        id: "1",
-        author: "Mike Johnson",
-        content: "I'll take a look at this",
-        timestamp: "10:35 AM",
-        avatar: "MJ",
-      },
-    ],
-    subtasks: [
-      { id: "s1", title: "Identify redirect issue", completed: true },
-      { id: "s2", title: "Fix redirect logic", completed: true },
-      { id: "s3", title: "Write tests", completed: false },
-    ],
-    attachments: [
-      { id: "a1", name: "screenshot.png", size: "1.2 MB", type: "image" },
-    ],
-  },
-  {
-    id: "PROJ-124",
-    title: "Dashboard redesign mockups",
-    description: "Create new mockups for the analytics dashboard",
-    status: "column-1-3", // Mapped to "Done"
-    boardId: "board-1",
-    priority: "medium",
-    assignee: "Alex Kim",
-    reporter: "Alex Kim",
-    labels: ["design", "frontend"],
-    createdAt: "2025-11-21",
-    dueDate: "2025-11-25",
-    comments: [],
-    subtasks: [
-      { id: "s1", title: "Wireframes", completed: true },
-      { id: "s2", title: "High-fidelity mockups", completed: true },
-      { id: "s3", title: "Review with team", completed: false },
-    ],
-    attachments: [
-      { id: "a1", name: "dashboard-v2.fig", size: "4.5 MB", type: "file" },
-      { id: "a2", name: "design-system.pdf", size: "2.1 MB", type: "file" },
-    ],
-  },
-  {
-    id: "PROJ-125",
-    title: "Implement dark mode toggle",
-    description: "Add a toggle switch for dark/light mode in settings",
-    status: "column-1-1", // Mapped to "To Do"
-    boardId: "board-1",
-    priority: "medium",
-    reporter: "Sarah Chen",
-    labels: ["feature", "frontend"],
-    createdAt: "2025-11-20",
-    dueDate: "2025-11-28",
-    comments: [],
-  },
-  {
-    id: "PROJ-126",
-    title: "API rate limiting",
-    description: "Implement rate limiting on all public API endpoints",
-    status: "column-1-1", // Mapped to "To Do"
-    boardId: "board-1",
-    priority: "high",
-    reporter: "Mike Johnson",
-    labels: ["backend", "security"],
-    createdAt: "2025-11-20",
-    dueDate: "2025-11-22",
-    comments: [],
-    subtasks: [
-      {
-        id: "s1",
-        title: "Research rate limiting libraries",
-        completed: false,
-      },
-      { id: "s2", title: "Implement middleware", completed: false },
-      { id: "s3", title: "Add monitoring", completed: false },
-    ],
-  },
-  {
-    id: "PROJ-127",
-    title: "User onboarding flow",
-    description: "Design and implement new user onboarding experience",
-    status: "column-1-1", // Mapped to "To Do"
-    boardId: "board-1",
-    priority: "low",
-    reporter: "Alex Kim",
-    labels: ["feature", "design"],
-    createdAt: "2025-11-19",
-    comments: [],
-  },
-  {
-    id: "PROJ-128",
-    title: "Database query optimization",
-    description: "Optimize slow queries in the analytics module",
-    status: "column-1-2", // Mapped to "In Progress"
-    boardId: "board-1",
-    priority: "urgent",
-    assignee: "Sarah Chen",
-    reporter: "Mike Johnson",
-    labels: ["backend", "performance"],
-    createdAt: "2025-11-21",
-    dueDate: "2025-11-21", // Today - overdue!
-    comments: [],
-    subtasks: [
-      { id: "s1", title: "Profile slow queries", completed: true },
-      { id: "s2", title: "Add indexes", completed: true },
-      { id: "s3", title: "Test performance", completed: false },
-      { id: "s4", title: "Deploy to staging", completed: false },
-    ],
-  },
-  {
-    id: "PROJ-129",
-    title: "Update documentation",
-    description: "Update API documentation with new endpoints",
-    status: "column-1-3", // Mapped to "Done"
-    boardId: "board-1",
-    priority: "low",
-    assignee: "Mike Johnson",
-    reporter: "Sarah Chen",
-    labels: ["docs"],
-    createdAt: "2025-11-18",
-    comments: [],
-  },
-];
-
 const loadInitialView = (): ViewType =>
   (readString(STORAGE_KEYS.currentView, "chat") as ViewType) || "chat";
 
@@ -328,17 +149,17 @@ const loadInitialBoards = () => {
 };
 
 const loadInitialTasks = () => {
-  if (!isBrowser) return DEFAULT_TASKS;
+  if (!isBrowser) return [];
   try {
     const saved = storage.tasks.load();
-    return saved && saved.length > 0 ? saved : DEFAULT_TASKS;
+    return saved || [];
   } catch {
-    return DEFAULT_TASKS;
+    return [];
   }
 };
 
 const loadInitialMessages = () =>
-  readJSON<ChatMessage[]>(STORAGE_KEYS.messages, DEFAULT_MESSAGES);
+  readJSON<ChatMessage[]>(STORAGE_KEYS.messages, []);
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);

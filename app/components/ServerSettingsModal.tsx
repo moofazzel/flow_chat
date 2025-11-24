@@ -447,70 +447,53 @@ export function ServerSettingsModal({
                       />
                     </div>
                     <div className="space-y-3">
-                      {[
-                        {
-                          name: "John Doe",
-                          role: "Admin",
-                          status: "online",
-                          avatar: "JD",
-                        },
-                        {
-                          name: "Sarah Chen",
-                          role: "Moderator",
-                          status: "online",
-                          avatar: "SC",
-                        },
-                        {
-                          name: "Mike Johnson",
-                          role: "Member",
-                          status: "idle",
-                          avatar: "MJ",
-                        },
-                        {
-                          name: "Alex Kim",
-                          role: "Member",
-                          status: "dnd",
-                          avatar: "AK",
-                        },
-                      ].map((member) => (
-                        <div
-                          key={member.name}
-                          className="flex items-center justify-between p-4 bg-[#2b2d31] rounded-xl border border-[#1e1f22] hover:border-[#5865f2] hover:shadow-lg transition-all cursor-pointer group"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="relative">
-                              <Avatar className="h-10 w-10">
-                                <AvatarFallback className="text-sm bg-[#5865f2]">
-                                  {member.avatar}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div
-                                className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#2b2d31] ${
-                                  member.status === "online"
-                                    ? "bg-[#3ba55d]"
-                                    : member.status === "idle"
-                                    ? "bg-[#f0b232]"
-                                    : "bg-[#ed4245]"
-                                }`}
-                              />
-                            </div>
-                            <div>
-                              <div className="text-white font-medium">
-                                {member.name}
-                              </div>
-                              <div className="text-[#b5bac1] text-sm">
-                                {member.role}
-                              </div>
-                            </div>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            className="text-[#b5bac1] group-hover:text-white group-hover:bg-[#5865f2] h-9 px-4 font-medium transition-all"
+                      {/* TODO: Fetch members from database */}
+                      {[].map(
+                        (member: {
+                          name: string;
+                          role: string;
+                          status: string;
+                          avatar: string;
+                        }) => (
+                          <div
+                            key={member.name}
+                            className="flex items-center justify-between p-4 bg-[#2b2d31] rounded-xl border border-[#1e1f22] hover:border-[#5865f2] hover:shadow-lg transition-all cursor-pointer group"
                           >
-                            Manage
-                          </Button>
-                        </div>
-                      ))}
+                            <div className="flex items-center gap-3">
+                              <div className="relative">
+                                <Avatar className="h-10 w-10">
+                                  <AvatarFallback className="text-sm bg-[#5865f2]">
+                                    {member.avatar}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div
+                                  className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#2b2d31] ${
+                                    member.status === "online"
+                                      ? "bg-[#3ba55d]"
+                                      : member.status === "idle"
+                                      ? "bg-[#f0b232]"
+                                      : "bg-[#ed4245]"
+                                  }`}
+                                />
+                              </div>
+                              <div>
+                                <div className="text-white font-medium">
+                                  {member.name}
+                                </div>
+                                <div className="text-[#b5bac1] text-sm">
+                                  {member.role}
+                                </div>
+                              </div>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              className="text-[#b5bac1] group-hover:text-white group-hover:bg-[#5865f2] h-9 px-4 font-medium transition-all"
+                            >
+                              Manage
+                            </Button>
+                          </div>
+                        )
+                      )}
                     </div>
                   </div>
                 </ScrollArea>

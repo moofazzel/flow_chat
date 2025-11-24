@@ -51,23 +51,6 @@ export interface NewTaskData {
   sourceMessageId?: string;
 }
 
-const availableAssignees = [
-  { id: "u1", name: "Sarah Chen", avatar: "SC" },
-  { id: "u2", name: "Mike Johnson", avatar: "MJ" },
-  { id: "u3", name: "Alex Kim", avatar: "AK" },
-  { id: "u4", name: "John Doe", avatar: "JD" },
-  { id: "unassigned", name: "Unassigned", avatar: "?" },
-];
-
-const availableLabels = [
-  { id: "frontend", name: "Frontend", color: "bg-blue-500" },
-  { id: "backend", name: "Backend", color: "bg-green-500" },
-  { id: "bug", name: "Bug", color: "bg-red-500" },
-  { id: "feature", name: "Feature", color: "bg-purple-500" },
-  { id: "design", name: "Design", color: "bg-pink-500" },
-  { id: "docs", name: "Documentation", color: "bg-yellow-500" },
-];
-
 export function CreateTaskModal({
   isOpen,
   onClose,
@@ -88,6 +71,12 @@ export function CreateTaskModal({
   const [status, setStatus] = useState<
     "backlog" | "todo" | "in-progress" | "review" | "done"
   >("todo");
+  
+  // TODO: Fetch from database
+  const [availableAssignees] = useState<Array<{ id: string; name: string; avatar: string }>>([
+    { id: "unassigned", name: "Unassigned", avatar: "?" },
+  ]);
+  const [availableLabels] = useState<Array<{ id: string; name: string; color: string }>>([]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

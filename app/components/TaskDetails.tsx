@@ -9,7 +9,7 @@ import {
   User,
   X,
 } from "lucide-react";
-import type { Task } from "../App";
+import { Task } from "../page";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -75,9 +75,7 @@ export function TaskDetails({ task, onClose }: TaskDetailsProps) {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="unassigned">Unassigned</SelectItem>
-                  <SelectItem value="Sarah Chen">Sarah Chen</SelectItem>
-                  <SelectItem value="Mike Johnson">Mike Johnson</SelectItem>
-                  <SelectItem value="Alex Kim">Alex Kim</SelectItem>
+                  {/* TODO: Load assignees from database */}
                 </SelectContent>
               </Select>
             </div>

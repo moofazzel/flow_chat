@@ -1024,6 +1024,7 @@ export function Sidebar({
       {/* Voice Channel Panel */}
       {activeVoiceChannel && (
         <VoiceChannelPanel
+          key={activeVoiceChannel.id}
           channelId={activeVoiceChannel.id}
           channelName={activeVoiceChannel.name}
           onLeave={() => setActiveVoiceChannel(null)}

@@ -25,6 +25,7 @@ interface VoiceChannelPanelProps {
   channelId: string;
   channelName: string;
   onLeave: () => void;
+  onParticipantsChange?: (participants: VoiceParticipant[]) => void;
 }
 
 interface VoiceParticipant {
@@ -42,6 +43,7 @@ export function VoiceChannelPanel({
   channelId,
   channelName,
   onLeave,
+  onParticipantsChange,
 }: VoiceChannelPanelProps) {
   const [participants, setParticipants] = useState<VoiceParticipant[]>([]);
   const [isMuted, setIsMuted] = useState(false);
@@ -72,6 +74,7 @@ export function VoiceChannelPanel({
   const processedUserListRef = useRef<Set<string>>(new Set());
   const isCleaningUpRef = useRef(false);
   const lastSpeakingStateRef = useRef(false);
+  const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
   const supabase = createClient();
 
   // Helper functions for participant management
@@ -117,6 +120,14 @@ export function VoiceChannelPanel({
 
   const removeParticipant = (userId: string) => {
     setParticipants((prev) => prev.filter((p) => p.id !== userId));
+
+    // Cleanup audio element
+    const audioEl = audioElementsRef.current.get(userId);
+    if (audioEl) {
+      audioEl.srcObject = null;
+      audioEl.remove();
+      audioElementsRef.current.delete(userId);
+    }
   };
 
   const updateParticipant = (update: {
@@ -149,14 +160,10 @@ export function VoiceChannelPanel({
     });
   };
 
-  // Debug participant state changes
+  // Notify parent of participant changes
   useEffect(() => {
-    console.log(
-      "🔄 Participants state changed:",
-      participants.length,
-      participants.map((p) => p.full_name)
-    );
-  }, [participants]);
+    onParticipantsChange?.(participants);
+  }, [participants, onParticipantsChange]);
 
   // WebRTC peer connection management
   const createPeerConnection = useCallback(
@@ -188,7 +195,15 @@ export function VoiceChannelPanel({
         const audio = new Audio();
         audio.srcObject = remoteStream;
         audio.autoplay = true;
-        audio.play().catch((err) => console.error("Audio play failed:", err));
+
+        // Attach to DOM to ensure it plays
+        audio.style.display = "none";
+        document.body.appendChild(audio);
+        audioElementsRef.current.set(userId, audio);
+
+        audio.play().catch((err) => {
+          console.error("Audio play failed:", err);
+        });
       };
 
       // Handle ICE candidates
@@ -588,10 +603,35 @@ export function VoiceChannelPanel({
               if (!isCleaningUpRef.current) {
                 setIsConnecting(false);
                 setIsConnected(true);
-                hasJoinedRef.current = true;
                 isJoiningRef.current = false;
                 console.log("✅ Successfully joined voice channel");
                 toast.success(`Joined ${channelName}`);
+
+                // Play join sound
+                if (audioContextRef.current) {
+                  const osc = audioContextRef.current.createOscillator();
+                  const gain = audioContextRef.current.createGain();
+                  osc.connect(gain);
+                  gain.connect(audioContextRef.current.destination);
+                  osc.frequency.setValueAtTime(
+                    440,
+                    audioContextRef.current.currentTime
+                  );
+                  osc.frequency.exponentialRampToValueAtTime(
+                    880,
+                    audioContextRef.current.currentTime + 0.1
+                  );
+                  gain.gain.setValueAtTime(
+                    0.1,
+                    audioContextRef.current.currentTime
+                  );
+                  gain.gain.exponentialRampToValueAtTime(
+                    0.01,
+                    audioContextRef.current.currentTime + 0.3
+                  );
+                  osc.start();
+                  osc.stop(audioContextRef.current.currentTime + 0.3);
+                }
               } else {
                 console.log("⚠️ Component cleaning up, skipping state updates");
               }

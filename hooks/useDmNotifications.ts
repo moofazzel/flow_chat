@@ -1,3 +1,4 @@
+import { getDmConversations } from "@/lib/friendService";
 import { createClient } from "@/utils/supabase/client";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -17,12 +18,28 @@ export interface DmNotification {
  */
 export function useDmNotifications(
   userId: string | null,
-  currentThreadId: string | null
+  currentThreadId: string | null,
+  options: { showToast?: boolean } = { showToast: true }
 ) {
   const [notifications, setNotifications] = useState<DmNotification[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const supabase = createClient();
+
+  // Fetch initial unread count
+  useEffect(() => {
+    if (!userId) return;
+    const fetchUnread = async () => {
+      try {
+        const convs = await getDmConversations(userId);
+        const total = convs.reduce((acc, curr) => acc + curr.unreadCount, 0);
+        setUnreadCount(total);
+      } catch (error) {
+        console.error("Failed to fetch unread count:", error);
+      }
+    };
+    fetchUnread();
+  }, [userId]);
 
   useEffect(() => {
     if (!userId) {
@@ -87,13 +104,15 @@ export function useDmNotifications(
           setUnreadCount((prev) => prev + 1);
 
           // Show toast notification
-          toast.info(`New message from ${notification.sender_name}`, {
-            description:
-              notification.content.length > 50
-                ? `${notification.content.substring(0, 50)}...`
-                : notification.content,
-            duration: 4000,
-          });
+          if (options.showToast) {
+            toast.info(`New message from ${notification.sender_name}`, {
+              description:
+                notification.content.length > 50
+                  ? `${notification.content.substring(0, 50)}...`
+                  : notification.content,
+              duration: 4000,
+            });
+          }
         }
       )
       .subscribe((status) => {

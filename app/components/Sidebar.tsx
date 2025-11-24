@@ -1,5 +1,6 @@
 "use client";
 
+import { useDmNotifications } from "@/hooks/useDmNotifications";
 import {
   createChannel,
   createServer,
@@ -34,6 +35,7 @@ import { CreateChannelModal } from "./CreateChannelModal";
 import { CreateServerModal, type ServerData } from "./CreateServerModal";
 import { InvitePeopleModal } from "./InvitePeopleModal";
 import { ManageChannelModal } from "./ManageChannelModal";
+
 import { ServerSettingsModal } from "./ServerSettingsModal";
 import { Badge } from "./ui/badge";
 import { DropdownMenuTrigger } from "./ui/dropdown-menu";
@@ -110,6 +112,13 @@ export function Sidebar({
   const [isServerMuted, setIsServerMuted] = useState(false);
   const [hideMutedChannels, setHideMutedChannels] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+
+  // Use DM notifications hook for global unread count and toasts
+  const { unreadCount: dmUnreadCount } = useDmNotifications(
+    currentUser?.id || null,
+    null,
+    { showToast: true }
+  );
 
   useEffect(() => {
     async function init() {
@@ -551,6 +560,11 @@ export function Sidebar({
               <MessageSquare size={20} />
             </motion.div>
           </motion.button>
+          {dmUnreadCount > 0 && (
+            <div className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center z-10 pointer-events-none">
+              {dmUnreadCount > 99 ? "99+" : dmUnreadCount}
+            </div>
+          )}
         </div>
 
         {servers.length > 0 && (

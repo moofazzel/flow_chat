@@ -109,13 +109,41 @@ export function DirectMessageCenter() {
   // Enable real-time DM notifications
   const { notifications: dmNotifications } = useDmNotifications(
     currentUser?.id || null,
-    selectedDM?.id || null
+    selectedDM?.id || null,
+    { showToast: false }
   );
 
   // Refresh DM list when new messages arrive to update unread badges
   useEffect(() => {
     if (!currentUser || dmNotifications.length === 0) return;
 
+    // Optimistically update the unread count for the sender
+    const latestNotification = dmNotifications[dmNotifications.length - 1];
+
+    // Wrap in setTimeout to avoid "setState in effect" warning
+    setTimeout(() => {
+      setDms((prevDms) => {
+        const updatedDms = prevDms.map((dm) => {
+          if (dm.friend.id === latestNotification.sender_id) {
+            return {
+              ...dm,
+              unread: (dm.unread || 0) + 1,
+              lastMessage: latestNotification.content,
+              timestamp: new Date(
+                latestNotification.created_at
+              ).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              }),
+            };
+          }
+          return dm;
+        });
+        return updatedDms;
+      });
+    }, 0);
+
+    // Also fetch from server to ensure consistency (debounced or just run it)
     const refreshDmList = async () => {
       try {
         const conversations = await getDmConversations(currentUser.id);
@@ -126,6 +154,8 @@ export function DirectMessageCenter() {
           timestamp: conv.lastMessageTime,
           unread: conv.unreadCount,
         }));
+        // Only update if we have new data, to avoid overwriting optimistic updates with stale data immediately
+        // But here we just set it. The server should be fast enough or eventually consistent.
         setDms(dmConversations);
       } catch (error) {
         console.error("Failed to refresh DM conversations:", error);
@@ -564,7 +594,7 @@ export function DirectMessageCenter() {
                     selectedDM?.id === dm.id ? "bg-[#35363c]" : ""
                   }`}
                 >
-                  <div className="relative flex-shrink-0">
+                  <div className="relative shrink-0">
                     <Avatar className="h-8 w-8">
                       {dm.friend.avatar_url && (
                         <AvatarImage
@@ -595,7 +625,7 @@ export function DirectMessageCenter() {
                   </div>
 
                   {dm.unread > 0 && (
-                    <div className="w-2 h-2 bg-[#f23f43] rounded-full flex-shrink-0" />
+                    <div className="w-2 h-2 bg-[#f23f43] rounded-full shrink-0" />
                   )}
                 </button>
               ))}

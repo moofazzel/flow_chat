@@ -113,6 +113,26 @@ interface Message {
   isEdited?: boolean;
   mentions?: string[];
   links?: string[];
+  task_links?: TaskLink[];
+}
+
+interface TaskLink {
+  id: string;
+  card_id: string;
+  created_at: string;
+}
+
+interface TaskPrefilledData {
+  title: string;
+  description: string;
+  priority: "low" | "medium" | "high" | "urgent";
+  assignee?: string;
+  sourceMessage: {
+    id: string;
+    author: string;
+    content: string;
+    timestamp: string;
+  };
 }
 
 const quickEmojis = ["👍", "❤️", "😂", "😮", "😢", "🎉", "🚀", "👀"];
@@ -162,7 +182,7 @@ const slashCommands = [
 ];
 
 import { useChat } from "@/hooks/useChat";
-import { getCurrentUser } from "@/utils/auth";
+import { getCurrentUser, User } from "@/utils/auth";
 import { createClient } from "@/utils/supabase/client";
 
 // ... existing imports ...
@@ -229,16 +249,17 @@ export function EnhancedChatArea({
   const [unreadCount, setUnreadCount] = useState(0);
   const [showTeamMembers, setShowTeamMembers] = useState(false);
   const [createTaskModalOpen, setCreateTaskModalOpen] = useState(false);
-  const [taskPrefilledData, setTaskPrefilledData] = useState(null);
+  const [taskPrefilledData, setTaskPrefilledData] =
+    useState<TaskPrefilledData | null>(null);
   const [showMoreMenu, setShowMoreMenu] = useState<string | null>(null);
 
   // Dummy setMessages to prevent errors
-  const setMessages = (action) => {
+  const setMessages = (action: React.SetStateAction<Message[]>) => {
     console.log("State updates not supported in DB mode yet", action);
   };
 
   // Get current user and available users
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [availableUsers, setAvailableUsers] = useState<
     Array<{ id: string; name: string; avatar: string; status: string }>
   >([]);
@@ -600,7 +621,7 @@ export function EnhancedChatArea({
     setShowMoreMenu(null);
   };
 
-  const handleMarkUnread = (msg: Message) => {
+  const handleMarkUnread = () => {
     setUnreadCount((prev) => prev + 1);
     setShowMoreMenu(null);
   };
@@ -977,7 +998,7 @@ export function EnhancedChatArea({
                           {/* Dropdown menu */}
                           <div className="absolute top-full mt-1 right-0 bg-[#1e1f22] border border-[#3f4147] rounded-lg shadow-xl min-w-[180px] overflow-hidden z-40">
                             <button
-                              onClick={() => handleMarkUnread(msg)}
+                              onClick={() => handleMarkUnread()}
                               className="w-full px-3 py-1.5 text-left text-gray-300 hover:bg-[#35363c] hover:text-white flex items-center gap-2 text-xs"
                             >
                               <Eye size={14} />
@@ -1039,7 +1060,7 @@ export function EnhancedChatArea({
 
                   {/* Avatar - only show if not grouped or if has reply */}
                   {!isGrouped || msg.replyTo ? (
-                    <Avatar className="h-8 w-8 mt-0.5 flex-shrink-0">
+                    <Avatar className="h-8 w-8 mt-0.5 shrink-0">
                       <AvatarFallback
                         className={msg.isCurrentUser ? "bg-[#5865f2]" : ""}
                       >
@@ -1047,7 +1068,7 @@ export function EnhancedChatArea({
                       </AvatarFallback>
                     </Avatar>
                   ) : (
-                    <div className="w-8 flex-shrink-0 flex items-center justify-center">
+                    <div className="w-8 shrink-0 flex items-center justify-center">
                       <span className="text-[10px] text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity">
                         {msg.timestamp.split(" ")[0]}
                       </span>
@@ -1284,7 +1305,7 @@ export function EnhancedChatArea({
             <Button
               variant="ghost"
               size="sm"
-              className="text-gray-400 hover:text-white p-1 h-auto flex-shrink-0"
+              className="text-gray-400 hover:text-white p-1 h-auto shrink-0"
               onClick={cancelReply}
             >
               <X size={14} />

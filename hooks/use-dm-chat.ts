@@ -1,5 +1,6 @@
 "use client";
 
+import { updateDmReaction } from "@/lib/friendService";
 import { createClient } from "@/utils/supabase/client";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -195,6 +196,9 @@ export function useDmChat({
         userName: currentUserName,
       };
 
+      // Determine if we're adding or removing the reaction
+      let isAdding = true;
+
       // Optimistic update for local messages
       setMessages((current) =>
         current.map((m) => {
@@ -206,6 +210,7 @@ export function useDmChat({
             const hasUser = existing.users.some(
               (u) => u.userId === user.userId
             );
+            isAdding = !hasUser;
             const newUsers = hasUser
               ? existing.users.filter((u) => u.userId !== user.userId)
               : [...existing.users, user];
@@ -233,6 +238,20 @@ export function useDmChat({
         })
       );
 
+      // Persist to database
+      try {
+        await updateDmReaction(
+          messageId,
+          emoji,
+          currentUserId,
+          currentUserName,
+          isAdding
+        );
+      } catch (error) {
+        console.error("Failed to persist reaction:", error);
+      }
+
+      // Broadcast to other users
       await channelRef.current.send({
         type: "broadcast",
         event: EVENT_REACTION,

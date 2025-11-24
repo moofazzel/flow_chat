@@ -22,7 +22,7 @@ export interface DmMessage {
   thread_id: string;
   sender_id: string;
   content: string;
-  attachments?: any[];
+  attachments?: unknown[];
   reactions?: Record<string, string[]>;
   reply_to_id?: string;
   is_edited: boolean;
@@ -323,6 +323,65 @@ export async function sendDmMessage(
   }
 
   return { success: true, message: message as DmMessage };
+}
+
+/**
+ * Update message reactions
+ */
+export async function updateDmReaction(
+  messageId: string,
+  emoji: string,
+  userId: string,
+  userName: string,
+  add: boolean
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = createClient();
+
+  // Get current message
+  const { data: message, error: fetchError } = await supabase
+    .from("dm_messages")
+    .select("reactions")
+    .eq("id", messageId)
+    .single();
+
+  if (fetchError) {
+    return { success: false, error: fetchError.message };
+  }
+
+  const currentReactions =
+    (message.reactions as Record<string, string[]>) || {};
+  const userList = currentReactions[emoji] || [];
+
+  let updatedUserList: string[];
+  if (add) {
+    // Add user if not already in the list
+    updatedUserList = userList.includes(userName)
+      ? userList
+      : [...userList, userName];
+  } else {
+    // Remove user from the list
+    updatedUserList = userList.filter((name) => name !== userName);
+  }
+
+  // Update reactions object
+  const updatedReactions = { ...currentReactions };
+  if (updatedUserList.length === 0) {
+    delete updatedReactions[emoji];
+  } else {
+    updatedReactions[emoji] = updatedUserList;
+  }
+
+  // Save to database
+  const { error: updateError } = await supabase
+    .from("dm_messages")
+    .update({ reactions: updatedReactions })
+    .eq("id", messageId);
+
+  if (updateError) {
+    return { success: false, error: updateError.message };
+  }
+
+  return { success: true };
 }
 
 /**

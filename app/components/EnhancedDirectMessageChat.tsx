@@ -104,7 +104,12 @@ export function EnhancedDirectMessageChat({
       replyTo: msg.replyToId
         ? { id: msg.replyToId, content: "", author: "" }
         : undefined,
-      reactions: msg.reactions || [],
+      reactions:
+        msg.reactions?.map((r) => ({
+          emoji: r.emoji,
+          count: r.count,
+          users: r.users.map((u) => u.userName),
+        })) || [],
     }),
     [currentUserId]
   );
@@ -188,6 +193,14 @@ export function EnhancedDirectMessageChat({
             m.sender_id === currentUserId
               ? currentUserName
               : selectedDM.userName,
+          isEdited: m.is_edited,
+          reactions: m.reactions
+            ? Object.entries(m.reactions).map(([emoji, users]) => ({
+                emoji,
+                count: users.length,
+                users,
+              }))
+            : [],
         }));
         setDbMessages(mapped);
         clearMessages();

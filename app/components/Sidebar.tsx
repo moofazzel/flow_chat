@@ -1,9 +1,12 @@
 "use client";
 
 import {
+  createChannel,
   createServer,
+  deleteChannel,
   getServerChannels,
   getUserServers,
+  renameChannel,
 } from "@/lib/serverService";
 import { getCurrentUser } from "@/utils/auth";
 import { motion } from "framer-motion";
@@ -13,6 +16,7 @@ import {
   Hash,
   LayoutGrid,
   MessageSquare,
+  MoreVertical,
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
@@ -26,6 +30,7 @@ import { CreateChannelModal } from "./CreateChannelModal";
 import { CreateServerModal, type ServerData } from "./CreateServerModal";
 import { EditServerProfileModal } from "./EditServerProfileModal";
 import { InvitePeopleModal } from "./InvitePeopleModal";
+import { ManageChannelModal } from "./ManageChannelModal";
 import { ServerSettingsModal } from "./ServerSettingsModal";
 import { Badge } from "./ui/badge";
 import { DropdownMenuTrigger } from "./ui/dropdown-menu";
@@ -99,42 +104,6 @@ function NotificationBadges({
   );
 }
 
-const directMessages: DirectMessage[] = [
-  { id: "dm1", name: "Sarah Chen", avatar: "SC", status: "online" },
-  { id: "dm2", name: "Mike Johnson", avatar: "MJ", status: "idle" },
-  { id: "dm3", name: "Alex Kim", avatar: "AK", status: "dnd" },
-];
-
-// Persist channel creation to the database
-async function createChannel(
-  serverId: string,
-  name: string,
-  type: "text" | "voice"
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    const res = await fetch(`/api/servers/${serverId}/channels`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, type }),
-    });
-
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      return {
-        success: false,
-        error: data.error || `Request failed: ${res.status}`,
-      };
-    }
-
-    return { success: true };
-  } catch (e) {
-    return {
-      success: false,
-      error: e instanceof Error ? e.message : "Unknown error",
-    };
-  }
-}
-
 export function Sidebar({
   currentView,
   onViewChange,
@@ -142,7 +111,6 @@ export function Sidebar({
   onChannelSelect,
   collapsed,
   onToggleCollapse,
-  onSelectDM,
   onServerChange,
 }: SidebarProps) {
   const [textChannelsOpen, setTextChannelsOpen] = useState(true);
@@ -158,6 +126,9 @@ export function Sidebar({
   const [servers, setServers] = useState<{ id: string; name: string }[]>([]);
   const [channels, setChannels] = useState<Channel[]>([]);
   const [voiceChannels, setVoiceChannels] = useState<Channel[]>([]);
+  const [manageChannelTarget, setManageChannelTarget] =
+    useState<Channel | null>(null);
+  const [showManageChannel, setShowManageChannel] = useState(false);
 
   useEffect(() => {
     async function init() {
@@ -176,8 +147,13 @@ export function Sidebar({
 
   useEffect(() => {
     async function load() {
-      if (!currentServerId) return;
+      if (!currentServerId) {
+        console.log("⚠️ No server selected, skipping channel load");
+        return;
+      }
+      console.log("📡 Loading channels for server:", currentServerId);
       const serverChannels = await getServerChannels(currentServerId);
+      console.log("📋 Channels loaded:", serverChannels);
       const mapped = serverChannels.map((c) => ({
         id: c.id,
         name: c.name,
@@ -186,6 +162,12 @@ export function Sidebar({
       }));
       setChannels(mapped.filter((c) => c.type === "text"));
       setVoiceChannels(mapped.filter((c) => c.type === "voice"));
+      console.log(
+        "✅ Set channels - Text:",
+        mapped.filter((c) => c.type === "text").length,
+        "Voice:",
+        mapped.filter((c) => c.type === "voice").length
+      );
     }
     load();
   }, [currentServerId]);
@@ -214,12 +196,31 @@ export function Sidebar({
       return;
     }
 
-    for (const ch of serverData.channels) {
-      await createChannel(
+    console.log("✅ Server created successfully:", server.id);
+
+    // Create channels from modal data OR default channels
+    const channelsToCreate =
+      serverData.channels.length > 0
+        ? serverData.channels
+        : [
+            { name: "general", type: "text", category: "TEXT CHANNELS" },
+            { name: "announcements", type: "text", category: "TEXT CHANNELS" },
+            { name: "General", type: "voice", category: "VOICE CHANNELS" },
+          ];
+
+    console.log("📝 Creating", channelsToCreate.length, "channels...");
+    for (const ch of channelsToCreate) {
+      const result = await createChannel(
         server.id,
         ch.name,
-        ch.type === "text" ? "text" : "voice"
+        ch.type === "text" ? "text" : "voice",
+        ch.category
       );
+      if (result.success) {
+        console.log("✅ Created channel:", ch.name);
+      } else {
+        console.error("❌ Failed to create channel:", ch.name, result.error);
+      }
     }
 
     // Refresh servers list and select the new server
@@ -234,6 +235,7 @@ export function Sidebar({
   const handleCreateChannel = async (channelData: {
     name: string;
     type: "text" | "voice";
+    isPrivate?: boolean; // passed from modal but currently unused
   }) => {
     if (!currentServerId) {
       toast.error("Create or select a server first");
@@ -243,7 +245,8 @@ export function Sidebar({
     const { success, error } = await createChannel(
       currentServerId,
       channelData.name,
-      channelData.type
+      channelData.type,
+      channelData.type === "voice" ? "VOICE CHANNELS" : "TEXT CHANNELS"
     );
 
     if (!success) {
@@ -270,18 +273,6 @@ export function Sidebar({
     console.log("Creating category:", categoryData);
     // In a real app, you would create the category here
     toast.success("Category created successfully!");
-  };
-
-  const handleInvitePeople = () => {
-    console.log("Inviting people");
-    // In a real app, you would invite people here
-    toast.info("Invite people coming soon!");
-  };
-
-  const handleServerSettings = () => {
-    console.log("Opening server settings");
-    // In a real app, you would open server settings here
-    toast.info("Server settings coming soon!");
   };
 
   if (collapsed) {
@@ -695,29 +686,41 @@ export function Sidebar({
                     </button>
                     {textChannelsOpen &&
                       channels.map((channel) => (
-                        <button
-                          key={channel.id}
-                          onClick={() => onChannelSelect(channel.id)}
-                          className={`w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[#35363c] text-gray-400 hover:text-gray-200 group ${
-                            selectedChannel === channel.id &&
-                            currentView === "chat"
-                              ? "bg-[#35363c] text-gray-200"
-                              : ""
-                          }`}
-                        >
-                          <Hash
-                            size={18}
-                            className="text-gray-500 flex-shrink-0"
-                          />
-                          <span className="text-[15px] flex-1 truncate text-left">
-                            {channel.name}
-                          </span>
-                          {channel.unread && channel.unread > 0 && (
-                            <Badge className="bg-[#f23f43] text-white text-xs h-4 min-w-[1rem] px-1.5 flex-shrink-0 flex items-center justify-center">
-                              {channel.unread > 99 ? "99+" : channel.unread}
-                            </Badge>
-                          )}
-                        </button>
+                        <div key={channel.id} className="relative group">
+                          <button
+                            onClick={() => onChannelSelect(channel.id)}
+                            className={`w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[#35363c] text-gray-400 hover:text-gray-200 ${
+                              selectedChannel === channel.id &&
+                              currentView === "chat"
+                                ? "bg-[#35363c] text-gray-200"
+                                : ""
+                            }`}
+                          >
+                            <Hash
+                              size={18}
+                              className="text-gray-500 flex-shrink-0"
+                            />
+                            <span className="text-[15px] flex-1 truncate text-left">
+                              {channel.name}
+                            </span>
+                            {channel.unread && channel.unread > 0 && (
+                              <Badge className="bg-[#f23f43] text-white text-xs h-4 min-w-[1rem] px-1.5 flex-shrink-0 flex items-center justify-center">
+                                {channel.unread > 99 ? "99+" : channel.unread}
+                              </Badge>
+                            )}
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setManageChannelTarget(channel);
+                              setShowManageChannel(true);
+                            }}
+                            className="absolute top-1 right-1 p-1 rounded text-gray-500 hover:text-gray-200 hover:bg-[#404249] opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Manage channel"
+                          >
+                            <MoreVertical size={14} />
+                          </button>
+                        </div>
                       ))}
                   </div>
 
@@ -741,13 +744,26 @@ export function Sidebar({
                     </button>
                     {voiceChannelsOpen &&
                       voiceChannels.map((channel) => (
-                        <button
-                          key={channel.id}
-                          className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[#35363c] text-gray-400 hover:text-gray-200"
-                        >
-                          <Volume2 size={18} className="text-gray-500" />
-                          <span className="text-[15px]">{channel.name}</span>
-                        </button>
+                        <div key={channel.id} className="relative group">
+                          <button
+                            onClick={() => onChannelSelect(channel.id)}
+                            className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[#35363c] text-gray-400 hover:text-gray-200"
+                          >
+                            <Volume2 size={18} className="text-gray-500" />
+                            <span className="text-[15px]">{channel.name}</span>
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setManageChannelTarget(channel);
+                              setShowManageChannel(true);
+                            }}
+                            className="absolute top-1 right-1 p-1 rounded text-gray-500 hover:text-gray-200 hover:bg-[#404249] opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Manage channel"
+                          >
+                            <MoreVertical size={14} />
+                          </button>
+                        </div>
                       ))}
                   </div>
                 </div>
@@ -802,6 +818,64 @@ export function Sidebar({
         isOpen={showEditServerProfile}
         onClose={() => setShowEditServerProfile(false)}
       />
+
+      {manageChannelTarget && (
+        <ManageChannelModal
+          isOpen={showManageChannel}
+          channel={manageChannelTarget}
+          onClose={() => {
+            setShowManageChannel(false);
+            setManageChannelTarget(null);
+          }}
+          onRename={async (newName) => {
+            const { success, error } = await renameChannel(
+              manageChannelTarget.id,
+              newName
+            );
+            if (!success) {
+              toast.error(error || "Failed to rename channel");
+              return;
+            }
+            // Refresh channels
+            if (currentServerId) {
+              const serverChannels = await getServerChannels(currentServerId);
+              const mapped = serverChannels.map((c) => ({
+                id: c.id,
+                name: c.name,
+                type: c.type,
+                category: c.category || "TEXT CHANNELS",
+              }));
+              setChannels(mapped.filter((c) => c.type === "text"));
+              setVoiceChannels(mapped.filter((c) => c.type === "voice"));
+            }
+            toast.success("Channel renamed");
+          }}
+          onDelete={async () => {
+            const { success, error } = await deleteChannel(
+              manageChannelTarget.id
+            );
+            if (!success) {
+              toast.error(error || "Failed to delete channel");
+              return;
+            }
+            if (currentServerId) {
+              const serverChannels = await getServerChannels(currentServerId);
+              const mapped = serverChannels.map((c) => ({
+                id: c.id,
+                name: c.name,
+                type: c.type,
+                category: c.category || "TEXT CHANNELS",
+              }));
+              setChannels(mapped.filter((c) => c.type === "text"));
+              setVoiceChannels(mapped.filter((c) => c.type === "voice"));
+            }
+            if (selectedChannel === manageChannelTarget.id) {
+              onChannelSelect("general");
+            }
+            toast.success("Channel deleted");
+          }}
+        />
+      )}
     </div>
   );
 }

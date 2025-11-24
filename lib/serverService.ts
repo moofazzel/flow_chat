@@ -173,7 +173,38 @@ export async function createChannel(
 
 /**
  * Get server channels
+
+/**
+ * Rename a channel
  */
+export async function renameChannel(
+  channelId: string,
+  newName: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("channels")
+    .update({ name: newName })
+    .eq("id", channelId);
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+}
+
+/**
+ * Delete a channel
+ */
+export async function deleteChannel(
+  channelId: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("channels")
+    .delete()
+    .eq("id", channelId);
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+}
+
 export async function getServerChannels(serverId: string): Promise<Channel[]> {
   const supabase = createClient();
 
@@ -213,23 +244,6 @@ export async function deleteServer(
   const supabase = createClient();
 
   const { error } = await supabase.from("servers").delete().eq("id", serverId);
-
-  if (error) return { success: false, error: error.message };
-  return { success: true };
-}
-
-/**
- * Delete channel
- */
-export async function deleteChannel(
-  channelId: string
-): Promise<{ success: boolean; error?: string }> {
-  const supabase = createClient();
-
-  const { error } = await supabase
-    .from("channels")
-    .delete()
-    .eq("id", channelId);
 
   if (error) return { success: false, error: error.message };
   return { success: true };

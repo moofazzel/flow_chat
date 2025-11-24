@@ -1,6 +1,7 @@
 "use client";
 
 import { useDmNotifications } from "@/hooks/useDmNotifications";
+import { useServerNotifications } from "@/hooks/useServerNotifications";
 import {
   createChannel,
   createServer,
@@ -95,7 +96,7 @@ export function Sidebar({
   const [showCreateCategory, setShowCreateCategory] = useState(false);
   const [showInvitePeople, setShowInvitePeople] = useState(false);
   const [showServerSettings, setShowServerSettings] = useState(false);
-  const [showEditServerProfile, setShowEditServerProfile] = useState(false);
+
   const [currentServerId, setCurrentServerId] = useState<string | null>(null);
   const [servers, setServers] = useState<{ id: string; name: string }[]>([]);
   const [channels, setChannels] = useState<Channel[]>([]);
@@ -119,6 +120,28 @@ export function Sidebar({
     null,
     { showToast: true }
   );
+
+  // Use Server notifications hook
+  const { unreadCounts, serverUnreadCounts, markAsRead } =
+    useServerNotifications(currentUser?.id || null, selectedChannel);
+
+  // Effect 1: Mark channel as read when selected (navigation)
+  useEffect(() => {
+    if (selectedChannel && currentView === "chat") {
+      markAsRead(selectedChannel);
+    }
+  }, [selectedChannel, currentView, markAsRead]);
+
+  // Effect 2: Mark channel as read if unread count updates while viewing (e.g. initial fetch)
+  useEffect(() => {
+    if (
+      selectedChannel &&
+      currentView === "chat" &&
+      unreadCounts[selectedChannel] > 0
+    ) {
+      markAsRead(selectedChannel);
+    }
+  }, [selectedChannel, currentView, unreadCounts, markAsRead]);
 
   useEffect(() => {
     async function init() {
@@ -467,13 +490,20 @@ export function Sidebar({
               scale: { duration: 0.2, ease: [0.16, 1, 0.3, 1] },
               rotate: { duration: 0.4, ease: [0.16, 1, 0.3, 1] },
             }}
-            className={`w-12 h-12 rounded-[24px] flex items-center justify-center hover:rounded-[16px] transition-all cursor-pointer ${
+            className={`w-12 h-12 rounded-[24px] flex items-center justify-center hover:rounded-[16px] transition-all cursor-pointer relative ${
               currentServerId === server.id
                 ? "bg-[#5865f2]"
                 : "bg-[#313338] hover:bg-[#5865f2]"
             }`}
             title={server.name}
           >
+            {serverUnreadCounts[server.id] > 0 && (
+              <div className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center z-10 pointer-events-none">
+                {serverUnreadCounts[server.id] > 99
+                  ? "99+"
+                  : serverUnreadCounts[server.id]}
+              </div>
+            )}
             <span className="text-white text-sm font-semibold">
               {server.name
                 .split(" ")
@@ -498,7 +528,7 @@ export function Sidebar({
             scale: { duration: 0.2, ease: [0.16, 1, 0.3, 1] },
             rotate: { duration: 0.5, ease: [0.16, 1, 0.3, 1] },
           }}
-          className="relative w-12 h-12 bg-gradient-to-br from-[#5865f2] to-[#4752c4] rounded-[16px] flex items-center justify-center hover:shadow-lg hover:shadow-[#5865f2]/30 transition-all text-white group"
+          className="relative w-12 h-12  from-[#5865f2] to-[#4752c4] rounded-[16px] flex items-center justify-center hover:shadow-lg hover:shadow-[#5865f2]/30 transition-all text-white group"
           title="Expand sidebar"
         >
           <motion.div
@@ -601,6 +631,13 @@ export function Sidebar({
                   .slice(0, 2)}
               </span>
             </motion.div>
+            {serverUnreadCounts[server.id] > 0 && (
+              <div className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center z-10 pointer-events-none">
+                {serverUnreadCounts[server.id] > 99
+                  ? "99+"
+                  : serverUnreadCounts[server.id]}
+              </div>
+            )}
           </div>
         ))}
 
@@ -761,7 +798,7 @@ export function Sidebar({
                     duration: 0.2,
                     ease: [0.16, 1, 0.3, 1],
                   }}
-                  className="relative w-full mt-2 gap-2 py-2 px-3 rounded-md bg-gradient-to-r from-[#313338] to-[#2b2d31] hover:from-[#5865f2] hover:to-[#4752c4] text-gray-400 hover:text-white transition-all group overflow-hidden flex items-center justify-center"
+                  className="relative w-full mt-2 gap-2 py-2 px-3 rounded-md bg-linear-to-r from-[#313338] to-[#2b2d31] hover:from-[#5865f2] hover:to-[#4752c4] text-gray-400 hover:text-white transition-all group overflow-hidden flex items-center justify-center"
                 >
                   {/* Animated icon */}
                   <motion.div
@@ -778,7 +815,7 @@ export function Sidebar({
 
                   {/* Shine effect on hover */}
                   <motion.div
-                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-0 group-hover:opacity-10"
+                    className="absolute inset-0 bg-linear-to-r from-transparent via-white to-transparent opacity-0 group-hover:opacity-10"
                     animate={{
                       x: ["-100%", "100%"],
                     }}
@@ -833,14 +870,16 @@ export function Sidebar({
                           >
                             <Hash
                               size={18}
-                              className="text-gray-500 flex-shrink-0"
+                              className="text-gray-500 shrink-0"
                             />
                             <span className="text-[15px] flex-1 truncate text-left">
                               {channel.name}
                             </span>
-                            {channel.unread && channel.unread > 0 && (
-                              <Badge className="bg-[#f23f43] text-white text-xs h-4 min-w-[1rem] px-1.5 flex-shrink-0 flex items-center justify-center">
-                                {channel.unread > 99 ? "99+" : channel.unread}
+                            {unreadCounts[channel.id] > 0 && (
+                              <Badge className="bg-[#f23f43] text-white text-xs h-4 min-w-4 px-1.5 shrink-0 flex items-center justify-center">
+                                {unreadCounts[channel.id] > 99
+                                  ? "99+"
+                                  : unreadCounts[channel.id]}
                               </Badge>
                             )}
                           </button>

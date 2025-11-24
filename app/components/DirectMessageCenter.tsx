@@ -1,5 +1,7 @@
 "use client";
 
+import { useDmNotifications } from "@/hooks/useDmNotifications";
+import { useFriendRequests } from "@/hooks/useFriendRequests";
 import {
   acceptFriendRequest,
   cancelFriendRequest,
@@ -97,7 +99,65 @@ export function DirectMessageCenter() {
     loadCurrentUser();
   }, []);
 
-  // Load friends and requests when user is available
+  // Enable real-time friend request notifications
+  const {
+    incomingRequests,
+    outgoingRequests,
+    totalCount: realtimeRequestCount,
+  } = useFriendRequests(currentUser?.id || null);
+
+  // Enable real-time DM notifications
+  useDmNotifications(currentUser?.id || null, selectedDM?.id || null);
+
+  // Update friend requests list when realtime data changes
+  useEffect(() => {
+    if (!currentUser) return;
+
+    // Refresh when realtime data changes (request added or accepted/declined)
+    const refreshData = async () => {
+      try {
+        // Refresh friend requests
+        const requests = await getPendingFriendRequests(currentUser.id);
+
+        const formattedRequests: FriendRequestData[] = [
+          ...requests.incoming.map((user) => ({
+            id: user.id,
+            user: user,
+            timestamp: new Date().toISOString(),
+            type: "incoming" as const,
+          })),
+          ...requests.outgoing.map((user) => ({
+            id: user.id,
+            user: user,
+            timestamp: new Date().toISOString(),
+            type: "outgoing" as const,
+          })),
+        ];
+        setFriendRequests(formattedRequests);
+
+        // Refresh friends list to show newly accepted friends
+        const friendsList = await getFriends(currentUser.id);
+        setFriends(friendsList);
+
+        // Refresh DM conversations to show new chats
+        const conversations = await getDmConversations(currentUser.id);
+        const dmConversations: DMConversation[] = conversations.map((conv) => ({
+          id: conv.id,
+          friend: conv.otherUser,
+          lastMessage: conv.lastMessage,
+          timestamp: conv.lastMessageTime,
+          unread: conv.unreadCount,
+        }));
+        setDms(dmConversations);
+      } catch (error) {
+        console.error("Failed to refresh data:", error);
+      }
+    };
+
+    refreshData();
+  }, [incomingRequests, outgoingRequests, currentUser]);
+
+  // Load friends and requests when user is available (initial load)
   useEffect(() => {
     if (!currentUser) return;
 
@@ -192,7 +252,6 @@ export function DirectMessageCenter() {
         setFriends(friendsList);
 
         const requests = await getPendingFriendRequests(currentUser.id);
-        
 
         const formattedRequests: FriendRequestData[] = [
           ...requests.incoming.map((user) => ({
@@ -239,7 +298,6 @@ export function DirectMessageCenter() {
 
         // Refresh requests
         const requests = await getPendingFriendRequests(currentUser.id);
-        
 
         const formattedRequests: FriendRequestData[] = [
           ...requests.incoming.map((user) => ({
@@ -275,7 +333,6 @@ export function DirectMessageCenter() {
 
         // Refresh requests
         const requests = await getPendingFriendRequests(currentUser.id);
-        
 
         const formattedRequests: FriendRequestData[] = [
           ...requests.incoming.map((user) => ({
@@ -311,7 +368,6 @@ export function DirectMessageCenter() {
 
         // Refresh requests to show the new outgoing request
         const requests = await getPendingFriendRequests(currentUser.id);
-        
 
         const formattedRequests: FriendRequestData[] = [
           ...requests.incoming.map((user) => ({
@@ -589,9 +645,9 @@ export function DirectMessageCenter() {
                   }`}
                 >
                   Pending
-                  {friendRequests.length > 0 && (
-                    <Badge className="bg-[#f23f43] text-white text-xs h-4 px-1.5">
-                      {friendRequests.length}
+                  {(realtimeRequestCount > 0 || friendRequests.length > 0) && (
+                    <Badge className="bg-[#f23f43] text-white text-xs h-4 px-1.5 animate-pulse">
+                      {realtimeRequestCount || friendRequests.length}
                     </Badge>
                   )}
                 </button>

@@ -75,38 +75,6 @@ interface DirectMessage {
   status: "online" | "idle" | "dnd" | "offline";
 }
 
-// Server notification data
-const serverNotifications = {
-  home: { chat: 3, board: 0 },
-  workspace: { chat: 15, board: 1 },
-};
-
-// Notification Badge Component
-function NotificationBadges({
-  chat,
-  board,
-}: {
-  chat?: number;
-  board?: number;
-}) {
-  if (!chat && !board) return null;
-
-  return (
-    <div className="absolute -top-1 -right-1 flex flex-col gap-0.5 pointer-events-none">
-      {chat && chat > 0 && (
-        <div className="bg-[#f23f43] text-white text-[10px] font-semibold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 shadow-lg">
-          {chat > 99 ? "99+" : chat}
-        </div>
-      )}
-      {board && board > 0 && (
-        <div className="bg-[#f0b232] text-white text-[10px] font-semibold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 shadow-lg">
-          {board > 99 ? "99+" : board}
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function Sidebar({
   currentView,
   onViewChange,
@@ -545,10 +513,6 @@ export function Sidebar({
               <MessageSquare size={20} />
             </motion.div>
           </motion.button>
-          <NotificationBadges
-            chat={serverNotifications.home.chat}
-            board={serverNotifications.home.board}
-          />
         </div>
 
         {servers.length > 0 && (
@@ -585,12 +549,6 @@ export function Sidebar({
                   .slice(0, 2)}
               </span>
             </motion.div>
-            {currentServerId === server.id && (
-              <NotificationBadges
-                chat={serverNotifications.workspace.chat}
-                board={serverNotifications.workspace.board}
-              />
-            )}
           </div>
         ))}
 

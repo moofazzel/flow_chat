@@ -1,5 +1,6 @@
 "use client";
 
+import { useServerInvites } from "@/hooks/useServerInvites";
 import { getCurrentUser, User } from "@/utils/auth";
 import type { BoardData } from "@/utils/storage";
 import { storage } from "@/utils/storage";
@@ -14,6 +15,7 @@ import { FloatingChat } from "./components/FloatingChat";
 import { KeyboardShortcuts } from "./components/KeyboardShortcuts";
 import type { Label } from "./components/LabelBadge";
 import { LabelManager } from "./components/LabelManager";
+import { ServerInviteNotification } from "./components/ServerInviteNotification";
 import { Sidebar } from "./components/Sidebar";
 import { TaskDetailsModal } from "./components/TaskDetailsModal";
 import { Toaster } from "./components/ui/toaster";
@@ -197,6 +199,15 @@ export default function Home() {
       toast.error("Unable to load session after login. Please try again.");
     }
   };
+
+  // Enable real-time server invitation notifications
+  const {
+    newInvites,
+    inviteCount,
+    isConnected: invitesConnected,
+    clearInvites,
+    removeInvite,
+  } = useServerInvites(user?.id || null);
 
   // Boards and labels state (initialize from storage to avoid setState in mount effect)
   const [boards, setBoards] = useState<BoardData[]>(loadInitialBoards);
@@ -671,6 +682,17 @@ export default function Home() {
           onOpenChange={setShowLabelManagerForTask}
         />
       )}
+
+      {/* Server Invite Notifications */}
+      <div className="fixed top-4 right-4 z-50">
+        <ServerInviteNotification
+          invites={newInvites}
+          inviteCount={inviteCount}
+          isConnected={invitesConnected}
+          onClearInvite={removeInvite}
+          onClearAll={clearInvites}
+        />
+      </div>
 
       <KeyboardShortcuts />
       <Toaster />

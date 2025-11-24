@@ -1,9 +1,10 @@
 "use client";
 
 import { getFriends } from "@/lib/friendService";
-import { addServerMember } from "@/lib/serverService";
+import { addServerMember, getServerMembers } from "@/lib/serverService";
 import { getCurrentUser, User } from "@/utils/auth";
 import { copyToClipboard } from "@/utils/clipboard";
+import { createClient } from "@/utils/supabase/client";
 import {
   Check,
   Copy,
@@ -52,23 +53,83 @@ export function InvitePeopleModal({
   const [inviteExpiry, setInviteExpiry] = useState("7days");
   const [maxUses, setMaxUses] = useState("unlimited");
   const [friends, setFriends] = useState<User[]>([]);
-  const [loading, setLoading] = useState(false);
   const [invitingFriends, setInvitingFriends] = useState<Set<string>>(
     new Set()
   );
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const supabase = createClient();
 
+  // Load friends and filter out those already in the server
   useEffect(() => {
     async function loadFriends() {
-      if (isOpen) {
+      if (isOpen && serverId) {
         const user = await getCurrentUser();
+        setCurrentUser(user);
+
         if (user) {
           const friendsList = await getFriends(user.id);
-          setFriends(friendsList);
+          const serverMembers = await getServerMembers(serverId);
+          const memberIds = new Set(serverMembers.map((m) => m.id));
+
+          // Filter out friends who are already members
+          const availableFriends = friendsList.filter(
+            (friend) => !memberIds.has(friend.id)
+          );
+          setFriends(availableFriends);
         }
       }
     }
     loadFriends();
-  }, [isOpen]);
+  }, [isOpen, serverId]);
+
+  // Subscribe to real-time server member changes
+  useEffect(() => {
+    if (!isOpen || !serverId) return;
+
+    const channel = supabase
+      .channel(`server-members-${serverId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "server_members",
+          filter: `server_id=eq.${serverId}`,
+        },
+        async (payload) => {
+          console.log("New member added to server:", payload);
+
+          const newMemberId = payload.new.user_id;
+
+          // Remove the newly added member from friends list in real-time
+          setFriends((prev) => prev.filter((f) => f.id !== newMemberId));
+
+          // If it's not the current user inviting, show a notification
+          if (currentUser && newMemberId !== currentUser.id) {
+            // Fetch the new member's info
+            const { data: newMember } = await supabase
+              .from("users")
+              .select("username, full_name")
+              .eq("id", newMemberId)
+              .single();
+
+            if (newMember) {
+              toast.info(
+                `${
+                  newMember.username || newMember.full_name
+                } joined the server`,
+                { duration: 3000 }
+              );
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      channel.unsubscribe();
+    };
+  }, [isOpen, serverId, supabase, currentUser]);
 
   const inviteLink = "https://Flow Chat.com/invite/abc123xyz";
 
@@ -365,7 +426,7 @@ export function InvitePeopleModal({
               </Label>
               <div className="bg-[#2b2d31] rounded-lg p-4 border border-[#1e1f22] space-y-3">
                 <div className="text-white font-semibold">
-                  You're invited to join Workspace!
+                  You&apos;re invited to join Workspace!
                 </div>
                 <p className="text-[#b5bac1] text-sm leading-relaxed">
                   John Doe has invited you to join their server on Flow Chat.

@@ -45,6 +45,7 @@
     "embla-carousel-react": "^8.6.0",
     "framer-motion": "*",
     "input-otp": "^1.4.2",
+    "lightningcss": "^1.28.2",
     "lucide-react": "^0.487.0",
     "motion": "*",
     "next": "16.0.3",

@@ -32,6 +32,8 @@ interface MentionAutocompleteProps {
   position: { top: number; left: number };
   onSelect: (value: string) => void;
   onClose: () => void;
+  members?: Member[];
+  channels?: Channel[];
 }
 
 const commands: Command[] = [
@@ -64,6 +66,8 @@ export function MentionAutocomplete({
   position,
   onSelect,
   onClose,
+  members = [],
+  channels = [],
 }: MentionAutocompleteProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);

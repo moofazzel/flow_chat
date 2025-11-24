@@ -24,7 +24,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { AnimatePresence, motion } from "framer-motion";
 import { Filter, MessageSquare, Plus, Search, Star, Tag } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import type { Task } from "../App";
+import type { Task } from "../page";
 import { AddListButton } from "./AddListButton";
 import { AddTaskForm } from "./AddTaskForm";
 import type { BoardColumn } from "./BoardsContainer";
@@ -58,7 +58,14 @@ interface TaskBoardProps {
   boardName?: string;
   boardDescription?: string;
   boardColor?: string;
-  onBoardUpdate?: (updates: any) => void;
+
+  onBoardUpdate?: (updates: {
+    title?: string;
+    description?: string;
+    color?: string;
+    isFavorite?: boolean;
+    [key: string]: unknown;
+  }) => void;
   onDeleteBoard?: () => void;
   onDuplicateBoard?: () => void;
   onColumnsChange?: (columns: BoardColumn[]) => void;
@@ -67,6 +74,9 @@ interface TaskBoardProps {
     description: string;
     columnId: string;
     boardId: string;
+    priority?: "low" | "medium" | "high" | "urgent";
+    assignee?: string;
+    labels?: string[];
   }) => void;
   onTasksUpdate?: (tasks: Task[]) => void;
   onDeleteTask?: (taskId: string) => void;
@@ -804,7 +814,7 @@ export function TaskBoard({
                             if (onAddTask) {
                               onAddTask({
                                 ...taskData,
-                                status: column.id,
+                                columnId: column.id,
                               });
                             }
                           }}

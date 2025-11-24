@@ -183,6 +183,12 @@ export function EnhancedChatArea({
     deleteMessage,
     broadcastTyping,
     typingUsers,
+    addReaction,
+    removeReaction,
+    pinMessage,
+    unpinMessage,
+    searchMessages,
+    uploadAttachment,
   } = useChat(channelId);
   const [message, setMessage] = useState("");
   // const [messages, setMessages] = useState<Message[]>(messagesFromProps); // Removed local state
@@ -282,6 +288,36 @@ export function EnhancedChatArea({
       .toUpperCase()
       .slice(0, 2);
 
+    // Convert database reactions to UI format
+    const reactions: Reaction[] = msg.reactions
+      ? Object.values(msg.reactions).map((r) => ({
+          emoji: r.emoji,
+          count: r.count,
+          users: r.users.map((u) => u.username),
+        }))
+      : [];
+
+    // Convert database attachments to UI format
+    const attachments: Attachment[] = (msg.attachments || []).map((att) => ({
+      id: att.id,
+      name: att.file_name,
+      size: att.file_size
+        ? `${(att.file_size / 1024).toFixed(1)} KB`
+        : "Unknown",
+      type: att.file_type.match(/\.(jpg|jpeg|png|gif|webp)$/i)
+        ? "image"
+        : att.file_type.match(/\.(mp4|webm|mov)$/i)
+        ? "video"
+        : "file",
+      url: att.file_url,
+    }));
+
+    // Find task if this message has task links
+    const linkedTask =
+      msg.task_links && msg.task_links.length > 0
+        ? tasks.find((t) => t.id === msg.task_links![0].card_id)
+        : undefined;
+
     return {
       id: msg.id,
       author: userName,
@@ -292,16 +328,29 @@ export function EnhancedChatArea({
       }),
       content: msg.content,
       isCurrentUser: currentUser ? msg.author_id === currentUser.id : false,
-      reactions: [], // TODO: Add reaction support to DB
-      attachments: [], // TODO: Add attachment support to DB
+      reactions,
+      attachments,
+      task: linkedTask,
+      isPinned: msg.is_pinned,
+      isEdited: msg.is_edited,
+      replyTo:
+        msg.reply_to && msg.reply_to.id
+          ? {
+              id: msg.reply_to.id,
+              author: msg.reply_to.author?.username || "Unknown",
+              content: msg.reply_to.content,
+            }
+          : undefined,
     };
   });
 
   // ... rest of state ...
 
   // Handle sending message
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+
   const handleSend = async () => {
-    if (!message.trim()) return;
+    if (!message.trim() && attachedFiles.length === 0) return;
 
     const user = await getCurrentUser();
     if (!user) {
@@ -309,14 +358,73 @@ export function EnhancedChatArea({
       return;
     }
 
-    const success = await sendMessage(message, user.id);
+    // Extract mentions and task mentions from message
+    const userMentionRegex = /@\[([^\]]+)\]\(([^)]+)\)/g;
+    const taskMentionRegex = /#\[([^\]]+)\]\(([^)]+)\)/g;
+
+    const mentionedUserIds: string[] = [];
+    const taskIds: string[] = [];
+
+    let match;
+    while ((match = userMentionRegex.exec(message)) !== null) {
+      mentionedUserIds.push(match[2]);
+    }
+
+    while ((match = taskMentionRegex.exec(message)) !== null) {
+      taskIds.push(match[2]);
+    }
+
+    const success = await sendMessage(message, user.id, {
+      attachments: attachedFiles.length > 0 ? attachedFiles : undefined,
+      replyToId: replyingTo?.id,
+      mentionedUserIds:
+        mentionedUserIds.length > 0 ? mentionedUserIds : undefined,
+      taskIds: taskIds.length > 0 ? taskIds : undefined,
+    });
+
     if (success) {
       setMessage("");
+      setAttachedFiles([]);
+      setReplyingTo(null);
       // Stop broadcasting typing
       if (user.username) {
         broadcastTyping(user.username, false);
       }
     }
+  };
+
+  const handleAttachFile = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.multiple = true;
+    input.onchange = (e) => {
+      const target = e.target as HTMLInputElement;
+      if (target.files) {
+        const newFiles = Array.from(target.files);
+        setAttachedFiles((prev) => [...prev, ...newFiles]);
+        toast.success(`${newFiles.length} file(s) attached`);
+      }
+    };
+    input.click();
+  };
+
+  const handleRemoveAttachment = (index: number) => {
+    setAttachedFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handlePinMessage = async (messageId: string) => {
+    await pinMessage(messageId);
+  };
+
+  const handleUnpinMessage = async (messageId: string) => {
+    await unpinMessage(messageId);
+  };
+
+  const handleSearch = async (query: string) => {
+    if (!query.trim()) return;
+    const results = await searchMessages(query);
+    toast.success(`Found ${results.length} messages`);
+    // You could show results in a modal or panel
   };
 
   // ... rest of component ...
@@ -414,57 +522,27 @@ export function EnhancedChatArea({
     setReplyingTo(null);
   };
 
-  const handleAddReaction = (messageId: string, emoji: string) => {
-    setMessages((prevMessages: Message[]) =>
-      prevMessages.map((msg: Message) => {
-        if (msg.id === messageId) {
-          const reactions = msg.reactions || [];
-          const existingReaction = reactions.find(
-            (r: Reaction) => r.emoji === emoji
-          );
+  const handleAddReaction = async (messageId: string, emoji: string) => {
+    if (!currentUser) {
+      toast.error("You must be logged in to react");
+      return;
+    }
 
-          if (existingReaction) {
-            if (existingReaction.users.includes("You")) {
-              return {
-                ...msg,
-                reactions: reactions
-                  .map((r: Reaction) =>
-                    r.emoji === emoji
-                      ? {
-                          ...r,
-                          count: r.count - 1,
-                          users: r.users.filter((u: string) => u !== "You"),
-                        }
-                      : r
-                  )
-                  .filter((r: Reaction) => r.count > 0),
-              };
-            } else {
-              return {
-                ...msg,
-                reactions: reactions.map((r: Reaction) =>
-                  r.emoji === emoji
-                    ? {
-                        ...r,
-                        count: r.count + 1,
-                        users: [...r.users, "You"],
-                      }
-                    : r
-                ),
-              };
-            }
-          } else {
-            return {
-              ...msg,
-              reactions: [...reactions, { emoji, count: 1, users: ["You"] }],
-            };
-          }
-        }
-        return msg;
-      })
-    );
+    // Check if user already reacted with this emoji
+    const message = messages.find((m) => m.id === messageId);
+    const existingReaction = message?.reactions?.find((r) => r.emoji === emoji);
+    const hasReacted = existingReaction?.users.includes(currentUser.username);
+
+    if (hasReacted) {
+      // Remove reaction
+      await removeReaction(messageId, currentUser.id, emoji);
+    } else {
+      // Add reaction
+      await addReaction(messageId, currentUser.id, emoji);
+    }
   };
 
+  // Old implementation removed - now using database
   const handleStartEdit = (msg: Message) => {
     if (msg.isCurrentUser) {
       setEditingMessage(msg.id);
@@ -495,12 +573,12 @@ export function EnhancedChatArea({
     }
   };
 
-  const handlePinMessage = (msg: Message) => {
-    setMessages((prevMessages: Message[]) =>
-      prevMessages.map((m: Message) =>
-        m.id === msg.id ? { ...m, isPinned: !m.isPinned } : m
-      )
-    );
+  const handleTogglePin = async (msg: Message) => {
+    if (msg.isPinned) {
+      await handleUnpinMessage(msg.id);
+    } else {
+      await handlePinMessage(msg.id);
+    }
     setShowMoreMenu(null);
   };
 
@@ -897,7 +975,7 @@ export function EnhancedChatArea({
                               Mark as Unread
                             </button>
                             <button
-                              onClick={() => handlePinMessage(msg)}
+                              onClick={() => handleTogglePin(msg)}
                               className="w-full px-3 py-1.5 text-left text-gray-300 hover:bg-[#35363c] hover:text-white flex items-center gap-2 text-xs"
                             >
                               <Pin size={14} />
@@ -1156,30 +1234,6 @@ export function EnhancedChatArea({
                 </div>
               );
             })}
-          </div>
-        )}
-
-        {/* Typing indicator */}
-        {typingUsers.length > 0 && (
-          <div className="flex items-center gap-2 px-3 py-2 text-xs text-gray-400">
-            <div className="flex gap-1">
-              <span
-                className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"
-                style={{ animationDelay: "0ms" }}
-              />
-              <span
-                className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"
-                style={{ animationDelay: "150ms" }}
-              />
-              <span
-                className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"
-                style={{ animationDelay: "300ms" }}
-              />
-            </div>
-            <span>
-              {typingUsers.join(", ")} {typingUsers.length === 1 ? "is" : "are"}{" "}
-              typing...
-            </span>
           </div>
         )}
       </ScrollArea>

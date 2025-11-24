@@ -11,7 +11,7 @@ import {
   updateServerMuteStatus,
   updateServerNotificationSettings,
 } from "@/lib/serverService";
-import { getCurrentUser } from "@/utils/auth";
+import { getCurrentUser, User } from "@/utils/auth";
 import { motion } from "framer-motion";
 import {
   ChevronDown,
@@ -38,6 +38,7 @@ import { Badge } from "./ui/badge";
 import { DropdownMenuTrigger } from "./ui/dropdown-menu";
 import { ScrollArea } from "./ui/scroll-area";
 import { UserProfile } from "./UserProfile";
+import { VoiceChannelPanel } from "./VoiceChannelPanel";
 import { WorkspaceDropdown } from "./WorkspaceDropdown";
 
 interface SidebarProps {
@@ -128,6 +129,9 @@ export function Sidebar({
   const [servers, setServers] = useState<{ id: string; name: string }[]>([]);
   const [channels, setChannels] = useState<Channel[]>([]);
   const [voiceChannels, setVoiceChannels] = useState<Channel[]>([]);
+  const [activeVoiceChannel, setActiveVoiceChannel] = useState<Channel | null>(
+    null
+  );
   const [manageChannelTarget, setManageChannelTarget] =
     useState<Channel | null>(null);
   const [showManageChannel, setShowManageChannel] = useState(false);
@@ -136,14 +140,14 @@ export function Sidebar({
   >("all");
   const [isServerMuted, setIsServerMuted] = useState(false);
   const [hideMutedChannels, setHideMutedChannels] = useState(false);
-  const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
 
   useEffect(() => {
     async function init() {
       const user = await getCurrentUser();
       if (!user) return;
 
-      setCurrentUser({ id: user.id });
+      setCurrentUser(user);
       const serversList = await getUserServers(user.id);
       setServers(serversList.map((s) => ({ id: s.id, name: s.name })));
       const defaultServerId = serversList[0]?.id || null;
@@ -867,10 +871,21 @@ export function Sidebar({
                       voiceChannels.map((channel) => (
                         <div key={channel.id} className="relative group">
                           <button
-                            onClick={() => onChannelSelect(channel.id)}
-                            className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[#35363c] text-gray-400 hover:text-gray-200"
+                            onClick={() => setActiveVoiceChannel(channel)}
+                            className={`w-full flex items-center gap-2 px-2 py-1.5 rounded transition-colors ${
+                              activeVoiceChannel?.id === channel.id
+                                ? "bg-[#404249] text-white"
+                                : "text-gray-400 hover:bg-[#35363c] hover:text-gray-200"
+                            }`}
                           >
-                            <Volume2 size={18} className="text-gray-500" />
+                            <Volume2
+                              size={18}
+                              className={
+                                activeVoiceChannel?.id === channel.id
+                                  ? "text-green-500"
+                                  : "text-gray-500"
+                              }
+                            />
                             <span className="text-[15px]">{channel.name}</span>
                           </button>
                           <button
@@ -891,11 +906,24 @@ export function Sidebar({
               </ScrollArea>
 
               {/* User Profile Component */}
-              <UserProfile
-                userName="John Doe"
-                userAvatar="JD"
-                userStatus="online"
-              />
+              {currentUser && (
+                <UserProfile
+                  userName={currentUser.full_name}
+                  userAvatar={
+                    currentUser.full_name
+                      ? currentUser.full_name
+                          .split(" ")
+                          .map((n: string) => n[0])
+                          .join("")
+                          .toUpperCase()
+                          .slice(0, 2)
+                      : "U"
+                  }
+                  userStatus={currentUser.status}
+                  userId={currentUser.id}
+                  username={currentUser.username}
+                />
+              )}
             </motion.div>
           </Resizable>
         </motion.div>
@@ -990,6 +1018,15 @@ export function Sidebar({
             }
             toast.success("Channel deleted");
           }}
+        />
+      )}
+
+      {/* Voice Channel Panel */}
+      {activeVoiceChannel && (
+        <VoiceChannelPanel
+          channelId={activeVoiceChannel.id}
+          channelName={activeVoiceChannel.name}
+          onLeave={() => setActiveVoiceChannel(null)}
         />
       )}
     </div>

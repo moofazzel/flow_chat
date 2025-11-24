@@ -87,6 +87,13 @@ export function TaskDetailsModal({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
+  // Mock members data - in production this should come from props or API
+  const availableMembers = [
+    { id: "1", name: "John Doe", avatar: "JD", color: "bg-blue-500" },
+    { id: "2", name: "Jane Smith", avatar: "JS", color: "bg-green-500" },
+    { id: "3", name: "Bob Wilson", avatar: "BW", color: "bg-purple-500" },
+  ];
+
   const getInitials = (name: string) => {
     return name
       .split(" ")
@@ -310,26 +317,26 @@ export function TaskDetailsModal({
       const currentAssignees = localTask.assignees || [];
 
       // Toggle member - add if not present, remove if already assigned
-      const isAlreadyAssigned = currentAssignees.includes(member.name);
+      const isAlreadyAssigned = currentAssignees.includes(memberName);
 
       if (isAlreadyAssigned) {
         // Remove member
         const newAssignees = currentAssignees.filter(
-          (name) => name !== member.name
+          (name) => name !== memberName
         );
         updateTask({
           assignees: newAssignees,
           assignee: newAssignees[0], // Keep backward compatibility
         });
-        toast.success(`Removed ${member.name}`);
+        toast.success(`Removed ${memberName}`);
       } else {
         // Add member
-        const newAssignees = [...currentAssignees, member.name];
+        const newAssignees = [...currentAssignees, memberName];
         updateTask({
           assignees: newAssignees,
-          assignee: member.name, // Keep backward compatibility
+          assignee: memberName, // Keep backward compatibility
         });
-        toast.success(`Assigned to ${member.name}`);
+        toast.success(`Assigned to ${memberName}`);
       }
     }
   };
@@ -555,7 +562,9 @@ export function TaskDetailsModal({
                               variant="ghost"
                               size="sm"
                               className="h-auto p-0 opacity-0 group-hover:opacity-100 transition-opacity ml-1"
-                              onClick={() => handleAddMember(member.id)}
+                              onClick={() =>
+                                handleAddMember(member.id, member.name)
+                              }
                             >
                               <X
                                 size={14}
@@ -931,7 +940,9 @@ export function TaskDetailsModal({
                                   ? "bg-blue-500 text-white hover:bg-blue-600"
                                   : ""
                               }`}
-                              onClick={() => handleAddMember(member.id)}
+                              onClick={() =>
+                                handleAddMember(member.id, member.name)
+                              }
                             >
                               {isAssigned && (
                                 <Check size={14} className="mr-2" />

@@ -321,11 +321,11 @@ export function BoardsContainer({
                   boardName={board.name}
                   boardDescription={board.description}
                   boardColor={board.color}
-                  onBoardUpdate={(updates) => {
+                  onBoardUpdate={(updates: any) => {
                     if (updates.name || updates.color) {
                       updateBoard(board.id, {
-                        title: updates.name,
-                        background: updates.color,
+                        title: updates.name as string | undefined,
+                        background: updates.color as string | undefined,
                       });
                     }
                     if (updates.color || updates.name || updates.description) {

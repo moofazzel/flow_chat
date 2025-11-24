@@ -12,6 +12,7 @@ import {
   updateServerNotificationSettings,
 } from "@/lib/serverService";
 import { getCurrentUser, User } from "@/utils/auth";
+import { createClient } from "@/utils/supabase/client";
 import { motion } from "framer-motion";
 import {
   ChevronDown,
@@ -168,6 +169,43 @@ export function Sidebar({
   useEffect(() => {
     onServerChange?.(currentServerId);
   }, [currentServerId, onServerChange]);
+
+  // Listen for real-time server membership changes (invites/removals)
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`sidebar-servers-${currentUser.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*", // INSERT (invite/join), DELETE (leave/kick)
+          schema: "public",
+          table: "server_members",
+          filter: `user_id=eq.${currentUser.id}`,
+        },
+        async (payload) => {
+          console.log(
+            "🔄 Server membership changed, refreshing list...",
+            payload
+          );
+          // Small delay to ensure DB consistency if needed
+          await new Promise((resolve) => setTimeout(resolve, 500));
+
+          const serversList = await getUserServers(currentUser.id);
+          setServers(serversList.map((s) => ({ id: s.id, name: s.name })));
+
+          // If we were added to a server (INSERT) and have no current server, select it?
+          // Or just let the user select it.
+        }
+      )
+      .subscribe();
+
+    return () => {
+      channel.unsubscribe();
+    };
+  }, [currentUser]);
 
   const handleCreateServer = async (serverData: ServerData) => {
     const user = await getCurrentUser();

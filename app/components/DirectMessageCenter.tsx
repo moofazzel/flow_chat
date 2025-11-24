@@ -107,7 +107,33 @@ export function DirectMessageCenter() {
   } = useFriendRequests(currentUser?.id || null);
 
   // Enable real-time DM notifications
-  useDmNotifications(currentUser?.id || null, selectedDM?.id || null);
+  const { notifications: dmNotifications } = useDmNotifications(
+    currentUser?.id || null,
+    selectedDM?.id || null
+  );
+
+  // Refresh DM list when new messages arrive to update unread badges
+  useEffect(() => {
+    if (!currentUser || dmNotifications.length === 0) return;
+
+    const refreshDmList = async () => {
+      try {
+        const conversations = await getDmConversations(currentUser.id);
+        const dmConversations: DMConversation[] = conversations.map((conv) => ({
+          id: conv.id,
+          friend: conv.otherUser,
+          lastMessage: conv.lastMessage,
+          timestamp: conv.lastMessageTime,
+          unread: conv.unreadCount,
+        }));
+        setDms(dmConversations);
+      } catch (error) {
+        console.error("Failed to refresh DM conversations:", error);
+      }
+    };
+
+    refreshDmList();
+  }, [dmNotifications, currentUser]);
 
   // Update friend requests list when realtime data changes
   useEffect(() => {

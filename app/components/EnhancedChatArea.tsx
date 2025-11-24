@@ -229,11 +229,11 @@ export function EnhancedChatArea({
   const [unreadCount, setUnreadCount] = useState(0);
   const [showTeamMembers, setShowTeamMembers] = useState(false);
   const [createTaskModalOpen, setCreateTaskModalOpen] = useState(false);
-  const [taskPrefilledData, setTaskPrefilledData] = useState<any>(null);
+  const [taskPrefilledData, setTaskPrefilledData] = useState(null);
   const [showMoreMenu, setShowMoreMenu] = useState<string | null>(null);
 
   // Dummy setMessages to prevent errors
-  const setMessages = (action: any) => {
+  const setMessages = (action) => {
     console.log("State updates not supported in DB mode yet", action);
   };
 
@@ -535,10 +535,18 @@ export function EnhancedChatArea({
 
     if (hasReacted) {
       // Remove reaction
-      await removeReaction(messageId, currentUser.id, emoji);
+      await removeReaction(
+        messageId,
+        { id: currentUser!.id, username: currentUser!.username },
+        emoji
+      );
     } else {
       // Add reaction
-      await addReaction(messageId, currentUser.id, emoji);
+      await addReaction(
+        messageId,
+        { id: currentUser!.id, username: currentUser!.username },
+        emoji
+      );
     }
   };
 
@@ -867,9 +875,10 @@ export function EnhancedChatArea({
               return (
                 <div
                   key={msg.id}
+                  id={`message-${msg.id}`}
                   className={`flex gap-2 hover:bg-[#2e3035] -mx-3 px-3 ${
                     isGrouped ? "py-0" : "py-0.5"
-                  } group rounded ${
+                  } group rounded transition-colors duration-300 ${
                     msg.isCurrentUser ? "flex-row-reverse" : ""
                   } ${showMoreMenu === msg.id ? "relative z-50" : "relative"}`}
                 >
@@ -1076,6 +1085,22 @@ export function EnhancedChatArea({
                     {/* Reply indicator */}
                     {msg.replyTo && (
                       <div
+                        onClick={() => {
+                          const originalMessage = document.getElementById(
+                            `message-${msg.replyTo?.id}`
+                          );
+                          if (originalMessage) {
+                            originalMessage.scrollIntoView({
+                              behavior: "smooth",
+                              block: "center",
+                            });
+                            // Highlight the message briefly
+                            originalMessage.classList.add("bg-[#404249]");
+                            setTimeout(() => {
+                              originalMessage.classList.remove("bg-[#404249]");
+                            }, 2000);
+                          }
+                        }}
                         className={`mt-0.5 mb-0.5 p-1.5 bg-[#2b2d31] rounded border-l-2 border-gray-500 cursor-pointer hover:border-gray-400 transition-colors ${
                           msg.isCurrentUser ? "ml-auto max-w-md" : "max-w-md"
                         }`}
@@ -1087,7 +1112,9 @@ export function EnhancedChatArea({
                           </span>
                         </div>
                         <div className="text-gray-400 text-[11px] truncate">
-                          {msg.replyTo.content}
+                          {msg.replyTo.content.length > 60
+                            ? `${msg.replyTo.content.substring(0, 60)}...`
+                            : msg.replyTo.content}
                         </div>
                       </div>
                     )}

@@ -495,16 +495,63 @@ export const useChat = (channelId: string) => {
   // Reactions
   const addReaction = async (
     messageId: string,
-    userId: string,
+    user: { id: string; username: string },
     emoji: string
   ) => {
+    // Optimistic update
+    setMessages((prev) =>
+      prev.map((msg) => {
+        if (msg.id === messageId) {
+          const reactions = { ...msg.reactions };
+          if (!reactions[emoji]) {
+            reactions[emoji] = {
+              emoji,
+              count: 0,
+              users: [],
+            };
+          }
+          // Check if user already reacted (to prevent duplicates in UI)
+          if (!reactions[emoji].users.some((u) => u.id === user.id)) {
+            reactions[emoji] = {
+              ...reactions[emoji],
+              count: reactions[emoji].count + 1,
+              users: [...reactions[emoji].users, user],
+            };
+          }
+          return { ...msg, reactions };
+        }
+        return msg;
+      })
+    );
+
     const { error } = await supabase.from("reactions").insert({
       message_id: messageId,
-      user_id: userId,
+      user_id: user.id,
       emoji,
     });
 
     if (error) {
+      // Revert optimistic update on error
+      setMessages((prev) =>
+        prev.map((msg) => {
+          if (msg.id === messageId) {
+            const reactions = { ...msg.reactions };
+            if (reactions[emoji]) {
+              reactions[emoji] = {
+                ...reactions[emoji],
+                count: Math.max(0, reactions[emoji].count - 1),
+                users: reactions[emoji].users.filter((u) => u.id !== user.id),
+              };
+              if (reactions[emoji].count === 0) {
+                delete reactions[emoji];
+              }
+            }
+            return { ...msg, reactions };
+          }
+          return msg;
+        })
+      );
+
       // If unique constraint violation, user already reacted with this emoji
       if (error.code === "23505") {
         toast.error("You already reacted with this emoji");
@@ -519,17 +566,61 @@ export const useChat = (channelId: string) => {
 
   const removeReaction = async (
     messageId: string,
-    userId: string,
+    user: { id: string; username: string },
     emoji: string
   ) => {
+    // Optimistic update
+    setMessages((prev) =>
+      prev.map((msg) => {
+        if (msg.id === messageId) {
+          const reactions = { ...msg.reactions };
+          if (reactions[emoji]) {
+            reactions[emoji] = {
+              ...reactions[emoji],
+              count: Math.max(0, reactions[emoji].count - 1),
+              users: reactions[emoji].users.filter((u) => u.id !== user.id),
+            };
+            if (reactions[emoji].count === 0) {
+              delete reactions[emoji];
+            }
+          }
+          return { ...msg, reactions };
+        }
+        return msg;
+      })
+    );
+
     const { error } = await supabase
       .from("reactions")
       .delete()
       .eq("message_id", messageId)
-      .eq("user_id", userId)
+      .eq("user_id", user.id)
       .eq("emoji", emoji);
 
     if (error) {
+      // Revert optimistic update on error
+      setMessages((prev) =>
+        prev.map((msg) => {
+          if (msg.id === messageId) {
+            const reactions = { ...msg.reactions };
+            if (!reactions[emoji]) {
+              reactions[emoji] = {
+                emoji,
+                count: 0,
+                users: [],
+              };
+            }
+            reactions[emoji] = {
+              ...reactions[emoji],
+              count: reactions[emoji].count + 1,
+              users: [...reactions[emoji].users, user],
+            };
+            return { ...msg, reactions };
+          }
+          return msg;
+        })
+      );
+
       toast.error("Failed to remove reaction");
       console.error(error);
       return false;

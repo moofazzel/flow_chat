@@ -6,7 +6,10 @@ import {
   deleteChannel,
   getServerChannels,
   getUserServers,
+  removeServerMember,
   renameChannel,
+  updateServerMuteStatus,
+  updateServerNotificationSettings,
 } from "@/lib/serverService";
 import { getCurrentUser } from "@/utils/auth";
 import { motion } from "framer-motion";
@@ -28,7 +31,6 @@ import { toast } from "sonner";
 import { CreateCategoryModal } from "./CreateCategoryModal";
 import { CreateChannelModal } from "./CreateChannelModal";
 import { CreateServerModal, type ServerData } from "./CreateServerModal";
-import { EditServerProfileModal } from "./EditServerProfileModal";
 import { InvitePeopleModal } from "./InvitePeopleModal";
 import { ManageChannelModal } from "./ManageChannelModal";
 import { ServerSettingsModal } from "./ServerSettingsModal";
@@ -129,12 +131,19 @@ export function Sidebar({
   const [manageChannelTarget, setManageChannelTarget] =
     useState<Channel | null>(null);
   const [showManageChannel, setShowManageChannel] = useState(false);
+  const [notificationSetting, setNotificationSetting] = useState<
+    "all" | "mentions" | "nothing"
+  >("all");
+  const [isServerMuted, setIsServerMuted] = useState(false);
+  const [hideMutedChannels, setHideMutedChannels] = useState(false);
+  const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null);
 
   useEffect(() => {
     async function init() {
       const user = await getCurrentUser();
       if (!user) return;
 
+      setCurrentUser({ id: user.id });
       const serversList = await getUserServers(user.id);
       setServers(serversList.map((s) => ({ id: s.id, name: s.name })));
       const defaultServerId = serversList[0]?.id || null;
@@ -273,6 +282,97 @@ export function Sidebar({
     console.log("Creating category:", categoryData);
     // In a real app, you would create the category here
     toast.success("Category created successfully!");
+  };
+
+  const handleNotificationChange = async (
+    setting: "all" | "mentions" | "nothing"
+  ) => {
+    if (!currentServerId || !currentUser) return;
+
+    const { success, error } = await updateServerNotificationSettings(
+      currentServerId,
+      currentUser.id,
+      setting
+    );
+
+    if (success) {
+      setNotificationSetting(setting);
+      toast.success(`Notifications set to ${setting}`);
+    } else {
+      toast.error(error || "Failed to update notification settings");
+    }
+  };
+
+  const handleMuteServer = async () => {
+    if (!currentServerId || !currentUser) return;
+
+    const newMutedState = !isServerMuted;
+    const { success, error } = await updateServerMuteStatus(
+      currentServerId,
+      currentUser.id,
+      newMutedState
+    );
+
+    if (success) {
+      setIsServerMuted(newMutedState);
+      toast.success(newMutedState ? "Server muted" : "Server unmuted");
+    } else {
+      toast.error(error || "Failed to update mute status");
+    }
+  };
+
+  const handleHideMutedChannels = () => {
+    setHideMutedChannels(!hideMutedChannels);
+    toast.success(
+      hideMutedChannels ? "Showing muted channels" : "Hiding muted channels"
+    );
+  };
+
+  const handleLeaveServer = async () => {
+    if (!currentServerId || !currentUser) return;
+
+    // Show confirmation dialog
+    if (
+      !confirm(
+        "Are you sure you want to leave this server? You'll need an invite to rejoin."
+      )
+    ) {
+      return;
+    }
+
+    const { success, error } = await removeServerMember(
+      currentServerId,
+      currentUser.id
+    );
+
+    if (success) {
+      // Refresh server list
+      const serversList = await getUserServers(currentUser.id);
+      setServers(serversList.map((s) => ({ id: s.id, name: s.name })));
+
+      // Switch to first available server or null
+      const newServerId = serversList[0]?.id || null;
+      setCurrentServerId(newServerId);
+
+      if (newServerId) {
+        const serverChannels = await getServerChannels(newServerId);
+        const mapped = serverChannels.map((c) => ({
+          id: c.id,
+          name: c.name,
+          type: c.type,
+          category: c.category || "TEXT CHANNELS",
+        }));
+        setChannels(mapped.filter((c) => c.type === "text"));
+        setVoiceChannels(mapped.filter((c) => c.type === "voice"));
+      } else {
+        setChannels([]);
+        setVoiceChannels([]);
+      }
+
+      toast.success("Left server successfully");
+    } else {
+      toast.error(error || "Failed to leave server");
+    }
   };
 
   if (collapsed) {
@@ -530,11 +630,21 @@ export function Sidebar({
               className="h-full bg-[#2b2d31] flex flex-col border-r border-[#1e1f22]"
             >
               <WorkspaceDropdown
+                serverName={
+                  servers.find((s) => s.id === currentServerId)?.name ||
+                  "Select Server"
+                }
                 onCreateChannel={() => setShowCreateChannel(true)}
                 onCreateCategory={() => setShowCreateCategory(true)}
                 onServerSettings={() => setShowServerSettings(true)}
                 onInvitePeople={() => setShowInvitePeople(true)}
-                onEditServerProfile={() => setShowEditServerProfile(true)}
+                onNotificationChange={handleNotificationChange}
+                onMuteServer={handleMuteServer}
+                onHideMutedChannels={handleHideMutedChannels}
+                onLeaveServer={handleLeaveServer}
+                currentNotificationSetting={notificationSetting}
+                isMuted={isServerMuted}
+                hideMutedChannels={hideMutedChannels}
               >
                 <DropdownMenuTrigger asChild>
                   <div className="h-12 px-4 flex items-center shadow-md border-b border-[#1e1f22] cursor-pointer hover:bg-[#35363c] transition-colors">
@@ -805,18 +915,13 @@ export function Sidebar({
       <InvitePeopleModal
         isOpen={showInvitePeople}
         onClose={() => setShowInvitePeople(false)}
+        serverId={currentServerId || undefined}
       />
 
       {/* Server Settings Modal */}
       <ServerSettingsModal
         isOpen={showServerSettings}
         onClose={() => setShowServerSettings(false)}
-      />
-
-      {/* Edit Server Profile Modal */}
-      <EditServerProfileModal
-        isOpen={showEditServerProfile}
-        onClose={() => setShowEditServerProfile(false)}
       />
 
       {manageChannelTarget && (

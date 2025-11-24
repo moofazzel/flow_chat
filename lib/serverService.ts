@@ -248,3 +248,63 @@ export async function deleteServer(
   if (error) return { success: false, error: error.message };
   return { success: true };
 }
+
+/**
+ * Remove member from server (leave server)
+ */
+export async function removeServerMember(
+  serverId: string,
+  userId: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = createClient();
+
+  const { error } = await supabase
+    .from("server_members")
+    .delete()
+    .eq("server_id", serverId)
+    .eq("user_id", userId);
+
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+}
+
+/**
+ * Update server notification settings for a user
+ */
+export async function updateServerNotificationSettings(
+  serverId: string,
+  userId: string,
+  setting: "all" | "mentions" | "nothing"
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = createClient();
+
+  // Store in server_members table or create a separate notifications table
+  const { error } = await supabase
+    .from("server_members")
+    .update({ notification_setting: setting })
+    .eq("server_id", serverId)
+    .eq("user_id", userId);
+
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+}
+
+/**
+ * Mute/unmute server for a user
+ */
+export async function updateServerMuteStatus(
+  serverId: string,
+  userId: string,
+  isMuted: boolean
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = createClient();
+
+  const { error } = await supabase
+    .from("server_members")
+    .update({ is_muted: isMuted })
+    .eq("server_id", serverId)
+    .eq("user_id", userId);
+
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+}

@@ -1,5 +1,8 @@
 "use client";
 
+import { getFriends } from "@/lib/friendService";
+import { addServerMember } from "@/lib/serverService";
+import { getCurrentUser, User } from "@/utils/auth";
 import { copyToClipboard } from "@/utils/clipboard";
 import {
   Check,
@@ -9,9 +12,11 @@ import {
   Mail,
   Settings,
   UserPlus,
+  Users,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Button } from "./ui/button";
 import {
   Dialog,
@@ -34,13 +39,36 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 interface InvitePeopleModalProps {
   isOpen: boolean;
   onClose: () => void;
+  serverId?: string;
 }
 
-export function InvitePeopleModal({ isOpen, onClose }: InvitePeopleModalProps) {
+export function InvitePeopleModal({
+  isOpen,
+  onClose,
+  serverId,
+}: InvitePeopleModalProps) {
   const [copied, setCopied] = useState(false);
   const [emailInput, setEmailInput] = useState("");
   const [inviteExpiry, setInviteExpiry] = useState("7days");
   const [maxUses, setMaxUses] = useState("unlimited");
+  const [friends, setFriends] = useState<User[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [invitingFriends, setInvitingFriends] = useState<Set<string>>(
+    new Set()
+  );
+
+  useEffect(() => {
+    async function loadFriends() {
+      if (isOpen) {
+        const user = await getCurrentUser();
+        if (user) {
+          const friendsList = await getFriends(user.id);
+          setFriends(friendsList);
+        }
+      }
+    }
+    loadFriends();
+  }, [isOpen]);
 
   const inviteLink = "https://Flow Chat.com/invite/abc123xyz";
 
@@ -62,6 +90,31 @@ export function InvitePeopleModal({ isOpen, onClose }: InvitePeopleModalProps) {
     }
   };
 
+  const handleInviteFriend = async (friendId: string) => {
+    if (!serverId) {
+      toast.error("No server selected");
+      return;
+    }
+
+    setInvitingFriends((prev) => new Set(prev).add(friendId));
+
+    const { success, error } = await addServerMember(serverId, friendId);
+
+    setInvitingFriends((prev) => {
+      const next = new Set(prev);
+      next.delete(friendId);
+      return next;
+    });
+
+    if (success) {
+      toast.success("Friend invited to server!");
+      // Remove from friends list after successful invite
+      setFriends((prev) => prev.filter((f) => f.id !== friendId));
+    } else {
+      toast.error(error || "Failed to invite friend");
+    }
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-[500px] bg-[#313338] border-none text-white p-0 gap-0 overflow-hidden">
@@ -75,8 +128,15 @@ export function InvitePeopleModal({ isOpen, onClose }: InvitePeopleModalProps) {
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="link" className="w-full">
+        <Tabs defaultValue="friends" className="w-full">
           <TabsList className="w-full bg-[#2b2d31] border-b border-[#1e1f22] rounded-none h-12 p-0">
+            <TabsTrigger
+              value="friends"
+              className="flex-1 data-[state=active]:bg-[#313338] data-[state=active]:text-white data-[state=active]:shadow-none rounded-none border-b-2 border-transparent data-[state=active]:border-[#5865f2] h-full"
+            >
+              <Users size={16} className="mr-2" />
+              Friends
+            </TabsTrigger>
             <TabsTrigger
               value="link"
               className="flex-1 data-[state=active]:bg-[#313338] data-[state=active]:text-white data-[state=active]:shadow-none rounded-none border-b-2 border-transparent data-[state=active]:border-[#5865f2] h-full"
@@ -92,6 +152,62 @@ export function InvitePeopleModal({ isOpen, onClose }: InvitePeopleModalProps) {
               Send Email
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="friends" className="px-6 py-5 space-y-4 mt-0">
+            <div className="space-y-2">
+              <Label className="text-[#b5bac1] text-xs uppercase tracking-wider font-semibold">
+                Your Friends ({friends.length})
+              </Label>
+              {friends.length === 0 ? (
+                <div className="bg-[#2b2d31] rounded-lg p-8 border border-[#1e1f22] text-center">
+                  <Users size={48} className="text-[#6d6f78] mx-auto mb-3" />
+                  <p className="text-[#b5bac1] text-sm">No friends to invite</p>
+                  <p className="text-[#80848e] text-xs mt-1">
+                    Add friends first to invite them to this server
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
+                  {friends.map((friend) => (
+                    <div
+                      key={friend.id}
+                      className="bg-[#2b2d31] rounded-lg p-3 border border-[#1e1f22] flex items-center justify-between hover:bg-[#32353b] transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Avatar className="w-10 h-10">
+                          <AvatarFallback className="bg-[#5865f2] text-white font-semibold">
+                            {friend.username?.slice(0, 2).toUpperCase() || "U"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <div className="text-white font-medium">
+                            {friend.username || "Unknown User"}
+                          </div>
+                          <div className="text-[#b5bac1] text-xs">
+                            {friend.email}
+                          </div>
+                        </div>
+                      </div>
+                      <Button
+                        onClick={() => handleInviteFriend(friend.id)}
+                        disabled={invitingFriends.has(friend.id)}
+                        className="bg-[#5865f2] hover:bg-[#4752c4] h-9 px-4 text-sm disabled:opacity-50"
+                      >
+                        {invitingFriends.has(friend.id) ? (
+                          "Inviting..."
+                        ) : (
+                          <>
+                            <UserPlus size={14} className="mr-2" />
+                            Invite
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </TabsContent>
 
           <TabsContent value="link" className="px-6 py-5 space-y-5 mt-0">
             {/* Invite Link */}

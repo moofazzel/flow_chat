@@ -1,9 +1,9 @@
 "use client";
 
-import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
+import { HTMLMotionProps, motion } from "framer-motion";
 import { XIcon } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import * as React from "react";
 
 import { cn } from "./utils";
 
@@ -40,6 +40,7 @@ const DialogOverlay = React.forwardRef<
       ref={ref}
       data-slot="dialog-overlay"
       asChild
+      {...props}
     >
       <motion.div
         initial={{ opacity: 0 }}
@@ -51,9 +52,8 @@ const DialogOverlay = React.forwardRef<
         }}
         className={cn(
           "fixed inset-0 z-50 bg-black/50 backdrop-blur-sm",
-          className,
+          className
         )}
-        {...props}
       />
     </DialogPrimitive.Overlay>
   );
@@ -69,23 +69,19 @@ function DialogContent({
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay />
-      <DialogPrimitive.Content
-        data-slot="dialog-content"
-        asChild
-        {...props}
-      >
+      <DialogPrimitive.Content data-slot="dialog-content" {...props}>
         <motion.div
-          initial={{ 
+          initial={{
             opacity: 0,
             scale: 0.92,
             y: 20,
           }}
-          animate={{ 
+          animate={{
             opacity: 1,
             scale: 1,
             y: 0,
           }}
-          exit={{ 
+          exit={{
             opacity: 0,
             scale: 0.95,
             y: 10,
@@ -95,8 +91,8 @@ function DialogContent({
             ease: [0.16, 1, 0.3, 1],
           }}
           className={cn(
-            "bg-background fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border p-6 shadow-2xl sm:max-w-lg",
-            className,
+            "bg-background fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border p-6 shadow-2xl ",
+            className
           )}
         >
           {children}
@@ -122,14 +118,14 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
     <motion.div
       initial={{ opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ 
+      transition={{
         delay: 0.1,
         duration: 0.25,
         ease: [0.16, 1, 0.3, 1],
       }}
       data-slot="dialog-header"
       className={cn("flex flex-col gap-2 text-center sm:text-left", className)}
-      {...props}
+      {...(props as HTMLMotionProps<"div">)}
     />
   );
 }
@@ -139,7 +135,7 @@ function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ 
+      transition={{
         delay: 0.15,
         duration: 0.25,
         ease: [0.16, 1, 0.3, 1],
@@ -147,9 +143,9 @@ function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
       data-slot="dialog-footer"
       className={cn(
         "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end",
-        className,
+        className
       )}
-      {...props}
+      {...(props as HTMLMotionProps<"div">)}
     />
   );
 }

@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { DirectCallModal } from "./DirectCallModal";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Button } from "./ui/button";
 interface DirectMessageChatProps {
@@ -70,6 +71,11 @@ export function EnhancedDirectMessageChat({
   const [dbMessages, setDbMessages] = useState<Message[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Call state
+  const [isCallModalOpen, setIsCallModalOpen] = useState(false);
+  const [callType, setCallType] = useState<"audio" | "video">("audio");
+  const [isCallInitiator, setIsCallInitiator] = useState(false);
 
   // Use the broadcast-based realtime chat hook
   const {
@@ -331,6 +337,23 @@ export function EnhancedDirectMessageChat({
     setEditContent("");
   };
 
+  // Call handlers
+  const handleStartCall = (type: "audio" | "video") => {
+    if (!selectedDM) {
+      toast.error("No user selected");
+      return;
+    }
+    setCallType(type);
+    setIsCallInitiator(true);
+    setIsCallModalOpen(true);
+    toast.success(`Starting ${type} call with ${selectedDM.userName}...`);
+  };
+
+  const handleCloseCall = () => {
+    setIsCallModalOpen(false);
+    setIsCallInitiator(false);
+  };
+
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center bg-[#313338]">
@@ -381,6 +404,8 @@ export function EnhancedDirectMessageChat({
             variant="ghost"
             size="sm"
             className="text-gray-400 hover:text-white hover:bg-[#3f4147] transition-colors p-2 h-auto rounded"
+            onClick={() => handleStartCall("audio")}
+            title="Start voice call"
           >
             <Phone size={16} />
           </Button>
@@ -388,6 +413,8 @@ export function EnhancedDirectMessageChat({
             variant="ghost"
             size="sm"
             className="text-gray-400 hover:text-white hover:bg-[#3f4147] transition-colors p-2 h-auto rounded"
+            onClick={() => handleStartCall("video")}
+            title="Start video call"
           >
             <Video size={16} />
           </Button>
@@ -547,7 +574,7 @@ export function EnhancedDirectMessageChat({
                                 : "bg-[#2b2d31] text-gray-100 rounded-tl-sm"
                             }`}
                           >
-                            <p className="whitespace-pre-wrap break-words">
+                            <p className="whitespace-pre-wrap wrap-break-word">
                               {msg.content}
                             </p>
                             {msg.isEdited && (
@@ -804,6 +831,24 @@ export function EnhancedDirectMessageChat({
           )}
         </form>
       </div>
+
+      {/* Call Modal */}
+      {selectedDM && (
+        <DirectCallModal
+          isOpen={isCallModalOpen}
+          onClose={handleCloseCall}
+          callType={callType}
+          otherUser={{
+            id: selectedDM.userId,
+            name: selectedDM.userName,
+            avatar: selectedDM.userAvatar,
+          }}
+          currentUserId={currentUserId}
+          currentUserName={currentUserName}
+          threadId={selectedDM.threadId}
+          isInitiator={isCallInitiator}
+        />
+      )}
     </div>
   );
 }

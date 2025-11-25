@@ -25,7 +25,6 @@ interface VoiceChannelPanelProps {
   channelId: string;
   channelName: string;
   onLeave: () => void;
-  onParticipantsChange?: (participants: VoiceParticipant[]) => void;
 }
 
 interface VoiceParticipant {
@@ -43,7 +42,6 @@ export function VoiceChannelPanel({
   channelId,
   channelName,
   onLeave,
-  onParticipantsChange,
 }: VoiceChannelPanelProps) {
   const [participants, setParticipants] = useState<VoiceParticipant[]>([]);
   const [isMuted, setIsMuted] = useState(false);
@@ -73,8 +71,6 @@ export function VoiceChannelPanel({
   const isJoiningRef = useRef(false);
   const processedUserListRef = useRef<Set<string>>(new Set());
   const isCleaningUpRef = useRef(false);
-  const lastSpeakingStateRef = useRef(false);
-  const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
   const supabase = createClient();
 
   // Helper functions for participant management
@@ -120,14 +116,6 @@ export function VoiceChannelPanel({
 
   const removeParticipant = (userId: string) => {
     setParticipants((prev) => prev.filter((p) => p.id !== userId));
-
-    // Cleanup audio element
-    const audioEl = audioElementsRef.current.get(userId);
-    if (audioEl) {
-      audioEl.srcObject = null;
-      audioEl.remove();
-      audioElementsRef.current.delete(userId);
-    }
   };
 
   const updateParticipant = (update: {
@@ -151,19 +139,19 @@ export function VoiceChannelPanel({
   };
 
   const setSpeaking = (userId: string, isSpeaking: boolean) => {
-    setParticipants((prev) => {
-      const participant = prev.find((p) => p.id === userId);
-      if (participant && participant.isSpeaking === isSpeaking) {
-        return prev;
-      }
-      return prev.map((p) => (p.id === userId ? { ...p, isSpeaking } : p));
-    });
+    setParticipants((prev) =>
+      prev.map((p) => (p.id === userId ? { ...p, isSpeaking } : p))
+    );
   };
 
-  // Notify parent of participant changes
+  // Debug participant state changes
   useEffect(() => {
-    onParticipantsChange?.(participants);
-  }, [participants, onParticipantsChange]);
+    console.log(
+      "🔄 Participants state changed:",
+      participants.length,
+      participants.map((p) => p.full_name)
+    );
+  }, [participants]);
 
   // WebRTC peer connection management
   const createPeerConnection = useCallback(
@@ -195,15 +183,7 @@ export function VoiceChannelPanel({
         const audio = new Audio();
         audio.srcObject = remoteStream;
         audio.autoplay = true;
-
-        // Attach to DOM to ensure it plays
-        audio.style.display = "none";
-        document.body.appendChild(audio);
-        audioElementsRef.current.set(userId, audio);
-
-        audio.play().catch((err) => {
-          console.error("Audio play failed:", err);
-        });
+        audio.play().catch((err) => console.error("Audio play failed:", err));
       };
 
       // Handle ICE candidates
@@ -309,9 +289,9 @@ export function VoiceChannelPanel({
     []
   );
 
-  const cleanupConnection = useCallback(async () => {
+  const handleLeaveChannel = useCallback(async () => {
     console.log(
-      "🚪 cleanupConnection called - hasJoined:",
+      "🚪 handleLeaveChannel called - hasJoined:",
       hasJoinedRef.current,
       "isJoining:",
       isJoiningRef.current,
@@ -362,12 +342,8 @@ export function VoiceChannelPanel({
     isJoiningRef.current = false;
     processedUserListRef.current.clear();
     isCleaningUpRef.current = false;
-  }, [currentUser, supabase]);
-
-  const handleDisconnect = useCallback(() => {
-    cleanupConnection();
     onLeave();
-  }, [cleanupConnection, onLeave]);
+  }, [currentUser, supabase, onLeave]);
 
   // Load current user
   useEffect(() => {
@@ -441,18 +417,15 @@ export function VoiceChannelPanel({
           const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
           const isSpeaking = average > 10 && !isMutedRef.current; // Threshold for speaking
 
-          // Only broadcast if state changed
-          if (isSpeaking !== lastSpeakingStateRef.current) {
-            lastSpeakingStateRef.current = isSpeaking;
-            channelRef.current.send({
-              type: "broadcast",
-              event: "speaking",
-              payload: {
-                userId: currentUser.id,
-                isSpeaking,
-              },
-            });
-          }
+          // Broadcast speaking status
+          channelRef.current.send({
+            type: "broadcast",
+            event: "speaking",
+            payload: {
+              userId: currentUser.id,
+              isSpeaking,
+            },
+          });
 
           requestAnimationFrame(detectSpeaking);
         };
@@ -603,35 +576,10 @@ export function VoiceChannelPanel({
               if (!isCleaningUpRef.current) {
                 setIsConnecting(false);
                 setIsConnected(true);
+                hasJoinedRef.current = true;
                 isJoiningRef.current = false;
                 console.log("✅ Successfully joined voice channel");
                 toast.success(`Joined ${channelName}`);
-
-                // Play join sound
-                if (audioContextRef.current) {
-                  const osc = audioContextRef.current.createOscillator();
-                  const gain = audioContextRef.current.createGain();
-                  osc.connect(gain);
-                  gain.connect(audioContextRef.current.destination);
-                  osc.frequency.setValueAtTime(
-                    440,
-                    audioContextRef.current.currentTime
-                  );
-                  osc.frequency.exponentialRampToValueAtTime(
-                    880,
-                    audioContextRef.current.currentTime + 0.1
-                  );
-                  gain.gain.setValueAtTime(
-                    0.1,
-                    audioContextRef.current.currentTime
-                  );
-                  gain.gain.exponentialRampToValueAtTime(
-                    0.01,
-                    audioContextRef.current.currentTime + 0.3
-                  );
-                  osc.start();
-                  osc.stop(audioContextRef.current.currentTime + 0.3);
-                }
               } else {
                 console.log("⚠️ Component cleaning up, skipping state updates");
               }
@@ -642,7 +590,7 @@ export function VoiceChannelPanel({
         toast.error("Failed to access microphone. Please grant permission.");
         setIsConnecting(false);
         isJoiningRef.current = false;
-        handleDisconnect(); // Exit if can't get microphone
+        onLeave(); // Exit if can't get microphone
       }
     };
 
@@ -660,16 +608,10 @@ export function VoiceChannelPanel({
     return () => {
       console.log("🧹 VoiceChannelPanel cleanup function called");
       isMounted = false;
-      cleanupConnection();
+      handleLeaveChannel();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    currentUser,
-    channelId,
-    channelName,
-    cleanupConnection,
-    handleDisconnect,
-  ]);
+  }, [currentUser, channelId, channelName]);
 
   const handleToggleMute = async () => {
     const newMuted = !isMuted;
@@ -880,7 +822,7 @@ export function VoiceChannelPanel({
           <Button
             variant="ghost"
             size="sm"
-            onClick={handleDisconnect}
+            onClick={handleLeaveChannel}
             className="h-9 px-4 bg-red-500 hover:bg-red-600 text-white gap-2"
             title="Disconnect"
           >

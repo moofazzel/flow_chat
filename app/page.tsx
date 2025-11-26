@@ -1,11 +1,23 @@
 "use client";
 
 import { useServerInvites } from "@/hooks/useServerInvites";
-import { getCurrentUser, User } from "@/utils/auth";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { setUser } from "@/store/slices/authSlice";
+import {
+  setCurrentServerId,
+  setSelectedChannelId,
+} from "@/store/slices/serverSlice";
+import {
+  setCurrentView,
+  setFloatingChatOpen,
+  setSidebarCollapsed,
+  ViewType,
+} from "@/store/slices/uiSlice";
+import { getCurrentUser } from "@/utils/auth";
 import type { BoardData } from "@/utils/storage";
 import { storage } from "@/utils/storage";
 import { AnimatePresence } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AuthPage } from "./components/AuthPage";
 import { BoardsContainer } from "./components/BoardsContainer";
@@ -19,8 +31,6 @@ import { ServerInviteNotification } from "./components/ServerInviteNotification"
 import { Sidebar } from "./components/Sidebar";
 import { TaskDetailsModal } from "./components/TaskDetailsModal";
 import { Toaster } from "./components/ui/toaster";
-
-export type ViewType = "chat" | "board" | "dm";
 
 export interface Channel {
   id: string;
@@ -164,17 +174,20 @@ const loadInitialMessages = () =>
   readJSON<ChatMessage[]>(STORAGE_KEYS.messages, []);
 
 export default function Home() {
-  const [user, setUser] = useState<User | null>(null);
-  const [authChecked, setAuthChecked] = useState(false);
+  const dispatch = useAppDispatch();
+  const { user, isLoading: authLoading } = useAppSelector(
+    (state) => state.auth
+  );
+  const { currentView, sidebarCollapsed, floatingChatOpen } = useAppSelector(
+    (state) => state.ui
+  );
+  const { currentServerId, selectedChannelId } = useAppSelector(
+    (state) => state.server
+  );
+  const authChecked = !authLoading;
 
-  const [currentView, setCurrentView] = useState<ViewType>(loadInitialView);
-  const [selectedChannel, setSelectedChannel] =
-    useState<string>(loadInitialChannel);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(loadInitialSidebar);
-  const [currentServerId, setCurrentServerId] = useState<string | null>(null);
 
-  const [floatingChatOpen, setFloatingChatOpen] = useState(false);
   const [, setSelectedDM] = useState<{
     userId: string;
     userName: string;
@@ -185,16 +198,14 @@ export default function Home() {
   useEffect(() => {
     const initAuth = async () => {
       const currentUser = await getCurrentUser();
-      setUser(currentUser);
-      setAuthChecked(true);
+      dispatch(setUser(currentUser));
     };
     initAuth();
-  }, []);
+  }, [dispatch]);
 
   const handleAuthSuccess = async () => {
     const authedUser = await getCurrentUser();
-    setUser(authedUser);
-    setAuthChecked(true);
+    dispatch(setUser(authedUser));
     if (!authedUser) {
       toast.error("Unable to load session after login. Please try again.");
     }
@@ -257,8 +268,8 @@ export default function Home() {
   // Save channel state to localStorage whenever it changes
   useEffect(() => {
     if (!user) return;
-    localStorage.setItem(STORAGE_KEYS.selectedChannel, selectedChannel);
-  }, [selectedChannel, user]);
+    localStorage.setItem(STORAGE_KEYS.selectedChannel, selectedChannelId);
+  }, [selectedChannelId, user]);
 
   // Save sidebar state to localStorage whenever it changes
   useEffect(() => {
@@ -313,7 +324,7 @@ export default function Home() {
       content,
       task: taskData,
       isCurrentUser: true,
-      channelId: selectedChannel,
+      channelId: selectedChannelId,
       mentions,
     };
 
@@ -330,7 +341,7 @@ export default function Home() {
     userStatus: "online" | "idle" | "dnd" | "offline"
   ) => {
     setSelectedDM({ userId: dmId, userName, userAvatar, userStatus });
-    setCurrentView("dm");
+    dispatch(setCurrentView("dm"));
   };
 
   const handleCreateTask = (taskData: NewTaskData) => {
@@ -518,20 +529,44 @@ export default function Home() {
   };
 
   // Handle channel selection - opens floating chat if in board view
-  const handleChannelSelect = (channelId: string) => {
-    setSelectedChannel(channelId);
+  const handleChannelSelect = useCallback(
+    (channelId: string) => {
+      dispatch(setSelectedChannelId(channelId));
 
-    // If we're in board view, open the floating chat
-    if (currentView === "board") {
-      setFloatingChatOpen(true);
-      toast.success(`Opened #${channelId} in floating chat`, {
-        duration: 2000,
-      });
-    } else {
-      // If we're not in board view, switch to chat view
-      setCurrentView("chat");
-    }
-  };
+      // If we're in board view, open the floating chat
+      if (currentView === "board") {
+        dispatch(setFloatingChatOpen(true));
+        toast.success(`Opened #${channelId} in floating chat`, {
+          duration: 2000,
+        });
+      } else {
+        // If we're not in board view, switch to chat view
+        dispatch(setCurrentView("chat"));
+      }
+    },
+    [dispatch, currentView]
+  );
+
+  // Memoized callback for view changes
+  const handleViewChange = useCallback(
+    (view: ViewType) => {
+      dispatch(setCurrentView(view));
+    },
+    [dispatch]
+  );
+
+  // Memoized callback for server changes
+  const handleServerChange = useCallback(
+    (serverId: string | null) => {
+      dispatch(setCurrentServerId(serverId));
+    },
+    [dispatch]
+  );
+
+  // Memoized callback for sidebar toggle
+  const handleToggleSidebar = useCallback(() => {
+    dispatch(setSidebarCollapsed(!sidebarCollapsed));
+  }, [dispatch, sidebarCollapsed]);
 
   if (!authChecked) {
     return null;
@@ -545,19 +580,19 @@ export default function Home() {
     <div className="flex h-screen bg-[#313338]">
       <Sidebar
         currentView={currentView}
-        onViewChange={setCurrentView}
-        selectedChannel={selectedChannel}
+        onViewChange={handleViewChange}
+        selectedChannel={selectedChannelId}
         onChannelSelect={handleChannelSelect}
         collapsed={sidebarCollapsed}
-        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        onToggleCollapse={handleToggleSidebar}
         onSelectDM={handleSelectDM}
-        onServerChange={setCurrentServerId}
+        onServerChange={handleServerChange}
       />
 
       <div className="flex-1 flex overflow-hidden">
         {currentView === "chat" ? (
           <EnhancedChatArea
-            channelId={selectedChannel}
+            channelId={selectedChannelId}
             onTaskClick={setSelectedTask}
             onCreateTask={handleCreateTask}
             onSendMessage={handleSendMessage}
@@ -570,7 +605,9 @@ export default function Home() {
             currentServerId={currentServerId}
             tasks={tasks}
             onTaskClick={setSelectedTask}
-            onToggleChat={() => setFloatingChatOpen(!floatingChatOpen)}
+            onToggleChat={() =>
+              dispatch(setFloatingChatOpen(!floatingChatOpen))
+            }
             isChatOpen={floatingChatOpen}
             onTaskStatusChange={handleTaskStatusChange}
             onTaskAssignment={handleTaskAssignment}
@@ -586,9 +623,9 @@ export default function Home() {
       <AnimatePresence mode="wait">
         {currentView === "board" && floatingChatOpen && (
           <FloatingChat
-            channelId={selectedChannel}
+            channelId={selectedChannelId}
             onTaskClick={setSelectedTask}
-            onClose={() => setFloatingChatOpen(false)}
+            onClose={() => dispatch(setFloatingChatOpen(false))}
           />
         )}
       </AnimatePresence>

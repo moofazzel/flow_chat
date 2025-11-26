@@ -13,6 +13,8 @@ import {
   updateServerMuteStatus,
   updateServerNotificationSettings,
 } from "@/lib/serverService";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { setCurrentServerId, setServers } from "@/store/slices/serverSlice";
 import { getCurrentUser, User } from "@/utils/auth";
 import { createClient } from "@/utils/supabase/client";
 import { motion } from "framer-motion";
@@ -29,7 +31,7 @@ import {
   Volume2,
 } from "lucide-react";
 import { Resizable } from "re-resizable";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CreateCategoryModal } from "./CreateCategoryModal";
 import { CreateChannelModal } from "./CreateChannelModal";
@@ -97,8 +99,9 @@ export function Sidebar({
   const [showInvitePeople, setShowInvitePeople] = useState(false);
   const [showServerSettings, setShowServerSettings] = useState(false);
 
-  const [currentServerId, setCurrentServerId] = useState<string | null>(null);
-  const [servers, setServers] = useState<{ id: string; name: string }[]>([]);
+  const dispatch = useAppDispatch();
+  const { servers, currentServerId } = useAppSelector((state) => state.server);
+
   const [channels, setChannels] = useState<Channel[]>([]);
   const [voiceChannels, setVoiceChannels] = useState<Channel[]>([]);
   const [activeVoiceChannel, setActiveVoiceChannel] = useState<Channel | null>(
@@ -143,21 +146,38 @@ export function Sidebar({
     }
   }, [selectedChannel, currentView, unreadCounts, markAsRead]);
 
+  // Track if we've initialized to prevent re-running
+  const hasInitialized = useRef(false);
+
   useEffect(() => {
     async function init() {
+      if (hasInitialized.current) return;
+
       const user = await getCurrentUser();
       if (!user) return;
 
       setCurrentUser(user);
       const serversList = await getUserServers(user.id);
-      setServers(serversList.map((s) => ({ id: s.id, name: s.name })));
+      dispatch(
+        setServers(
+          serversList.map((s) => ({
+            id: s.id,
+            name: s.name,
+            icon: "",
+            channels: [],
+            categories: [],
+          }))
+        )
+      );
       const defaultServerId = serversList[0]?.id || null;
-      if (defaultServerId) {
-        setCurrentServerId(defaultServerId);
+      if (defaultServerId && !currentServerId) {
+        dispatch(setCurrentServerId(defaultServerId));
       }
+
+      hasInitialized.current = true;
     }
     init();
-  }, []);
+  }, [dispatch]);
 
   useEffect(() => {
     async function load() {
@@ -226,7 +246,17 @@ export function Sidebar({
           await new Promise((resolve) => setTimeout(resolve, 500));
 
           const serversList = await getUserServers(currentUser.id);
-          setServers(serversList.map((s) => ({ id: s.id, name: s.name })));
+          dispatch(
+            setServers(
+              serversList.map((s) => ({
+                id: s.id,
+                name: s.name,
+                icon: "",
+                channels: [],
+                categories: [],
+              }))
+            )
+          );
 
           // If we were added to a server (INSERT) and have no current server, select it?
           // Or just let the user select it.
@@ -237,7 +267,7 @@ export function Sidebar({
     return () => {
       channel.unsubscribe();
     };
-  }, [currentUser]);
+  }, [currentUser, dispatch]);
 
   const handleCreateServer = async (serverData: ServerData) => {
     const user = await getCurrentUser();
@@ -287,8 +317,18 @@ export function Sidebar({
 
     // Refresh servers list and select the new server
     const serversList = await getUserServers(user.id);
-    setServers(serversList.map((s) => ({ id: s.id, name: s.name })));
-    setCurrentServerId(server.id);
+    dispatch(
+      setServers(
+        serversList.map((s) => ({
+          id: s.id,
+          name: s.name,
+          icon: "",
+          channels: [],
+          categories: [],
+        }))
+      )
+    );
+    dispatch(setCurrentServerId(server.id));
 
     toast.success("Server created successfully!");
     setShowCreateServer(false);
@@ -401,11 +441,21 @@ export function Sidebar({
     if (success) {
       // Refresh server list
       const serversList = await getUserServers(currentUser.id);
-      setServers(serversList.map((s) => ({ id: s.id, name: s.name })));
+      dispatch(
+        setServers(
+          serversList.map((s) => ({
+            id: s.id,
+            name: s.name,
+            icon: "",
+            channels: [],
+            categories: [],
+          }))
+        )
+      );
 
       // Switch to first available server or null
       const newServerId = serversList[0]?.id || null;
-      setCurrentServerId(newServerId);
+      dispatch(setCurrentServerId(newServerId));
 
       if (newServerId) {
         const serverChannels = await getServerChannels(newServerId);
@@ -481,7 +531,7 @@ export function Sidebar({
           <motion.div
             key={server.id}
             onClick={() => {
-              setCurrentServerId(server.id);
+              dispatch(setCurrentServerId(server.id));
               onViewChange("chat");
             }}
             whileHover={{ scale: 1.1, rotate: [0, -5, 5, 0] }}
@@ -606,7 +656,7 @@ export function Sidebar({
           <div key={server.id} className="relative">
             <motion.div
               onClick={() => {
-                setCurrentServerId(server.id);
+                dispatch(setCurrentServerId(server.id));
                 onViewChange("chat");
               }}
               whileHover={{ scale: 1.1, rotate: [0, -5, 5, 0] }}

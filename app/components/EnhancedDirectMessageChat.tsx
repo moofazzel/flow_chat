@@ -3,6 +3,9 @@
 import type { ChatMessage as RealtimeChatMessage } from "@/hooks/use-dm-chat";
 import { useDmChat } from "@/hooks/use-dm-chat";
 import { getDmMessages, sendDmMessage } from "@/lib/friendService";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { endCall, receiveCall, startCall } from "@/store/slices/callSlice";
+import { createClient } from "@/utils/supabase/client";
 import {
   Edit2,
   MoreVertical,
@@ -72,10 +75,10 @@ export function EnhancedDirectMessageChat({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // Call state
-  const [isCallModalOpen, setIsCallModalOpen] = useState(false);
-  const [callType, setCallType] = useState<"audio" | "video">("audio");
-  const [isCallInitiator, setIsCallInitiator] = useState(false);
+  // Redux state
+  const dispatch = useAppDispatch();
+  const { isCallModalOpen, callType, isInitiator, incomingOffer } =
+    useAppSelector((state) => state.call);
 
   // Use the broadcast-based realtime chat hook
   const {
@@ -227,6 +230,57 @@ export function EnhancedDirectMessageChat({
     clearMessages,
   ]);
 
+  // Listen for incoming calls
+  useEffect(() => {
+    if (!selectedDM?.threadId) return;
+
+    const supabase = createClient();
+    const callChannel = supabase.channel(`dm-call:${selectedDM.threadId}`);
+
+    callChannel
+      .on(
+        "broadcast",
+        { event: "call-offer" },
+        ({
+          payload,
+        }: {
+          payload: {
+            toUserId: string;
+            fromUserId: string;
+            fromUserName: string;
+            callType: "audio" | "video";
+            offer: RTCSessionDescriptionInit;
+          };
+        }) => {
+          // Only respond if this call is for us
+          if (payload.toUserId === currentUserId) {
+            console.log("Incoming call from:", payload.fromUserName);
+
+            dispatch(
+              receiveCall({
+                type: payload.callType,
+                userId: payload.fromUserId,
+                userName: payload.fromUserName,
+                userAvatar: "", // We might need to fetch this or pass it in payload
+                threadId: selectedDM.threadId,
+                offer: payload.offer,
+              })
+            );
+
+            // Show notification
+            toast.info(
+              `Incoming ${payload.callType} call from ${payload.fromUserName}`
+            );
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      callChannel.unsubscribe();
+    };
+  }, [selectedDM?.threadId, currentUserId, dispatch]);
+
   const getStatusColor = () => {
     if (!selectedDM) return "bg-gray-500";
     switch (selectedDM.userStatus) {
@@ -343,15 +397,20 @@ export function EnhancedDirectMessageChat({
       toast.error("No user selected");
       return;
     }
-    setCallType(type);
-    setIsCallInitiator(true);
-    setIsCallModalOpen(true);
+    dispatch(
+      startCall({
+        type,
+        userId: selectedDM.userId,
+        userName: selectedDM.userName,
+        userAvatar: selectedDM.userAvatar,
+        threadId: selectedDM.threadId,
+      })
+    );
     toast.success(`Starting ${type} call with ${selectedDM.userName}...`);
   };
 
   const handleCloseCall = () => {
-    setIsCallModalOpen(false);
-    setIsCallInitiator(false);
+    dispatch(endCall());
   };
 
   if (isLoading) {
@@ -846,7 +905,8 @@ export function EnhancedDirectMessageChat({
           currentUserId={currentUserId}
           currentUserName={currentUserName}
           threadId={selectedDM.threadId}
-          isInitiator={isCallInitiator}
+          isInitiator={isInitiator}
+          incomingOffer={incomingOffer || undefined}
         />
       )}
     </div>

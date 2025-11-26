@@ -35,6 +35,7 @@ interface DirectCallModalProps {
   currentUserName: string;
   threadId: string;
   isInitiator: boolean; // true if this user started the call
+  incomingOffer?: RTCSessionDescriptionInit; // offer from parent component for receivers
 }
 
 type CallStatus =
@@ -56,6 +57,7 @@ export function DirectCallModal({
   currentUserName,
   threadId,
   isInitiator,
+  incomingOffer,
 }: DirectCallModalProps) {
   const [callStatus, setCallStatus] = useState<CallStatus>("initializing");
   const [isMuted, setIsMuted] = useState(false);
@@ -76,6 +78,8 @@ export function DirectCallModal({
   > | null>(null);
   const callStartTimeRef = useRef<number>(0);
   const durationIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const incomingOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
+  const pendingIceCandidatesRef = useRef<RTCIceCandidate[]>([]);
 
   // Define all functions before useEffect using useCallback
   const cleanup = useCallback(() => {
@@ -109,8 +113,14 @@ export function DirectCallModal({
     }, 1000);
   }, []);
 
+  const terminateCall = useCallback(() => {
+    cleanup();
+    onClose();
+  }, [cleanup, onClose]);
+
   const handleEndCall = useCallback(() => {
     if (channelRef.current && callStatus !== "ended") {
+      console.log("Sending call-end event");
       channelRef.current.send({
         type: "broadcast",
         event: "call-end",
@@ -120,19 +130,29 @@ export function DirectCallModal({
         },
       });
     }
-
-    cleanup();
-    onClose();
-  }, [callStatus, currentUserId, otherUser.id, cleanup, onClose]);
+    terminateCall();
+  }, [callStatus, currentUserId, otherUser.id, terminateCall]);
 
   const handleAnswer = useCallback(
     async (offer: RTCSessionDescriptionInit) => {
       if (!peerConnectionRef.current) return;
 
       try {
+        console.log("Setting remote description and creating answer");
         await peerConnectionRef.current.setRemoteDescription(
           new RTCSessionDescription(offer)
         );
+
+        // Process any pending ICE candidates
+        console.log(
+          "Processing pending ICE candidates:",
+          pendingIceCandidatesRef.current.length
+        );
+        for (const candidate of pendingIceCandidatesRef.current) {
+          await peerConnectionRef.current.addIceCandidate(candidate);
+        }
+        pendingIceCandidatesRef.current = [];
+
         const answer = await peerConnectionRef.current.createAnswer();
         await peerConnectionRef.current.setLocalDescription(answer);
 
@@ -167,6 +187,11 @@ export function DirectCallModal({
         toast.error("Your browser doesn't support voice/video calls");
         setCallStatus("failed");
         return;
+      }
+
+      // Set status to ringing for receivers
+      if (!isInitiator && incomingOffer) {
+        setCallStatus("ringing");
       }
 
       try {
@@ -241,15 +266,14 @@ export function DirectCallModal({
 
         channel
           .on("broadcast", { event: "call-offer" }, async ({ payload }) => {
-            if (payload.toUserId !== currentUserId) return;
+            // Only process if we're the initiator (shouldn't happen, but just in case)
+            // Receivers get the offer from the parent component's listener
+            if (payload.toUserId !== currentUserId || !isInitiator) return;
             console.log("Received call offer");
 
+            // Store the offer for when user clicks answer
+            incomingOfferRef.current = payload.offer;
             setCallStatus("ringing");
-
-            // Auto-answer if we're the receiver
-            if (!isInitiator) {
-              await handleAnswer(payload.offer);
-            }
           })
           .on("broadcast", { event: "call-answer" }, async ({ payload }) => {
             if (payload.toUserId !== currentUserId) return;
@@ -265,14 +289,27 @@ export function DirectCallModal({
             console.log("Received ICE candidate");
 
             if (payload.candidate) {
-              await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
+              const candidate = new RTCIceCandidate(payload.candidate);
+
+              // If remote description is set, add candidate immediately
+              // Otherwise, queue it for later
+              if (pc.remoteDescription) {
+                await pc.addIceCandidate(candidate);
+              } else {
+                console.log(
+                  "Queueing ICE candidate (no remote description yet)"
+                );
+                pendingIceCandidatesRef.current.push(candidate);
+              }
             }
           })
           .on("broadcast", { event: "call-end" }, ({ payload }) => {
+            console.log("Received call-end event", payload);
             if (payload.toUserId !== currentUserId) return;
+
             console.log("Call ended by other user");
             setCallStatus("ended");
-            handleEndCall();
+            terminateCall();
           })
           .on("broadcast", { event: "call-declined" }, ({ payload }) => {
             if (payload.toUserId !== currentUserId) return;
@@ -325,7 +362,16 @@ export function DirectCallModal({
     handleEndCall,
     startDurationTimer,
     onClose,
+    terminateCall,
   ]);
+
+  // Update incoming offer ref when prop changes (separate effect to avoid re-initialization)
+  useEffect(() => {
+    if (incomingOffer && !isInitiator) {
+      incomingOfferRef.current = incomingOffer;
+      console.log("Stored incoming offer in ref");
+    }
+  }, [incomingOffer, isInitiator]);
 
   const handleDeclineCall = () => {
     if (channelRef.current) {
@@ -552,7 +598,13 @@ export function DirectCallModal({
             {/* Answer button (only when ringing and not initiator) */}
             {callStatus === "ringing" && !isInitiator && (
               <Button
-                onClick={() => handleAnswer({} as RTCSessionDescriptionInit)}
+                onClick={() => {
+                  if (incomingOfferRef.current) {
+                    handleAnswer(incomingOfferRef.current);
+                  } else {
+                    toast.error("No incoming call to answer");
+                  }
+                }}
                 variant="ghost"
                 size="lg"
                 className="rounded-full w-14 h-14 bg-green-500 hover:bg-green-600 text-white"

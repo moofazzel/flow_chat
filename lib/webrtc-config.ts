@@ -30,7 +30,7 @@ export function getIceServers(): RTCIceServer[] {
     console.warn(
       "⚠️ No TURN server configured. Voice may not work behind strict NATs."
     );
-    
+
     // Add free public TURN servers as fallback (OpenRelay project)
     iceServers.push({
       urls: "turn:openrelay.metered.ca:80",
@@ -39,7 +39,7 @@ export function getIceServers(): RTCIceServer[] {
     });
     iceServers.push({
       urls: "turn:openrelay.metered.ca:443",
-      username: "openrelayproject", 
+      username: "openrelayproject",
       credential: "openrelayproject",
     });
     iceServers.push({
@@ -62,7 +62,7 @@ export function getIceServers(): RTCIceServer[] {
   iceServers.push({ urls: "stun:stun2.l.google.com:19302" });
   iceServers.push({ urls: "stun:stun3.l.google.com:19302" });
   iceServers.push({ urls: "stun:stun4.l.google.com:19302" });
-  
+
   // Metered STUN server (another reliable option)
   iceServers.push({ urls: "stun:openrelay.metered.ca:80" });
 

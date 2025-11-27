@@ -1,5 +1,6 @@
 "use client";
 
+import { getRTCConfiguration } from "@/lib/webrtc-config";
 import { getCurrentUser } from "@/utils/auth";
 import { createClient } from "@/utils/supabase/client";
 import {
@@ -110,6 +111,7 @@ export function VoiceChannelPanel({
   const iceCandidateQueueRef = useRef<Map<string, RTCIceCandidateInit[]>>(
     new Map()
   ); // Queue ICE candidates before remote description is set
+  const disconnectionTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map()); // Track disconnection timeouts for ICE restart
   const supabase = createClient();
 
   // Keep participantsRef in sync with participants state
@@ -225,13 +227,9 @@ export function VoiceChannelPanel({
         "🔧 [WEBRTC] Creating NEW peer connection for userId:",
         userId
       );
-      const iceServers: RTCConfiguration = {
-        iceServers: [
-          { urls: "stun:stun.l.google.com:19302" },
-          { urls: "stun:stun1.l.google.com:19302" },
-        ],
-      };
-      const pc = new RTCPeerConnection(iceServers);
+      const rtcConfig = getRTCConfiguration();
+      console.log("📡 [WEBRTC] Using ICE servers:", rtcConfig.iceServers?.length);
+      const pc = new RTCPeerConnection(rtcConfig);
 
       // Add local stream tracks to peer connection
       if (localStreamRef.current) {
@@ -361,11 +359,16 @@ export function VoiceChannelPanel({
           "| Signaling:",
           pc.signalingState
         );
-        if (
-          pc.connectionState === "failed" ||
-          pc.connectionState === "disconnected"
-        ) {
-          console.log("⚠️ Connection failed/disconnected with:", userId);
+        
+        // Clear any existing timeout for this user
+        const existingTimeout = disconnectionTimeoutsRef.current.get(userId);
+        if (existingTimeout) {
+          clearTimeout(existingTimeout);
+          disconnectionTimeoutsRef.current.delete(userId);
+        }
+        
+        if (pc.connectionState === "failed") {
+          console.log("❌ Connection FAILED with:", userId, "- cleaning up");
           pc.close();
           peerConnectionsRef.current.delete(userId);
           remoteStreamsRef.current.delete(userId);
@@ -383,6 +386,35 @@ export function VoiceChannelPanel({
           processedAnswersRef.current.delete(userId);
           sentOffersRef.current.delete(userId);
           iceCandidateQueueRef.current.delete(userId);
+        } else if (pc.connectionState === "disconnected") {
+          // Disconnected can be temporary - wait 5 seconds before cleanup
+          console.log("⚠️ Connection DISCONNECTED with:", userId, "- waiting 5s for recovery...");
+          const timeout = setTimeout(() => {
+            // Check if still disconnected after timeout
+            const currentPc = peerConnectionsRef.current.get(userId);
+            if (currentPc && (currentPc.connectionState === "disconnected" || currentPc.connectionState === "failed")) {
+              console.log("⏰ Connection didn't recover with:", userId, "- cleaning up");
+              currentPc.close();
+              peerConnectionsRef.current.delete(userId);
+              remoteStreamsRef.current.delete(userId);
+              
+              const audio = remoteAudioElementsRef.current.get(userId);
+              if (audio) {
+                audio.pause();
+                audio.srcObject = null;
+                remoteAudioElementsRef.current.delete(userId);
+              }
+              
+              processedOffersRef.current.delete(userId);
+              processedAnswersRef.current.delete(userId);
+              sentOffersRef.current.delete(userId);
+              iceCandidateQueueRef.current.delete(userId);
+            }
+            disconnectionTimeoutsRef.current.delete(userId);
+          }, 5000);
+          disconnectionTimeoutsRef.current.set(userId, timeout);
+        } else if (pc.connectionState === "connected") {
+          console.log("✅ Connection CONNECTED with:", userId);
         }
       };
 
@@ -470,6 +502,28 @@ export function VoiceChannelPanel({
         "| offer type:",
         offer.type
       );
+      
+      // Check if we already have a working connection with this user
+      const existingPc = peerConnectionsRef.current.get(fromUserId);
+      if (existingPc && existingPc.connectionState === "connected") {
+        console.log("⏭️ [OFFER] Already have working connection with:", fromUserId, "- ignoring offer");
+        return;
+      }
+      
+      // If existing connection is in progress, close it first
+      if (existingPc && existingPc.connectionState !== "closed" && existingPc.connectionState !== "failed") {
+        console.log("🔄 [OFFER] Replacing existing connection with:", fromUserId, "state:", existingPc.connectionState);
+        existingPc.close();
+        peerConnectionsRef.current.delete(fromUserId);
+        // Also clean up audio element
+        const audio = remoteAudioElementsRef.current.get(fromUserId);
+        if (audio) {
+          audio.pause();
+          audio.srcObject = null;
+          remoteAudioElementsRef.current.delete(fromUserId);
+        }
+      }
+      
       const pc = createPeerConnection(fromUserId);
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
 
@@ -721,6 +775,10 @@ export function VoiceChannelPanel({
     processedOffersRef.current.clear();
     sentOffersRef.current.clear();
     iceCandidateQueueRef.current.clear();
+    
+    // Clear all disconnection timeouts
+    disconnectionTimeoutsRef.current.forEach((timeout) => clearTimeout(timeout));
+    disconnectionTimeoutsRef.current.clear();
 
     // Reset cleanup flag LAST
     isCleaningUpRef.current = false;

@@ -1040,18 +1040,18 @@ export function DirectCallModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md">
       <audio ref={remoteAudioRef} autoPlay playsInline />
 
-      <div className="relative w-full max-w-2xl bg-[#2b2d31] rounded-lg shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-2xl bg-[#1e1f22] rounded-xl shadow-2xl overflow-hidden border border-[#2b2d31]">
         <button
           onClick={handleEndCall}
-          className="absolute top-4 right-4 z-10 text-gray-400 hover:text-white transition-colors"
+          className="absolute top-4 right-4 z-10 p-2 rounded-full text-gray-400 hover:text-white hover:bg-white/10 transition-all duration-200"
         >
-          <X size={24} />
+          <X size={20} />
         </button>
 
-        <div className="relative aspect-video bg-[#1e1f22]">
+        <div className="relative aspect-video bg-linear-to-b from-[#1a1b1e] to-[#141517]">
           {callType === "video" ? (
             <>
               <video
@@ -1060,7 +1060,7 @@ export function DirectCallModal({
                 playsInline
                 className="w-full h-full object-cover"
               />
-              <div className="absolute bottom-4 right-4 w-32 h-24 bg-[#313338] rounded-lg overflow-hidden border-2 border-[#404249]">
+              <div className="absolute bottom-4 right-4 w-32 h-24 bg-[#1e1f22] rounded-lg overflow-hidden border-2 border-[#5865f2]/30 shadow-lg">
                 <video
                   ref={localVideoRef}
                   autoPlay
@@ -1074,18 +1074,29 @@ export function DirectCallModal({
           ) : (
             <div className="w-full h-full flex items-center justify-center">
               <div className="text-center">
-                <Avatar className="h-32 w-32 mx-auto mb-4">
-                  <AvatarFallback className="bg-[#5865f2] text-white text-4xl">
-                    {otherUser.avatar}
-                  </AvatarFallback>
-                </Avatar>
+                <div className="relative">
+                  <Avatar className="h-32 w-32 mx-auto mb-4 ring-4 ring-[#5865f2]/20">
+                    <AvatarFallback className="bg-linear-to-br from-[#5865f2] to-[#4752c4] text-white text-4xl font-semibold">
+                      {otherUser.avatar}
+                    </AvatarFallback>
+                  </Avatar>
+                  {callStatus === "ringing" && (
+                    <div className="absolute inset-0 animate-ping">
+                      <div className="h-32 w-32 mx-auto rounded-full bg-[#5865f2]/20" />
+                    </div>
+                  )}
+                </div>
                 <h3 className="text-white text-2xl font-semibold mb-2">
                   {otherUser.name}
                 </h3>
                 <p className="text-gray-400 text-lg">{getStatusText()}</p>
                 {callStatus === "ringing" && (
-                  <p className="text-green-400 text-sm mt-2 animate-pulse">
-                    📞 Incoming {callType} call
+                  <p className="text-[#57f287] text-sm mt-3 font-medium flex items-center justify-center gap-2">
+                    <span className="relative flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#57f287] opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-[#57f287]"></span>
+                    </span>
+                    Incoming {callType} call
                   </p>
                 )}
               </div>
@@ -1093,26 +1104,28 @@ export function DirectCallModal({
           )}
 
           {callStatus === "connected" && (
-            <div className="absolute top-4 left-4 flex items-center gap-2 bg-black/50 px-3 py-1.5 rounded-full">
-              <div className="w-2 h-2 rounded-full bg-green-500" />
-              <span className="text-white text-xs">Connected</span>
+            <div className="absolute top-4 left-4 flex items-center gap-2 bg-[#57f287]/20 backdrop-blur-sm px-3 py-1.5 rounded-full border border-[#57f287]/30">
+              <div className="w-2 h-2 rounded-full bg-[#57f287] shadow-[0_0_8px_rgba(87,242,135,0.5)]" />
+              <span className="text-[#57f287] text-xs font-medium">
+                Connected
+              </span>
             </div>
           )}
         </div>
 
         <div className="p-6 bg-[#2b2d31]">
-          <div className="flex items-center justify-center gap-4">
+          <div className="flex items-center justify-center gap-3">
             <Button
               onClick={toggleMute}
               variant="ghost"
               size="lg"
-              className={`rounded-full w-14 h-14 ${
+              className={`rounded-full w-14 h-14 transition-all duration-200 ${
                 isMuted
-                  ? "bg-red-500 hover:bg-red-600 text-white"
-                  : "bg-[#404249] hover:bg-[#4a4f58] text-white"
+                  ? "bg-[#ed4245] hover:bg-[#c53b3e] text-white shadow-[0_0_12px_rgba(237,66,69,0.4)]"
+                  : "bg-[#313338] hover:bg-[#404249] text-gray-200 border border-[#404249]"
               }`}
             >
-              {isMuted ? <MicOff size={24} /> : <Mic size={24} />}
+              {isMuted ? <MicOff size={22} /> : <Mic size={22} />}
             </Button>
 
             {callType === "video" && (
@@ -1120,13 +1133,13 @@ export function DirectCallModal({
                 onClick={toggleVideo}
                 variant="ghost"
                 size="lg"
-                className={`rounded-full w-14 h-14 ${
+                className={`rounded-full w-14 h-14 transition-all duration-200 ${
                   !isVideoEnabled
-                    ? "bg-red-500 hover:bg-red-600 text-white"
-                    : "bg-[#404249] hover:bg-[#4a4f58] text-white"
+                    ? "bg-[#ed4245] hover:bg-[#c53b3e] text-white shadow-[0_0_12px_rgba(237,66,69,0.4)]"
+                    : "bg-[#313338] hover:bg-[#404249] text-gray-200 border border-[#404249]"
                 }`}
               >
-                {isVideoEnabled ? <Video size={24} /> : <VideoOff size={24} />}
+                {isVideoEnabled ? <Video size={22} /> : <VideoOff size={22} />}
               </Button>
             )}
 
@@ -1136,10 +1149,10 @@ export function DirectCallModal({
                 onClick={handleAnswer}
                 variant="ghost"
                 size="lg"
-                className="rounded-full w-14 h-14 bg-green-500 hover:bg-green-600 text-white animate-pulse"
+                className="rounded-full w-14 h-14 bg-[#57f287] hover:bg-[#3ba55c] text-white animate-pulse shadow-[0_0_20px_rgba(87,242,135,0.5)] transition-all duration-200"
                 disabled={!isReady}
               >
-                <Phone size={24} />
+                <Phone size={22} />
               </Button>
             )}
 
@@ -1152,29 +1165,32 @@ export function DirectCallModal({
               }
               variant="ghost"
               size="lg"
-              className="rounded-full w-14 h-14 bg-red-500 hover:bg-red-600 text-white"
+              className="rounded-full w-14 h-14 bg-[#ed4245] hover:bg-[#c53b3e] text-white shadow-[0_0_12px_rgba(237,66,69,0.4)] transition-all duration-200"
             >
-              <PhoneOff size={24} />
+              <PhoneOff size={22} />
             </Button>
 
             <Button
               onClick={toggleSpeaker}
               variant="ghost"
               size="lg"
-              className={`rounded-full w-14 h-14 ${
+              className={`rounded-full w-14 h-14 transition-all duration-200 ${
                 !isSpeakerOn
-                  ? "bg-red-500 hover:bg-red-600 text-white"
-                  : "bg-[#404249] hover:bg-[#4a4f58] text-white"
+                  ? "bg-[#ed4245] hover:bg-[#c53b3e] text-white shadow-[0_0_12px_rgba(237,66,69,0.4)]"
+                  : "bg-[#313338] hover:bg-[#404249] text-gray-200 border border-[#404249]"
               }`}
             >
-              {isSpeakerOn ? <Volume2 size={24} /> : <VolumeX size={24} />}
+              {isSpeakerOn ? <Volume2 size={22} /> : <VolumeX size={22} />}
             </Button>
           </div>
 
           <div className="text-center mt-4">
-            <p className="text-gray-400 text-sm">{getStatusText()}</p>
+            <p className="text-gray-400 text-sm font-medium">
+              {getStatusText()}
+            </p>
             {!isReady && callStatus === "ringing" && (
-              <p className="text-yellow-400 text-xs mt-1">
+              <p className="text-[#faa61a] text-xs mt-2 flex items-center justify-center gap-1">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#faa61a] animate-pulse" />
                 Setting up connection...
               </p>
             )}

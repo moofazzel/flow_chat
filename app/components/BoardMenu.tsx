@@ -160,38 +160,44 @@ export function BoardMenu({
 
       {/* Rename Dialog */}
       <Dialog open={showRenameDialog} onOpenChange={setShowRenameDialog}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg bg-[#2b2d31] border-[#1e1f22] text-white">
           <DialogHeader>
-            <DialogTitle>Edit Board</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-white">Edit Board</DialogTitle>
+            <DialogDescription className="text-gray-400">
               Update the board name, description, and color.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 mt-4">
             <div className="space-y-2">
-              <Label htmlFor="board-name">Board Name</Label>
+              <Label htmlFor="board-name" className="text-gray-300">
+                Board Name
+              </Label>
               <Input
                 id="board-name"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 placeholder="Board name"
+                className="bg-[#1e1f22] border-[#1e1f22] text-white placeholder:text-gray-500"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="board-description">Description</Label>
+              <Label htmlFor="board-description" className="text-gray-300">
+                Description
+              </Label>
               <Textarea
                 id="board-description"
                 value={newDescription}
                 onChange={(e) => setNewDescription(e.target.value)}
                 placeholder="Board description"
                 rows={3}
+                className="bg-[#1e1f22] border-[#1e1f22] text-white placeholder:text-gray-500"
               />
             </div>
 
             <div className="space-y-2">
-              <Label>Board Color</Label>
+              <Label className="text-gray-300">Board Color</Label>
               <div className="grid grid-cols-6 gap-2">
                 {BOARD_COLORS.map((color) => (
                   <button
@@ -201,7 +207,7 @@ export function BoardMenu({
                       color.value
                     } ${
                       newColor === color.value
-                        ? "ring-4 ring-offset-2 ring-blue-500 scale-105"
+                        ? "ring-4 ring-offset-2 ring-offset-[#2b2d31] ring-[#5865f2] scale-105"
                         : "hover:scale-105"
                     }`}
                     title={color.name}
@@ -223,13 +229,13 @@ export function BoardMenu({
             <Button
               variant="outline"
               onClick={() => setShowRenameDialog(false)}
-              className="flex-1"
+              className="flex-1 border-[#404249] text-gray-300 hover:bg-[#404249]"
             >
               Cancel
             </Button>
             <Button
               onClick={handleRename}
-              className="flex-1 bg-[#0052cc] hover:bg-[#0747a6]"
+              className="flex-1 bg-[#5865f2] hover:bg-[#4752c4]"
             >
               Save Changes
             </Button>

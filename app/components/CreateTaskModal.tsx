@@ -271,7 +271,7 @@ export function CreateTaskModal({
                 <SelectValue>
                   <div className="flex items-center gap-2">
                     <Avatar className="w-5 h-5">
-                      <AvatarFallback className="text-xs bg-[#5865f2]">
+                      <AvatarFallback className="text-xs bg-[#5865f2] text-white">
                         {
                           availableAssignees.find((a) => a.id === assignee)
                             ?.avatar
@@ -287,7 +287,7 @@ export function CreateTaskModal({
                   <SelectItem key={user.id} value={user.id}>
                     <div className="flex items-center gap-2">
                       <Avatar className="w-5 h-5">
-                        <AvatarFallback className="text-xs bg-[#5865f2]">
+                        <AvatarFallback className="text-xs bg-[#5865f2] text-white">
                           {user.avatar}
                         </AvatarFallback>
                       </Avatar>
@@ -315,7 +315,7 @@ export function CreateTaskModal({
                   className={`cursor-pointer transition-all ${
                     selectedLabels.includes(label.id)
                       ? `${label.color} hover:opacity-80`
-                      : "border-gray-600 text-gray-400 hover:border-gray-500"
+                      : "border-[#404249] text-gray-400 hover:border-gray-500"
                   }`}
                   onClick={() => toggleLabel(label.id)}
                 >
@@ -331,7 +331,7 @@ export function CreateTaskModal({
               type="button"
               variant="ghost"
               onClick={onClose}
-              className="text-gray-400 hover:text-white"
+              className="text-gray-400 hover:text-white hover:bg-[#404249]"
             >
               Cancel
             </Button>

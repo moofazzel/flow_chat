@@ -398,24 +398,48 @@ export default function Home() {
 
   // Fetch current channel data to determine type
   useEffect(() => {
+    let cancelled = false;
+
     if (!currentServerId || !selectedChannelId) {
-      setCurrentChannel(null);
+      // Defer clearing the current channel to avoid synchronous setState inside the effect
+      queueMicrotask(() => {
+        if (!cancelled) setCurrentChannel(null);
+      });
       return;
     }
 
     const fetchChannelData = async () => {
-      const channels = await getServerChannels(currentServerId);
-      const channel = channels.find((c) => c.id === selectedChannelId);
-      if (channel) {
-        setCurrentChannel({
-          id: channel.id,
-          name: channel.name,
-          type: channel.type as "text" | "voice",
-        });
+      try {
+        const channels = await getServerChannels(currentServerId);
+        if (cancelled) return;
+        const channel = channels.find((c) => c.id === selectedChannelId);
+        if (channel) {
+          setCurrentChannel({
+            id: channel.id,
+            name: channel.name,
+            type: channel.type as "text" | "voice",
+          });
+        } else {
+          // Ensure cleared if channel isn't found (deferred)
+          queueMicrotask(() => {
+            if (!cancelled) setCurrentChannel(null);
+          });
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error("Failed to fetch channels", error);
+          queueMicrotask(() => {
+            if (!cancelled) setCurrentChannel(null);
+          });
+        }
       }
     };
 
     fetchChannelData();
+
+    return () => {
+      cancelled = true;
+    };
   }, [currentServerId, selectedChannelId]);
 
   // Save sidebar state to localStorage whenever it changes
@@ -866,7 +890,7 @@ export default function Home() {
       )}
 
       {/* Server Invite Notifications */}
-      <div className="fixed top-4 right-4 z-50">
+      <div className="fixed top-2.5 right-4 z-50">
         <ServerInviteNotification
           invites={newInvites}
           inviteCount={inviteCount}

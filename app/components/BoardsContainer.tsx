@@ -199,19 +199,19 @@ export function BoardsContainer({
   };
 
   return (
-    <div className="flex-1 flex flex-col relative bg-[#e8eef5] overflow-hidden">
+    <div className="flex-1 flex flex-col relative bg-[#313338] overflow-hidden">
       {/* Board Tabs Navigation - FIXED */}
-      <div className="flex-shrink-0 h-14 bg-white border-b border-gray-200 shadow-sm flex items-center gap-2">
+      <div className="shrink-0 h-14 bg-[#2b2d31] border-b border-[#1e1f22] flex items-center gap-2">
         {/* Scrollable Board Tabs */}
         <div className="flex items-center gap-2 px-4 overflow-x-auto flex-1 min-w-0">
           {formattedBoards.map((board) => (
             <div
               key={board.id}
               data-board-tab="true"
-              className={`px-4 py-2 rounded-lg transition-all flex items-center gap-1 whitespace-nowrap flex-shrink-0 ${
+              className={`px-4 py-2 rounded-lg transition-all flex items-center gap-1 whitespace-nowrap shrink-0 ${
                 activeBoard === board.id
-                  ? "bg-[#0052cc] text-white shadow-md"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  ? "bg-[#5865f2] text-white shadow-md"
+                  : "bg-[#404249] text-gray-300 hover:bg-[#4a4f58]"
               }`}
             >
               <button
@@ -237,14 +237,14 @@ export function BoardsContainer({
             onClick={() => setShowAddBoardModal(true)}
             variant="ghost"
             size="sm"
-            className="gap-2 hover:bg-gray-100 flex-shrink-0"
+            className="gap-2 hover:bg-[#404249] shrink-0"
           >
-            <Plus size={16} className="text-gray-700" />
+            <Plus size={16} className="text-gray-300" />
           </Button>
         </div>
 
         {/* Fixed Show Chat Button */}
-        <div className="flex-shrink-0 pr-4">
+        <div className="shrink-0 pr-4">
           <Button
             onClick={onToggleChat}
             variant={isChatOpen ? "default" : "outline"}
@@ -252,7 +252,7 @@ export function BoardsContainer({
             className={`gap-2 ${
               isChatOpen
                 ? "bg-[#5865f2] text-white hover:bg-[#4752c4]"
-                : "border-gray-300 bg-white hover:bg-gray-100"
+                : "border-[#404249] bg-[#2b2d31] text-gray-300 hover:bg-[#404249]"
             }`}
           >
             <MessageSquare size={16} />
@@ -262,11 +262,14 @@ export function BoardsContainer({
             <span className="sm:hidden">Chat</span>
           </Button>
         </div>
+        <div className="w-8.5"></div>
       </div>
 
       {/* Board Content Area - Flexible height */}
-      <div className="flex-1 overflow-hidden relative bg-[#e8eef5]">
+      <div className="flex-1 overflow-hidden relative bg-[#313338]">
         <AnimatePresence mode="wait" initial={false}>
+          {/* if no board  */}
+
           {formattedBoards.map((board) => {
             const isActive = activeBoard === board.id;
 
@@ -321,7 +324,7 @@ export function BoardsContainer({
                   boardName={board.name}
                   boardDescription={board.description}
                   boardColor={board.color}
-                  onBoardUpdate={(updates: any) => {
+                  onBoardUpdate={(updates) => {
                     if (updates.name || updates.color) {
                       updateBoard(board.id, {
                         title: updates.name as string | undefined,
@@ -368,15 +371,11 @@ export function BoardsContainer({
           );
 
           if (newBoard) {
-            // Create default columns
-            const DEFAULT_COLUMNS = [
-              { title: "To Do", color: "bg-gray-300" },
-              { title: "In Progress", color: "bg-yellow-300" },
-              { title: "Done", color: "bg-green-300" },
-            ];
-
-            for (const [index, col] of DEFAULT_COLUMNS.entries()) {
-              await createList(newBoard.id, col.title, index);
+            // Create columns from selected template
+            if (boardData.columns && boardData.columns.length > 0) {
+              for (const [index, col] of boardData.columns.entries()) {
+                await createList(newBoard.id, col.title, index);
+              }
             }
 
             setActiveBoard(newBoard.id);

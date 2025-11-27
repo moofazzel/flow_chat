@@ -1,53 +1,53 @@
 import {
-    Archive,
-    ArrowRight,
-    ArrowUpDown,
-    Calendar,
-    Check,
-    Clock,
-    Copy,
-    Edit2,
-    MoreHorizontal,
-    Paintbrush,
-    Palette,
-    Plus,
-    Tag,
-    Trash2,
-    User,
-    X
-} from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
-import { toast } from 'sonner';
+  Archive,
+  ArrowRight,
+  ArrowUpDown,
+  Calendar,
+  Check,
+  Clock,
+  Copy,
+  Edit2,
+  MoreHorizontal,
+  Paintbrush,
+  Palette,
+  Plus,
+  Tag,
+  Trash2,
+  User,
+  X,
+} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from './ui/alert-dialog';
-import { Button } from './ui/button';
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "./ui/alert-dialog";
+import { Button } from "./ui/button";
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-} from './ui/dialog';
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuSeparator,
-    DropdownMenuSub,
-    DropdownMenuSubContent,
-    DropdownMenuSubTrigger,
-    DropdownMenuTrigger,
-} from './ui/dropdown-menu';
-import { Input } from './ui/input';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
+import { Input } from "./ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 
 interface ColumnMenuProps {
   columnId: string;
@@ -60,8 +60,8 @@ interface ColumnMenuProps {
   onChangeColor: (newColor: string) => void;
   onChangeBgColor?: (newBgColor: string) => void;
   onCopy?: () => void;
-  onMove?: (direction: 'left' | 'right') => void;
-  onSortBy?: (sortBy: 'date' | 'name' | 'priority' | 'assignee') => void;
+  onMove?: (direction: "left" | "right") => void;
+  onSortBy?: (sortBy: "date" | "name" | "priority" | "assignee") => void;
   onArchiveAllCards?: () => void;
   onAddCard?: () => void;
   existingTitles: string[];
@@ -70,51 +70,83 @@ interface ColumnMenuProps {
 }
 
 const COLOR_OPTIONS = [
-  { name: 'Gray', value: 'bg-gray-500', hex: '#6b7280' },
-  { name: 'Slate', value: 'bg-slate-500', hex: '#64748b' },
-  { name: 'Red', value: 'bg-red-500', hex: '#ef4444' },
-  { name: 'Orange', value: 'bg-orange-500', hex: '#f97316' },
-  { name: 'Amber', value: 'bg-amber-500', hex: '#f59e0b' },
-  { name: 'Yellow', value: 'bg-yellow-500', hex: '#eab308' },
-  { name: 'Lime', value: 'bg-lime-500', hex: '#84cc16' },
-  { name: 'Green', value: 'bg-green-500', hex: '#22c55e' },
-  { name: 'Emerald', value: 'bg-emerald-500', hex: '#10b981' },
-  { name: 'Teal', value: 'bg-teal-500', hex: '#14b8a6' },
-  { name: 'Cyan', value: 'bg-cyan-500', hex: '#06b6d4' },
-  { name: 'Sky', value: 'bg-sky-500', hex: '#0ea5e9' },
-  { name: 'Blue', value: 'bg-blue-500', hex: '#3b82f6' },
-  { name: 'Indigo', value: 'bg-indigo-500', hex: '#6366f1' },
-  { name: 'Violet', value: 'bg-violet-500', hex: '#8b5cf6' },
-  { name: 'Purple', value: 'bg-purple-500', hex: '#a855f7' },
-  { name: 'Fuchsia', value: 'bg-fuchsia-500', hex: '#d946ef' },
-  { name: 'Pink', value: 'bg-pink-500', hex: '#ec4899' },
-  { name: 'Rose', value: 'bg-rose-500', hex: '#f43f5e' },
+  { name: "Gray", value: "bg-gray-500", hex: "#6b7280" },
+  { name: "Slate", value: "bg-slate-500", hex: "#64748b" },
+  { name: "Red", value: "bg-red-500", hex: "#ef4444" },
+  { name: "Orange", value: "bg-orange-500", hex: "#f97316" },
+  { name: "Amber", value: "bg-amber-500", hex: "#f59e0b" },
+  { name: "Yellow", value: "bg-yellow-500", hex: "#eab308" },
+  { name: "Lime", value: "bg-lime-500", hex: "#84cc16" },
+  { name: "Green", value: "bg-green-500", hex: "#22c55e" },
+  { name: "Emerald", value: "bg-emerald-500", hex: "#10b981" },
+  { name: "Teal", value: "bg-teal-500", hex: "#14b8a6" },
+  { name: "Cyan", value: "bg-cyan-500", hex: "#06b6d4" },
+  { name: "Sky", value: "bg-sky-500", hex: "#0ea5e9" },
+  { name: "Blue", value: "bg-blue-500", hex: "#3b82f6" },
+  { name: "Indigo", value: "bg-indigo-500", hex: "#6366f1" },
+  { name: "Violet", value: "bg-violet-500", hex: "#8b5cf6" },
+  { name: "Purple", value: "bg-purple-500", hex: "#a855f7" },
+  { name: "Fuchsia", value: "bg-fuchsia-500", hex: "#d946ef" },
+  { name: "Pink", value: "bg-pink-500", hex: "#ec4899" },
+  { name: "Rose", value: "bg-rose-500", hex: "#f43f5e" },
 ];
 
 const BG_COLOR_OPTIONS = [
-  { name: 'Default', value: 'bg-[#f1f2f4]', class: 'bg-[#f1f2f4]' },
-  { name: 'Light Gray', value: 'bg-gray-100', class: 'bg-gray-100' },
-  { name: 'Light Blue', value: 'bg-blue-50', class: 'bg-blue-50' },
-  { name: 'Light Green', value: 'bg-green-50', class: 'bg-green-50' },
-  { name: 'Light Yellow', value: 'bg-yellow-50', class: 'bg-yellow-50' },
-  { name: 'Light Red', value: 'bg-red-50', class: 'bg-red-50' },
-  { name: 'Light Purple', value: 'bg-purple-50', class: 'bg-purple-50' },
-  { name: 'Light Pink', value: 'bg-pink-50', class: 'bg-pink-50' },
-  { name: 'Light Indigo', value: 'bg-indigo-50', class: 'bg-indigo-50' },
-  { name: 'Light Teal', value: 'bg-teal-50', class: 'bg-teal-50' },
-  { name: 'Light Orange', value: 'bg-orange-50', class: 'bg-orange-50' },
-  { name: 'Light Cyan', value: 'bg-cyan-50', class: 'bg-cyan-50' },
+  { name: "Default", value: "bg-[#f1f2f4]", class: "bg-[#f1f2f4]" },
+  { name: "Light Gray", value: "bg-gray-100", class: "bg-gray-100" },
+  { name: "Light Blue", value: "bg-blue-50", class: "bg-blue-50" },
+  { name: "Light Green", value: "bg-green-50", class: "bg-green-50" },
+  { name: "Light Yellow", value: "bg-yellow-50", class: "bg-yellow-50" },
+  { name: "Light Red", value: "bg-red-50", class: "bg-red-50" },
+  { name: "Light Purple", value: "bg-purple-50", class: "bg-purple-50" },
+  { name: "Light Pink", value: "bg-pink-50", class: "bg-pink-50" },
+  { name: "Light Indigo", value: "bg-indigo-50", class: "bg-indigo-50" },
+  { name: "Light Teal", value: "bg-teal-50", class: "bg-teal-50" },
+  { name: "Light Orange", value: "bg-orange-50", class: "bg-orange-50" },
+  { name: "Light Cyan", value: "bg-cyan-50", class: "bg-cyan-50" },
 ];
 
 const BG_GRADIENT_OPTIONS = [
-  { name: 'Blue Gradient', value: 'bg-gradient-to-br from-blue-50 to-blue-100', class: 'bg-gradient-to-br from-blue-50 to-blue-100' },
-  { name: 'Green Gradient', value: 'bg-gradient-to-br from-green-50 to-green-100', class: 'bg-gradient-to-br from-green-50 to-green-100' },
-  { name: 'Purple Gradient', value: 'bg-gradient-to-br from-purple-50 to-purple-100', class: 'bg-gradient-to-br from-purple-50 to-purple-100' },
-  { name: 'Pink Gradient', value: 'bg-gradient-to-br from-pink-50 to-pink-100', class: 'bg-gradient-to-br from-pink-50 to-pink-100' },
-  { name: 'Ocean', value: 'bg-gradient-to-br from-cyan-50 to-blue-100', class: 'bg-gradient-to-br from-cyan-50 to-blue-100' },
-  { name: 'Sunset', value: 'bg-gradient-to-br from-orange-50 to-pink-100', class: 'bg-gradient-to-br from-orange-50 to-pink-100' },
-  { name: 'Forest', value: 'bg-gradient-to-br from-green-50 to-teal-100', class: 'bg-gradient-to-br from-green-50 to-teal-100' },
-  { name: 'Lavender', value: 'bg-gradient-to-br from-purple-50 to-pink-100', class: 'bg-gradient-to-br from-purple-50 to-pink-100' },
+  {
+    name: "Blue Gradient",
+    value: "bg-gradient-to-br from-blue-50 to-blue-100",
+    class: "bg-gradient-to-br from-blue-50 to-blue-100",
+  },
+  {
+    name: "Green Gradient",
+    value: "bg-gradient-to-br from-green-50 to-green-100",
+    class: "bg-gradient-to-br from-green-50 to-green-100",
+  },
+  {
+    name: "Purple Gradient",
+    value: "bg-gradient-to-br from-purple-50 to-purple-100",
+    class: "bg-gradient-to-br from-purple-50 to-purple-100",
+  },
+  {
+    name: "Pink Gradient",
+    value: "bg-gradient-to-br from-pink-50 to-pink-100",
+    class: "bg-gradient-to-br from-pink-50 to-pink-100",
+  },
+  {
+    name: "Ocean",
+    value: "bg-gradient-to-br from-cyan-50 to-blue-100",
+    class: "bg-gradient-to-br from-cyan-50 to-blue-100",
+  },
+  {
+    name: "Sunset",
+    value: "bg-gradient-to-br from-orange-50 to-pink-100",
+    class: "bg-gradient-to-br from-orange-50 to-pink-100",
+  },
+  {
+    name: "Forest",
+    value: "bg-gradient-to-br from-green-50 to-teal-100",
+    class: "bg-gradient-to-br from-green-50 to-teal-100",
+  },
+  {
+    name: "Lavender",
+    value: "bg-gradient-to-br from-purple-50 to-pink-100",
+    class: "bg-gradient-to-br from-purple-50 to-pink-100",
+  },
 ];
 
 export function ColumnMenu({
@@ -155,7 +187,7 @@ export function ColumnMenu({
     const trimmedTitle = newTitle.trim();
 
     if (!trimmedTitle) {
-      toast.error('Column name cannot be empty');
+      toast.error("Column name cannot be empty");
       return;
     }
 
@@ -164,13 +196,15 @@ export function ColumnMenu({
       return;
     }
 
-    if (existingTitles.some((t) => t.toLowerCase() === trimmedTitle.toLowerCase())) {
-      toast.error('Column name already exists');
+    if (
+      existingTitles.some((t) => t.toLowerCase() === trimmedTitle.toLowerCase())
+    ) {
+      toast.error("Column name already exists");
       return;
     }
 
     if (trimmedTitle.length > 30) {
-      toast.error('Column name too long (max 30 characters)');
+      toast.error("Column name too long (max 30 characters)");
       return;
     }
 
@@ -182,25 +216,25 @@ export function ColumnMenu({
   const handleDelete = () => {
     onDelete();
     setShowDeleteDialog(false);
-    toast.success('Column deleted');
+    toast.success("Column deleted");
   };
 
   const handleColorChange = (color: string) => {
     onChangeColor(color);
     setShowColorDialog(false);
-    toast.success('Column color changed');
+    toast.success("Column color changed");
   };
 
   const handleBgColorChange = (bgColor: string) => {
     onChangeBgColor?.(bgColor);
     setShowBgColorDialog(false);
-    toast.success('Column background color changed');
+    toast.success("Column background color changed");
   };
 
   const handleArchiveAll = () => {
     onArchiveAllCards?.();
     setShowArchiveDialog(false);
-    toast.success(`Archived ${taskCount} card${taskCount !== 1 ? 's' : ''}`);
+    toast.success(`Archived ${taskCount} card${taskCount !== 1 ? "s" : ""}`);
   };
 
   if (isRenaming) {
@@ -211,9 +245,9 @@ export function ColumnMenu({
           value={newTitle}
           onChange={(e) => setNewTitle(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') {
+            if (e.key === "Enter") {
               handleRename();
-            } else if (e.key === 'Escape') {
+            } else if (e.key === "Escape") {
               setIsRenaming(false);
               setNewTitle(columnTitle);
             }
@@ -244,16 +278,21 @@ export function ColumnMenu({
           <Button
             variant="ghost"
             size="sm"
-            className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-200"
+            className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[#404249] text-gray-400 hover:text-white"
           >
             <MoreHorizontal size={16} />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-64">
+        <DropdownMenuContent
+          align="end"
+          className="w-64 bg-[#2b2d31] border-[#1e1f22]"
+        >
           {/* Header */}
-          <div className="px-3 py-2 border-b">
-            <div className="font-medium text-sm">List Actions</div>
-            <div className="text-xs text-gray-500">{taskCount} card{taskCount !== 1 ? 's' : ''}</div>
+          <div className="px-3 py-2 border-b border-[#1e1f22]">
+            <div className="font-medium text-sm text-white">List Actions</div>
+            <div className="text-xs text-gray-500">
+              {taskCount} card{taskCount !== 1 ? "s" : ""}
+            </div>
           </div>
 
           {/* Quick Actions */}
@@ -262,55 +301,72 @@ export function ColumnMenu({
           </div>
 
           {onAddCard && (
-            <DropdownMenuItem onClick={onAddCard}>
+            <DropdownMenuItem
+              onClick={onAddCard}
+              className="text-gray-200 focus:text-white focus:bg-[#404249]"
+            >
               <Plus size={16} className="mr-2" />
               Add Card
             </DropdownMenuItem>
           )}
 
-          <DropdownMenuItem onClick={() => setIsRenaming(true)}>
+          <DropdownMenuItem
+            onClick={() => setIsRenaming(true)}
+            className="text-gray-200 focus:text-white focus:bg-[#404249]"
+          >
             <Edit2 size={16} className="mr-2" />
             Rename List
           </DropdownMenuItem>
 
-          <DropdownMenuItem onClick={() => setShowColorDialog(true)}>
+          <DropdownMenuItem
+            onClick={() => setShowColorDialog(true)}
+            className="text-gray-200 focus:text-white focus:bg-[#404249]"
+          >
             <Palette size={16} className="mr-2" />
             Change Color
           </DropdownMenuItem>
 
           {onChangeBgColor && (
-            <DropdownMenuItem onClick={() => setShowBgColorDialog(true)}>
+            <DropdownMenuItem
+              onClick={() => setShowBgColorDialog(true)}
+              className="text-gray-200 focus:text-white focus:bg-[#404249]"
+            >
               <Paintbrush size={16} className="mr-2" />
               Change List Background
             </DropdownMenuItem>
           )}
 
           {onCopy && (
-            <DropdownMenuItem onClick={onCopy}>
+            <DropdownMenuItem
+              onClick={onCopy}
+              className="text-gray-200 focus:text-white focus:bg-[#404249]"
+            >
               <Copy size={16} className="mr-2" />
               Copy List
             </DropdownMenuItem>
           )}
 
-          <DropdownMenuSeparator />
+          <DropdownMenuSeparator className="bg-[#404249]" />
 
           {/* Move List */}
           {onMove && (
             <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
+              <DropdownMenuSubTrigger className="text-gray-200 focus:text-white focus:bg-[#404249]">
                 <ArrowRight size={16} className="mr-2" />
                 Move List
               </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                <DropdownMenuItem 
-                  onClick={() => onMove('left')}
+              <DropdownMenuSubContent className="bg-[#2b2d31] border-[#1e1f22]">
+                <DropdownMenuItem
+                  onClick={() => onMove("left")}
                   disabled={!canMoveLeft}
+                  className="text-gray-200 focus:text-white focus:bg-[#404249]"
                 >
                   Move Left
                 </DropdownMenuItem>
-                <DropdownMenuItem 
-                  onClick={() => onMove('right')}
+                <DropdownMenuItem
+                  onClick={() => onMove("right")}
                   disabled={!canMoveRight}
+                  className="text-gray-200 focus:text-white focus:bg-[#404249]"
                 >
                   Move Right
                 </DropdownMenuItem>
@@ -321,24 +377,36 @@ export function ColumnMenu({
           {/* Sort Cards */}
           {onSortBy && taskCount > 0 && (
             <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
+              <DropdownMenuSubTrigger className="text-gray-200 focus:text-white focus:bg-[#404249]">
                 <ArrowUpDown size={16} className="mr-2" />
                 Sort Cards
               </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                <DropdownMenuItem onClick={() => onSortBy('date')}>
+              <DropdownMenuSubContent className="bg-[#2b2d31] border-[#1e1f22]">
+                <DropdownMenuItem
+                  onClick={() => onSortBy("date")}
+                  className="text-gray-200 focus:text-white focus:bg-[#404249]"
+                >
                   <Calendar size={14} className="mr-2" />
                   By Date
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onSortBy('name')}>
+                <DropdownMenuItem
+                  onClick={() => onSortBy("name")}
+                  className="text-gray-200 focus:text-white focus:bg-[#404249]"
+                >
                   <Tag size={14} className="mr-2" />
                   By Name
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onSortBy('priority')}>
+                <DropdownMenuItem
+                  onClick={() => onSortBy("priority")}
+                  className="text-gray-200 focus:text-white focus:bg-[#404249]"
+                >
                   <Clock size={14} className="mr-2" />
                   By Priority
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onSortBy('assignee')}>
+                <DropdownMenuItem
+                  onClick={() => onSortBy("assignee")}
+                  className="text-gray-200 focus:text-white focus:bg-[#404249]"
+                >
                   <User size={14} className="mr-2" />
                   By Assignee
                 </DropdownMenuItem>
@@ -346,7 +414,7 @@ export function ColumnMenu({
             </DropdownMenuSub>
           )}
 
-          <DropdownMenuSeparator />
+          <DropdownMenuSeparator className="bg-[#404249]" />
 
           {/* Archive & Delete */}
           <div className="px-2 py-1.5 text-xs font-semibold text-gray-500">
@@ -354,7 +422,10 @@ export function ColumnMenu({
           </div>
 
           {onArchiveAllCards && taskCount > 0 && (
-            <DropdownMenuItem onClick={() => setShowArchiveDialog(true)}>
+            <DropdownMenuItem
+              onClick={() => setShowArchiveDialog(true)}
+              className="text-gray-200 focus:text-white focus:bg-[#404249]"
+            >
               <Archive size={16} className="mr-2" />
               Archive All Cards
             </DropdownMenuItem>
@@ -362,7 +433,7 @@ export function ColumnMenu({
 
           <DropdownMenuItem
             onClick={() => setShowDeleteDialog(true)}
-            className="text-red-600 focus:text-red-600 focus:bg-red-50"
+            className="text-[#ed4245] focus:text-[#ed4245] focus:bg-[#ed4245]/10"
           >
             <Trash2 size={16} className="mr-2" />
             Delete List
@@ -372,13 +443,13 @@ export function ColumnMenu({
 
       {/* Color Picker Dialog */}
       <Dialog open={showColorDialog} onOpenChange={setShowColorDialog}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md bg-[#2b2d31] border-[#1e1f22]">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Palette className="text-[#0052cc]" size={24} />
+            <DialogTitle className="flex items-center gap-2 text-white">
+              <Palette className="text-[#5865f2]" size={24} />
               Change List Color
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-gray-400">
               Select a color for "{columnTitle}"
             </DialogDescription>
           </DialogHeader>
@@ -388,10 +459,12 @@ export function ColumnMenu({
               <button
                 key={color.value}
                 onClick={() => handleColorChange(color.value)}
-                className={`relative h-12 rounded-lg transition-all ${color.value} hover:scale-110 ${
+                className={`relative h-12 rounded-lg transition-all ${
+                  color.value
+                } hover:scale-110 ${
                   columnColor === color.value
-                    ? 'ring-4 ring-offset-2 ring-[#0052cc] scale-105'
-                    : 'hover:shadow-lg'
+                    ? "ring-4 ring-offset-2 ring-offset-[#2b2d31] ring-[#5865f2] scale-105"
+                    : "hover:shadow-lg"
                 }`}
                 title={color.name}
               >
@@ -408,21 +481,31 @@ export function ColumnMenu({
 
       {/* Background Color Picker Dialog */}
       <Dialog open={showBgColorDialog} onOpenChange={setShowBgColorDialog}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg bg-[#2b2d31] border-[#1e1f22]">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Paintbrush className="text-[#0052cc]" size={24} />
+            <DialogTitle className="flex items-center gap-2 text-white">
+              <Paintbrush className="text-[#5865f2]" size={24} />
               Change List Background
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-gray-400">
               Select a background for "{columnTitle}"
             </DialogDescription>
           </DialogHeader>
 
           <Tabs defaultValue="colors" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="colors">Solid Colors</TabsTrigger>
-              <TabsTrigger value="gradients">Gradients</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-2 bg-[#1e1f22]">
+              <TabsTrigger
+                value="colors"
+                className="data-[state=active]:bg-[#5865f2] data-[state=active]:text-white"
+              >
+                Solid Colors
+              </TabsTrigger>
+              <TabsTrigger
+                value="gradients"
+                className="data-[state=active]:bg-[#5865f2] data-[state=active]:text-white"
+              >
+                Gradients
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="colors" className="mt-4">
@@ -431,16 +514,21 @@ export function ColumnMenu({
                   <button
                     key={bgColor.value}
                     onClick={() => handleBgColorChange(bgColor.value)}
-                    className={`relative h-14 rounded-lg transition-all ${bgColor.class} border-2 hover:scale-110 ${
+                    className={`relative h-14 rounded-lg transition-all ${
+                      bgColor.class
+                    } border-2 hover:scale-110 ${
                       columnBgColor === bgColor.value
-                        ? 'ring-4 ring-offset-2 ring-[#0052cc] scale-105 border-[#0052cc]'
-                        : 'border-gray-200 hover:shadow-lg'
+                        ? "ring-4 ring-offset-2 ring-offset-[#2b2d31] ring-[#5865f2] scale-105 border-[#5865f2]"
+                        : "border-[#404249] hover:shadow-lg"
                     }`}
                     title={bgColor.name}
                   >
                     {columnBgColor === bgColor.value && (
                       <div className="absolute inset-0 flex items-center justify-center">
-                        <Check size={20} className="text-gray-700 drop-shadow-lg" />
+                        <Check
+                          size={20}
+                          className="text-gray-700 drop-shadow-lg"
+                        />
                       </div>
                     )}
                   </button>
@@ -454,20 +542,27 @@ export function ColumnMenu({
                   <button
                     key={gradient.value}
                     onClick={() => handleBgColorChange(gradient.value)}
-                    className={`relative h-20 rounded-lg transition-all ${gradient.class} border-2 hover:scale-110 ${
+                    className={`relative h-20 rounded-lg transition-all ${
+                      gradient.class
+                    } border-2 hover:scale-110 ${
                       columnBgColor === gradient.value
-                        ? 'ring-4 ring-offset-2 ring-[#0052cc] scale-105 border-[#0052cc]'
-                        : 'border-gray-200 hover:shadow-lg'
+                        ? "ring-4 ring-offset-2 ring-offset-[#2b2d31] ring-[#5865f2] scale-105 border-[#5865f2]"
+                        : "border-[#404249] hover:shadow-lg"
                     }`}
                     title={gradient.name}
                   >
                     {columnBgColor === gradient.value && (
                       <div className="absolute inset-0 flex items-center justify-center">
-                        <Check size={24} className="text-white drop-shadow-lg" />
+                        <Check
+                          size={24}
+                          className="text-white drop-shadow-lg"
+                        />
                       </div>
                     )}
                     <div className="absolute bottom-1 left-0 right-0 text-center">
-                      <span className="text-[10px] bg-white/80 px-1 rounded">{gradient.name}</span>
+                      <span className="text-[10px] bg-white/80 px-1 rounded">
+                        {gradient.name}
+                      </span>
                     </div>
                   </button>
                 ))}
@@ -479,21 +574,26 @@ export function ColumnMenu({
 
       {/* Archive All Cards Dialog */}
       <AlertDialog open={showArchiveDialog} onOpenChange={setShowArchiveDialog}>
-        <AlertDialogContent>
+        <AlertDialogContent className="bg-[#2b2d31] border-[#1e1f22]">
           <AlertDialogHeader>
-            <AlertDialogTitle>Archive All Cards?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to archive all {taskCount} card{taskCount !== 1 ? 's' : ''} in "{columnTitle}"?
-              <span className="block mt-2 text-sm text-gray-600">
+            <AlertDialogTitle className="text-white">
+              Archive All Cards?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-400">
+              Are you sure you want to archive all {taskCount} card
+              {taskCount !== 1 ? "s" : ""} in "{columnTitle}"?
+              <span className="block mt-2 text-sm text-gray-500">
                 Archived cards can be restored later from the archive.
               </span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel className="bg-[#1e1f22] border-[#404249] text-gray-200 hover:bg-[#404249] hover:text-white">
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleArchiveAll}
-              className="bg-orange-600 hover:bg-orange-700"
+              className="bg-[#faa61a] hover:bg-[#e09615]"
             >
               Archive All Cards
             </AlertDialogAction>
@@ -503,24 +603,29 @@ export function ColumnMenu({
 
       {/* Delete Column Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent>
+        <AlertDialogContent className="bg-[#2b2d31] border-[#1e1f22]">
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete List?</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogTitle className="text-white">
+              Delete List?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-400">
               Are you sure you want to delete "{columnTitle}"?
               {taskCount > 0 && (
-                <span className="block mt-2 font-medium text-orange-600">
-                  ⚠️ This list contains {taskCount} card{taskCount !== 1 ? 's' : ''}. 
-                  Cards will be moved to the first list.
+                <span className="block mt-2 font-medium text-[#faa61a]">
+                  ⚠️ This list contains {taskCount} card
+                  {taskCount !== 1 ? "s" : ""}. Cards will be moved to the first
+                  list.
                 </span>
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel className="bg-[#1e1f22] border-[#404249] text-gray-200 hover:bg-[#404249] hover:text-white">
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
-              className="bg-red-600 hover:bg-red-700"
+              className="bg-[#ed4245] hover:bg-[#c93b3e]"
             >
               Delete List
             </AlertDialogAction>

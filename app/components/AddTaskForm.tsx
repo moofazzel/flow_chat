@@ -75,14 +75,14 @@ export function AddTaskForm({
   };
 
   return (
-    <div className="bg-white rounded-lg p-3 shadow-md border-2 border-blue-500 space-y-2">
+    <div className="bg-[#1e1f22] rounded-lg p-3 shadow-md border-2 border-[#5865f2] space-y-2">
       <Input
         ref={titleInputRef}
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder="Enter task title..."
-        className="border-gray-300"
+        className="bg-[#2b2d31] border-[#404249] text-white placeholder:text-gray-500"
       />
 
       {showFullForm && (
@@ -90,13 +90,17 @@ export function AddTaskForm({
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder="Add description (optional)..."
-          className="border-gray-300 resize-none"
+          className="bg-[#2b2d31] border-[#404249] text-white placeholder:text-gray-500 resize-none"
           rows={3}
         />
       )}
 
       <div className="flex gap-2">
-        <Button onClick={handleAdd} size="sm" className="flex-1 gap-1">
+        <Button
+          onClick={handleAdd}
+          size="sm"
+          className="flex-1 gap-1 bg-[#5865f2] hover:bg-[#4752c4]"
+        >
           <Check size={14} />
           Add Task
         </Button>
@@ -105,11 +109,17 @@ export function AddTaskForm({
             onClick={() => setShowFullForm(true)}
             size="sm"
             variant="outline"
+            className="border-[#404249] text-gray-300 hover:bg-[#404249]"
           >
             More Details
           </Button>
         )}
-        <Button onClick={onCancel} size="sm" variant="outline">
+        <Button
+          onClick={onCancel}
+          size="sm"
+          variant="outline"
+          className="border-[#404249] text-gray-300 hover:bg-[#404249]"
+        >
           <X size={14} />
         </Button>
       </div>

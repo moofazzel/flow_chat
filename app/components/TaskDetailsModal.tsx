@@ -388,11 +388,14 @@ export function TaskDetailsModal({
 
       {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col">
+        <div className="bg-[#2b2d31] rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col border border-[#1e1f22]">
           {/* Header */}
-          <div className="px-6 py-4 flex items-center justify-between border-b">
+          <div className="px-6 py-4 flex items-center justify-between border-b border-[#1e1f22]">
             <div className="flex items-center gap-3 flex-1">
-              <Badge variant="outline" className="text-sm font-mono">
+              <Badge
+                variant="outline"
+                className="text-sm font-mono border-[#404249] text-gray-400"
+              >
                 {localTask.id}
               </Badge>
               <QuickPriorityPicker
@@ -400,13 +403,16 @@ export function TaskDetailsModal({
                 onPriorityChange={(priority) => updateTask({ priority })}
               />
               {localTask.dueDate && (
-                <Badge variant="outline" className="text-sm gap-1">
+                <Badge
+                  variant="outline"
+                  className="text-sm gap-1 border-[#404249] text-gray-400"
+                >
                   <Clock size={12} />
                   Due: {localTask.dueDate}
                 </Badge>
               )}
               {isTaskComplete && (
-                <Badge className="bg-green-500 text-white gap-1">
+                <Badge className="bg-[#57f287] text-white gap-1">
                   <Check size={12} />
                   Complete
                 </Badge>
@@ -471,27 +477,32 @@ export function TaskDetailsModal({
                       <Input
                         value={editedTitle}
                         onChange={(e) => setEditedTitle(e.target.value)}
-                        className="text-2xl"
+                        className="text-2xl bg-[#1e1f22] border-[#1e1f22] text-white"
                         autoFocus
                         onKeyDown={(e) => {
                           if (e.key === "Enter") handleSaveTitle();
                           if (e.key === "Escape") setIsEditingTitle(false);
                         }}
                       />
-                      <Button size="sm" onClick={handleSaveTitle}>
+                      <Button
+                        size="sm"
+                        onClick={handleSaveTitle}
+                        className="bg-[#5865f2] hover:bg-[#4752c4]"
+                      >
                         <Save size={16} />
                       </Button>
                       <Button
                         size="sm"
                         variant="ghost"
                         onClick={() => setIsEditingTitle(false)}
+                        className="text-gray-400 hover:text-white hover:bg-[#404249]"
                       >
                         <XCircle size={16} />
                       </Button>
                     </div>
                   ) : (
                     <h2
-                      className="text-gray-900 text-2xl mb-2 cursor-pointer hover:text-blue-600 transition-colors group flex items-center gap-2"
+                      className="text-white text-2xl mb-2 cursor-pointer hover:text-[#5865f2] transition-colors group flex items-center gap-2"
                       onClick={() => setIsEditingTitle(true)}
                     >
                       {localTask.title}
@@ -503,14 +514,14 @@ export function TaskDetailsModal({
                   )}
                   <div className="text-sm text-gray-500">
                     in column{" "}
-                    <span className="text-gray-900">{localTask.status}</span>
+                    <span className="text-gray-300">{localTask.status}</span>
                   </div>
                 </div>
 
                 {/* Labels */}
                 {localTask.labels && localTask.labels.length > 0 && (
                   <div>
-                    <label className="text-sm text-gray-600 mb-2 block flex items-center gap-2">
+                    <label className="text-sm text-gray-400 mb-2 block flex items-center gap-2">
                       <Tag size={16} />
                       Labels
                     </label>
@@ -534,7 +545,7 @@ export function TaskDetailsModal({
                 {/* Assigned Members */}
                 {localTask.assignees && localTask.assignees.length > 0 && (
                   <div>
-                    <label className="text-sm text-gray-600 mb-2 block flex items-center gap-2">
+                    <label className="text-sm text-gray-400 mb-2 block flex items-center gap-2">
                       <Users size={16} />
                       Assigned Members
                     </label>
@@ -546,7 +557,7 @@ export function TaskDetailsModal({
                         return member ? (
                           <div
                             key={assigneeName}
-                            className="flex items-center gap-2 bg-gray-100 rounded-lg px-3 py-2 group hover:bg-gray-200 transition-colors"
+                            className="flex items-center gap-2 bg-[#1e1f22] rounded-lg px-3 py-2 group hover:bg-[#404249] transition-colors"
                           >
                             <Avatar className="h-6 w-6">
                               <AvatarFallback
@@ -555,7 +566,7 @@ export function TaskDetailsModal({
                                 {member.avatar}
                               </AvatarFallback>
                             </Avatar>
-                            <span className="text-sm text-gray-900">
+                            <span className="text-sm text-gray-200">
                               {assigneeName}
                             </span>
                             <Button
@@ -575,14 +586,14 @@ export function TaskDetailsModal({
                         ) : (
                           <div
                             key={assigneeName}
-                            className="flex items-center gap-2 bg-gray-100 rounded-lg px-3 py-2"
+                            className="flex items-center gap-2 bg-[#1e1f22] rounded-lg px-3 py-2"
                           >
                             <Avatar className="h-6 w-6">
                               <AvatarFallback className="text-xs bg-gray-500 text-white">
                                 {getInitials(assigneeName)}
                               </AvatarFallback>
                             </Avatar>
-                            <span className="text-sm text-gray-900">
+                            <span className="text-sm text-gray-200">
                               {assigneeName}
                             </span>
                           </div>
@@ -594,7 +605,7 @@ export function TaskDetailsModal({
 
                 {/* Description */}
                 <div>
-                  <label className="text-sm text-gray-600 mb-2 block flex items-center gap-2">
+                  <label className="text-sm text-gray-400 mb-2 block flex items-center gap-2">
                     <CreditCard size={16} />
                     Description
                   </label>
@@ -607,7 +618,11 @@ export function TaskDetailsModal({
                         minHeight="200px"
                       />
                       <div className="flex gap-2 mt-2">
-                        <Button size="sm" onClick={handleSaveDescription}>
+                        <Button
+                          size="sm"
+                          onClick={handleSaveDescription}
+                          className="bg-[#5865f2] hover:bg-[#4752c4]"
+                        >
                           Save
                         </Button>
                         <Button
@@ -617,6 +632,7 @@ export function TaskDetailsModal({
                             setEditedDescription(localTask.description);
                             setIsEditingDescription(false);
                           }}
+                          className="text-gray-400 hover:text-white hover:bg-[#404249]"
                         >
                           Cancel
                         </Button>
@@ -625,18 +641,18 @@ export function TaskDetailsModal({
                   ) : (
                     <div>
                       <div
-                        className="bg-gray-50 rounded-lg p-4 mb-3 min-h-[60px] cursor-pointer hover:bg-gray-100 transition-colors"
+                        className="bg-[#1e1f22] rounded-lg p-4 mb-3 min-h-[60px] cursor-pointer hover:bg-[#404249] transition-colors"
                         onClick={() => setIsEditingDescription(true)}
                       >
                         {localTask.description ? (
                           <div
-                            className="text-gray-700 text-sm prose prose-sm max-w-none"
+                            className="text-gray-300 text-sm prose prose-sm prose-invert max-w-none"
                             dangerouslySetInnerHTML={{
                               __html: localTask.description,
                             }}
                           />
                         ) : (
-                          <p className="text-gray-400 text-sm">
+                          <p className="text-gray-500 text-sm">
                             Add a more detailed description...
                           </p>
                         )}
@@ -649,16 +665,16 @@ export function TaskDetailsModal({
                 {(localTask.subtasks && localTask.subtasks.length > 0) ||
                 isAddingSubtask ? (
                   <div>
-                    <label className="text-sm text-gray-600 flex items-center gap-2 mb-2">
+                    <label className="text-sm text-gray-400 flex items-center gap-2 mb-2">
                       <CheckSquare size={16} />
                       Subtasks ({completedSubtasks}/{totalSubtasks})
                     </label>
 
                     {/* Progress bar */}
                     {totalSubtasks > 0 && (
-                      <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
+                      <div className="w-full bg-[#1e1f22] rounded-full h-2 mb-3">
                         <motion.div
-                          className="bg-green-500 h-2 rounded-full"
+                          className="bg-[#57f287] h-2 rounded-full"
                           initial={{ width: 0 }}
                           animate={{ width: `${subtaskProgress}%` }}
                           transition={{ duration: 0.3 }}
@@ -670,7 +686,7 @@ export function TaskDetailsModal({
                       {localTask.subtasks?.map((subtask) => (
                         <div
                           key={subtask.id}
-                          className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg group hover:bg-gray-100 transition-colors"
+                          className="flex items-center gap-3 p-2 bg-[#1e1f22] rounded-lg group hover:bg-[#404249] transition-colors"
                         >
                           <Checkbox
                             checked={subtask.completed}
@@ -682,7 +698,7 @@ export function TaskDetailsModal({
                             className={`flex-1 text-sm ${
                               subtask.completed
                                 ? "line-through text-gray-500"
-                                : "text-gray-900"
+                                : "text-gray-200"
                             }`}
                           >
                             {subtask.title}
@@ -693,7 +709,7 @@ export function TaskDetailsModal({
                             className="opacity-0 group-hover:opacity-100 transition-opacity h-auto p-1"
                             onClick={() => handleDeleteSubtask(subtask.id)}
                           >
-                            <Trash2 size={14} className="text-red-500" />
+                            <Trash2 size={14} className="text-[#ed4245]" />
                           </Button>
                         </div>
                       ))}
@@ -705,6 +721,7 @@ export function TaskDetailsModal({
                             value={newSubtask}
                             onChange={(e) => setNewSubtask(e.target.value)}
                             placeholder="Subtask title..."
+                            className="bg-[#1e1f22] border-[#404249] text-white"
                             autoFocus
                             onKeyDown={(e) => {
                               if (e.key === "Enter") handleAddSubtask();
@@ -714,7 +731,11 @@ export function TaskDetailsModal({
                               }
                             }}
                           />
-                          <Button size="sm" onClick={handleAddSubtask}>
+                          <Button
+                            size="sm"
+                            onClick={handleAddSubtask}
+                            className="bg-[#5865f2] hover:bg-[#4752c4]"
+                          >
                             Add
                           </Button>
                           <Button
@@ -724,6 +745,7 @@ export function TaskDetailsModal({
                               setIsAddingSubtask(false);
                               setNewSubtask("");
                             }}
+                            className="text-gray-400 hover:text-white hover:bg-[#404249]"
                           >
                             Cancel
                           </Button>
@@ -735,7 +757,7 @@ export function TaskDetailsModal({
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="mt-2 text-gray-600 hover:text-gray-900"
+                        className="mt-2 text-gray-400 hover:text-white hover:bg-[#404249]"
                         onClick={() => setIsAddingSubtask(true)}
                       >
                         <Plus size={14} className="mr-2" />
@@ -748,7 +770,7 @@ export function TaskDetailsModal({
                 {/* Attachments */}
                 {localTask.attachments && localTask.attachments.length > 0 && (
                   <div>
-                    <label className="text-sm text-gray-600 flex items-center gap-2 mb-2">
+                    <label className="text-sm text-gray-400 flex items-center gap-2 mb-2">
                       <Paperclip size={16} />
                       Attachments ({localTask.attachments.length})
                     </label>
@@ -756,7 +778,7 @@ export function TaskDetailsModal({
                       {localTask.attachments.map((attachment) => (
                         <div
                           key={attachment.id}
-                          className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors group"
+                          className="flex items-center gap-3 p-3 bg-[#1e1f22] rounded-lg hover:bg-[#404249] transition-colors group"
                         >
                           {attachment.type === "image" && attachment.url ? (
                             <img
@@ -765,12 +787,12 @@ export function TaskDetailsModal({
                               className="w-12 h-12 object-cover rounded"
                             />
                           ) : (
-                            <div className="w-12 h-12 bg-gray-200 rounded flex items-center justify-center">
+                            <div className="w-12 h-12 bg-[#313338] rounded flex items-center justify-center">
                               <File size={20} className="text-gray-500" />
                             </div>
                           )}
                           <div className="flex-1 min-w-0">
-                            <div className="text-sm text-gray-900 truncate">
+                            <div className="text-sm text-gray-200 truncate">
                               {attachment.name}
                             </div>
                             <div className="text-xs text-gray-500">
@@ -785,7 +807,7 @@ export function TaskDetailsModal({
                               handleDeleteAttachment(attachment.id)
                             }
                           >
-                            <Trash2 size={14} className="text-red-500" />
+                            <Trash2 size={14} className="text-[#ed4245]" />
                           </Button>
                         </div>
                       ))}
@@ -796,7 +818,7 @@ export function TaskDetailsModal({
                 {/* Comments */}
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    <label className="text-sm text-gray-600 flex items-center gap-2">
+                    <label className="text-sm text-gray-400 flex items-center gap-2">
                       <CheckSquare size={16} />
                       Activity ({localTask.comments?.length || 0})
                     </label>
@@ -804,7 +826,7 @@ export function TaskDetailsModal({
                       variant="ghost"
                       size="sm"
                       onClick={() => setShowComments(!showComments)}
-                      className="text-xs"
+                      className="text-xs text-gray-400 hover:text-white hover:bg-[#404249]"
                     >
                       {showComments ? (
                         <>
@@ -832,23 +854,23 @@ export function TaskDetailsModal({
                         {localTask.comments?.map((comment) => (
                           <div
                             key={comment.id}
-                            className="flex gap-3 p-3 bg-gray-50 rounded-lg group"
+                            className="flex gap-3 p-3 bg-[#1e1f22] rounded-lg group"
                           >
                             <Avatar className="h-8 w-8">
-                              <AvatarFallback className="text-xs bg-blue-500 text-white">
+                              <AvatarFallback className="text-xs bg-[#5865f2] text-white">
                                 {getInitials(comment.author)}
                               </AvatarFallback>
                             </Avatar>
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-1">
-                                <span className="text-sm text-gray-900">
+                                <span className="text-sm text-gray-200">
                                   {comment.author}
                                 </span>
                                 <span className="text-xs text-gray-500">
                                   {comment.timestamp}
                                 </span>
                               </div>
-                              <p className="text-sm text-gray-700">
+                              <p className="text-sm text-gray-300">
                                 {comment.content}
                               </p>
                             </div>
@@ -858,22 +880,22 @@ export function TaskDetailsModal({
                               className="opacity-0 group-hover:opacity-100 transition-opacity h-auto p-1"
                               onClick={() => handleDeleteComment(comment.id)}
                             >
-                              <Trash2 size={14} className="text-red-500" />
+                              <Trash2 size={14} className="text-[#ed4245]" />
                             </Button>
                           </div>
                         ))}
 
                         {/* Add comment */}
-                        <div className="flex gap-3 pt-4 border-t">
+                        <div className="flex gap-3 pt-4 border-t border-[#404249]">
                           <Avatar className="h-8 w-8">
-                            <AvatarFallback className="text-xs bg-purple-500 text-white">
+                            <AvatarFallback className="text-xs bg-[#5865f2] text-white">
                               YO
                             </AvatarFallback>
                           </Avatar>
                           <div className="flex-1">
                             <Textarea
                               placeholder="Add a comment..."
-                              className="mb-2"
+                              className="mb-2 bg-[#1e1f22] border-[#404249] text-white"
                               value={newComment}
                               onChange={(e) => setNewComment(e.target.value)}
                               onKeyDown={(e) => {
@@ -884,7 +906,7 @@ export function TaskDetailsModal({
                             />
                             <Button
                               size="sm"
-                              className="bg-[#0052cc] hover:bg-[#0747a6]"
+                              className="bg-[#5865f2] hover:bg-[#4752c4]"
                               onClick={handleAddComment}
                               disabled={!newComment.trim()}
                             >
@@ -900,7 +922,7 @@ export function TaskDetailsModal({
             </ScrollArea>
 
             {/* Sidebar - "Add to Card" Actions */}
-            <div className="w-64 border-l bg-gray-50 p-4 space-y-4 overflow-y-auto">
+            <div className="w-64 border-l border-[#1e1f22] bg-[#313338] p-4 space-y-4 overflow-y-auto">
               <div>
                 <h3 className="text-xs text-gray-500 uppercase mb-2">
                   Add to card
@@ -914,15 +936,18 @@ export function TaskDetailsModal({
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
-                        className="w-full justify-start text-sm"
+                        className="w-full justify-start text-sm bg-[#1e1f22] border-[#404249] text-gray-200 hover:bg-[#404249]"
                         size="sm"
                       >
                         <Users size={16} className="mr-2" />
                         Members
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-64 p-3" align="start">
-                      <h4 className="text-sm mb-2">Members</h4>
+                    <PopoverContent
+                      className="w-64 p-3 bg-[#2b2d31] border-[#1e1f22]"
+                      align="start"
+                    >
+                      <h4 className="text-sm mb-2 text-white">Members</h4>
                       <div className="text-xs text-gray-500 mb-3">
                         Click to add or remove
                       </div>
@@ -937,8 +962,8 @@ export function TaskDetailsModal({
                               variant={isAssigned ? "default" : "ghost"}
                               className={`w-full justify-start text-sm ${
                                 isAssigned
-                                  ? "bg-blue-500 text-white hover:bg-blue-600"
-                                  : ""
+                                  ? "bg-[#5865f2] text-white hover:bg-[#4752c4]"
+                                  : "text-gray-200 hover:bg-[#404249]"
                               }`}
                               onClick={() =>
                                 handleAddMember(member.id, member.name)
@@ -951,7 +976,7 @@ export function TaskDetailsModal({
                                 <AvatarFallback
                                   className={`text-xs ${
                                     isAssigned
-                                      ? "bg-white text-blue-500"
+                                      ? "bg-white text-[#5865f2]"
                                       : member.color + " text-white"
                                   }`}
                                 >
@@ -974,15 +999,18 @@ export function TaskDetailsModal({
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
-                        className="w-full justify-start text-sm"
+                        className="w-full justify-start text-sm bg-[#1e1f22] border-[#404249] text-gray-200 hover:bg-[#404249]"
                         size="sm"
                       >
                         <Tag size={16} className="mr-2" />
                         Labels
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-64 p-3" align="start">
-                      <h4 className="text-sm mb-2">Labels</h4>
+                    <PopoverContent
+                      className="w-64 p-3 bg-[#2b2d31] border-[#1e1f22]"
+                      align="start"
+                    >
+                      <h4 className="text-sm mb-2 text-white">Labels</h4>
                       <div className="space-y-2">
                         {boardLabels?.map((label) => {
                           const isSelected = localTask.labels.includes(
@@ -995,7 +1023,7 @@ export function TaskDetailsModal({
                               className={`w-full justify-start text-sm ${
                                 isSelected
                                   ? `${label.color} ${label.textColor}`
-                                  : ""
+                                  : "bg-[#1e1f22] border-[#404249] text-gray-200 hover:bg-[#404249]"
                               }`}
                               onClick={() =>
                                 isSelected
@@ -1015,7 +1043,7 @@ export function TaskDetailsModal({
                         })}
                         <Button
                           variant="outline"
-                          className="w-full justify-start text-sm"
+                          className="w-full justify-start text-sm bg-[#1e1f22] border-[#404249] text-gray-200 hover:bg-[#404249]"
                           size="sm"
                           onClick={onManageLabels}
                         >
@@ -1029,7 +1057,7 @@ export function TaskDetailsModal({
                   {!localTask.subtasks?.length && !isAddingSubtask && (
                     <Button
                       variant="outline"
-                      className="w-full justify-start text-sm"
+                      className="w-full justify-start text-sm bg-[#1e1f22] border-[#404249] text-gray-200 hover:bg-[#404249]"
                       size="sm"
                       onClick={() => setIsAddingSubtask(true)}
                     >
@@ -1046,14 +1074,17 @@ export function TaskDetailsModal({
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
-                        className="w-full justify-start text-sm"
+                        className="w-full justify-start text-sm bg-[#1e1f22] border-[#404249] text-gray-200 hover:bg-[#404249]"
                         size="sm"
                       >
                         <Calendar size={16} className="mr-2" />
                         Dates
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
+                    <PopoverContent
+                      className="w-auto p-0 bg-[#2b2d31] border-[#1e1f22]"
+                      align="start"
+                    >
                       <CalendarComponent
                         mode="single"
                         selected={
@@ -1065,11 +1096,11 @@ export function TaskDetailsModal({
                         initialFocus
                       />
                       {localTask.dueDate && (
-                        <div className="p-3 border-t">
+                        <div className="p-3 border-t border-[#404249]">
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="w-full"
+                            className="w-full text-gray-400 hover:text-white hover:bg-[#404249]"
                             onClick={() => handleSetDueDate(undefined)}
                           >
                             Remove Due Date
@@ -1082,7 +1113,7 @@ export function TaskDetailsModal({
                   {/* Attachment - Image */}
                   <Button
                     variant="outline"
-                    className="w-full justify-start text-sm"
+                    className="w-full justify-start text-sm bg-[#1e1f22] border-[#404249] text-gray-200 hover:bg-[#404249]"
                     size="sm"
                     onClick={() => imageInputRef.current?.click()}
                   >
@@ -1101,7 +1132,7 @@ export function TaskDetailsModal({
                   {/* Attachment - File */}
                   <Button
                     variant="outline"
-                    className="w-full justify-start text-sm"
+                    className="w-full justify-start text-sm bg-[#1e1f22] border-[#404249] text-gray-200 hover:bg-[#404249]"
                     size="sm"
                     onClick={() => fileInputRef.current?.click()}
                   >
@@ -1128,7 +1159,7 @@ export function TaskDetailsModal({
                   {!isTaskComplete ? (
                     <Button
                       variant="outline"
-                      className="w-full justify-start text-sm bg-green-50 hover:bg-green-100 border-green-200 text-green-700"
+                      className="w-full justify-start text-sm bg-[#57f287]/10 hover:bg-[#57f287]/20 border-[#57f287]/30 text-[#57f287]"
                       size="sm"
                       onClick={handleMarkComplete}
                     >
@@ -1138,7 +1169,7 @@ export function TaskDetailsModal({
                   ) : (
                     <Button
                       variant="outline"
-                      className="w-full justify-start text-sm bg-gray-50"
+                      className="w-full justify-start text-sm bg-[#1e1f22] border-[#404249] text-gray-200 hover:bg-[#404249]"
                       size="sm"
                       onClick={() => updateTask({ status: "column-1-1" })}
                     >
@@ -1150,7 +1181,7 @@ export function TaskDetailsModal({
                   {/* Archive */}
                   <Button
                     variant="outline"
-                    className="w-full justify-start text-sm"
+                    className="w-full justify-start text-sm bg-[#1e1f22] border-[#404249] text-gray-200 hover:bg-[#404249]"
                     size="sm"
                     onClick={handleArchiveTask}
                   >
@@ -1161,7 +1192,7 @@ export function TaskDetailsModal({
                   {/* Delete */}
                   <Button
                     variant="outline"
-                    className="w-full justify-start text-sm text-red-600 hover:bg-red-50 border-red-200"
+                    className="w-full justify-start text-sm text-[#ed4245] hover:bg-[#ed4245]/10 border-[#ed4245]/30"
                     size="sm"
                     onClick={() => setShowDeleteConfirm(true)}
                   >
@@ -1177,19 +1208,27 @@ export function TaskDetailsModal({
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-        <DialogContent>
+        <DialogContent className="bg-[#2b2d31] border-[#1e1f22]">
           <DialogHeader>
-            <DialogTitle>Delete Task?</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-white">Delete Task?</DialogTitle>
+            <DialogDescription className="text-gray-400">
               Are you sure you want to delete {localTask.title}? This action
               cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2 mt-4">
-            <Button variant="ghost" onClick={() => setShowDeleteConfirm(false)}>
+            <Button
+              variant="ghost"
+              onClick={() => setShowDeleteConfirm(false)}
+              className="text-gray-400 hover:text-white hover:bg-[#404249]"
+            >
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleDeleteTask}>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteTask}
+              className="bg-[#ed4245] hover:bg-[#c93b3e]"
+            >
               Delete Task
             </Button>
           </div>

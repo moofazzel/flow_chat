@@ -204,16 +204,16 @@ function BoardColumn({
   return (
     <div
       ref={setNodeRef}
-      className={`flex-shrink-0 w-[280px] h-full flex flex-col rounded-lg p-2 transition-all duration-200 group ${
+      className={`shrink-0 w-[280px] h-full flex flex-col rounded-lg p-2 transition-all duration-200 group ${
         isOver
-          ? "bg-blue-100 shadow-lg ring-2 ring-blue-400 scale-[1.02]"
-          : column.bgColor || "bg-[#f1f2f4]"
+          ? "bg-[#5865f2]/20 shadow-lg ring-2 ring-[#5865f2] scale-[1.02]"
+          : column.bgColor || "bg-[#2b2d31]"
       }`}
     >
       {/* Column Header */}
-      <div className="flex-shrink-0 flex items-center gap-2 px-2 py-1 mb-2">
+      <div className="shrink-0 flex items-center gap-2 px-2 py-1 mb-2">
         <div className={`w-3 h-3 rounded-full ${column.color}`} />
-        <h3 className="text-gray-900 font-medium">{column.title}</h3>
+        <h3 className="text-gray-200 font-medium">{column.title}</h3>
         <span className="text-gray-500 text-sm">({tasks.length})</span>
         <div className="ml-auto">
           <ColumnMenu
@@ -259,7 +259,7 @@ function BoardColumn({
       </div>
 
       {/* Add Card Button or Form */}
-      <div className="flex-shrink-0">
+      <div className="shrink-0">
         {isAddingTask ? (
           <div className="mb-2">
             <AddTaskForm
@@ -275,7 +275,7 @@ function BoardColumn({
         ) : (
           <Button
             variant="ghost"
-            className="w-full justify-start mb-2 text-gray-700 hover:bg-gray-300/50 px-2 py-1.5 h-auto rounded"
+            className="w-full justify-start mb-2 text-gray-400 hover:bg-[#404249] hover:text-gray-200 px-2 py-1.5 h-auto rounded"
             onClick={() => setIsAddingTask(true)}
           >
             <Plus size={16} className="mr-2" />
@@ -306,7 +306,7 @@ function BoardColumn({
             />
           ))}
           {tasks.length === 0 && !isAddingTask && (
-            <div className="text-center text-gray-400 text-sm py-8 border-2 border-dashed border-gray-300 rounded-lg bg-white/50">
+            <div className="text-center text-gray-500 text-sm py-8 border-2 border-dashed border-[#404249] rounded-lg bg-[#1e1f22]/50">
               Drop tasks here
             </div>
           )}
@@ -573,16 +573,16 @@ export function TaskBoard({
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
-      <div className="w-full h-full flex flex-col bg-[#f4f5f7]">
+      <div className="w-full h-full flex flex-col bg-[#313338]">
         {/* Board header - FIXED */}
-        <div className="flex-shrink-0 h-16 px-6 flex items-center gap-3 bg-white border-b border-gray-200 shadow-sm">
+        <div className="shrink-0 h-16 px-6 flex items-center gap-3 bg-[#2b2d31] border-b border-[#1e1f22]">
           {/* Board Name with Settings */}
           <div className="flex items-center gap-2">
-            <h1 className="text-gray-900 font-semibold text-lg">{boardName}</h1>
+            <h1 className="text-white font-semibold text-lg">{boardName}</h1>
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 w-7 p-0 hover:bg-yellow-50"
+              className="h-7 w-7 p-0 hover:bg-[#404249]"
               onClick={() => onBoardUpdate?.({ isFavorite: true })}
               title="Star this board"
             >
@@ -606,7 +606,7 @@ export function TaskBoard({
             )}
           </div>
 
-          <div className="h-6 w-px bg-gray-300" />
+          <div className="h-6 w-px bg-[#404249]" />
 
           {/* Search */}
           <div className="flex-1 max-w-md relative">
@@ -618,7 +618,7 @@ export function TaskBoard({
               placeholder="Search tasks..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 bg-gray-50 border-gray-200 h-9"
+              className="pl-10 bg-[#1e1f22] border-[#1e1f22] text-white placeholder:text-gray-500 h-9"
             />
           </div>
 
@@ -627,7 +627,7 @@ export function TaskBoard({
             <Button
               variant="outline"
               size="sm"
-              className="gap-2 border-gray-300 h-9"
+              className="gap-2 border-[#404249] bg-[#2b2d31] text-gray-300 hover:bg-[#404249] h-9"
             >
               <Filter size={16} />
               Filter
@@ -638,7 +638,7 @@ export function TaskBoard({
               className={`gap-2 h-9 ${
                 isChatOpen
                   ? "bg-[#5865f2] hover:bg-[#4752c4]"
-                  : "border-gray-300"
+                  : "border-[#404249] bg-[#2b2d31] text-gray-300 hover:bg-[#404249]"
               }`}
               onClick={onToggleChat}
             >
@@ -648,7 +648,7 @@ export function TaskBoard({
             <Button
               variant="outline"
               size="sm"
-              className="gap-2 border-gray-300 h-9"
+              className="gap-2 border-[#404249] bg-[#2b2d31] text-gray-300 hover:bg-[#404249] h-9"
               onClick={() => setShowLabelManager(true)}
             >
               <Tag size={16} />
@@ -656,7 +656,7 @@ export function TaskBoard({
             </Button>
             <Button
               size="sm"
-              className="gap-2 bg-[#0052cc] hover:bg-[#0747a6] h-9"
+              className="gap-2 bg-[#5865f2] hover:bg-[#4752c4] h-9"
               onClick={() => setShowCreateTaskModal(true)}
             >
               <Plus size={16} />
@@ -800,7 +800,7 @@ export function TaskBoard({
                             ease: [0.16, 1, 0.3, 1],
                           },
                         }}
-                        className="flex-shrink-0"
+                        className="shrink-0"
                         style={{
                           transformPerspective: 1200,
                           transformStyle: "preserve-3d",
@@ -927,8 +927,8 @@ export function TaskBoard({
         {/* Drag Overlay - Shows the dragged task */}
         <DragOverlay dropAnimation={null}>
           {activeTask ? (
-            <div className="rotate-[3deg]">
-              <div className="w-[280px] bg-white rounded-lg p-3 shadow-2xl border-2 border-blue-400 opacity-95">
+            <div className="rotate-3">
+              <div className="w-[280px] bg-[#1e1f22] rounded-lg p-3 shadow-2xl border-2 border-[#5865f2] opacity-95">
                 <TaskCard
                   task={activeTask}
                   onClick={() => {}}
@@ -941,24 +941,24 @@ export function TaskBoard({
 
         {/* Drag hint */}
         {activeTask && (
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-4 py-2 rounded-lg shadow-lg text-sm font-medium z-50">
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-[#1e1f22] text-gray-200 px-4 py-2 rounded-lg shadow-lg text-sm font-medium z-50 border border-[#404249]">
             Drag to another column to change status
           </div>
         )}
 
         {/* Scroll indicators */}
         {!activeTask && canScrollLeft && (
-          <div className="absolute left-0 top-16 bottom-0 w-12 bg-gradient-to-r from-gray-200 to-transparent pointer-events-none z-10" />
+          <div className="absolute left-0 top-16 bottom-0 w-12 bg-linear-to-r from-[#313338] to-transparent pointer-events-none z-10" />
         )}
         {!activeTask && canScrollRight && (
-          <div className="absolute right-0 top-16 bottom-0 w-12 bg-gradient-to-l from-gray-200 to-transparent pointer-events-none z-10" />
+          <div className="absolute right-0 top-16 bottom-0 w-12 bg-linear-to-l from-[#313338] to-transparent pointer-events-none z-10" />
         )}
 
         {/* Scroll hint */}
         {!activeTask &&
           !isDraggingBoard &&
           (canScrollLeft || canScrollRight) && (
-            <div className="absolute bottom-4 right-4 bg-gray-800 text-white px-3 py-1.5 rounded-md shadow-lg text-xs z-50 flex items-center gap-2">
+            <div className="absolute bottom-4 right-4 bg-[#1e1f22] text-gray-300 px-3 py-1.5 rounded-md shadow-lg text-xs z-50 flex items-center gap-2 border border-[#404249]">
               <span className="opacity-70">
                 💡 Click + drag to scroll board
               </span>

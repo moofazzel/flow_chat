@@ -203,17 +203,20 @@ export function BoardSettingsMenu({
           <Button
             variant="ghost"
             size="sm"
-            className="text-gray-600 hover:text-gray-900 hover:bg-blue-50 h-8 px-2 border border-gray-300"
+            className="text-gray-400 hover:text-white hover:bg-[#404249] h-8 px-2 border border-[#404249]"
             title="Board Menu - Change colors, settings, and more"
           >
             <MoreHorizontal size={18} />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-72">
+        <DropdownMenuContent
+          align="end"
+          className="w-72 bg-[#2b2d31] border-[#1e1f22]"
+        >
           {/* Header */}
-          <div className="px-3 py-2 border-b bg-gradient-to-r from-blue-50 to-purple-50">
-            <div className="font-semibold text-gray-900">Board Menu</div>
-            <div className="text-xs text-gray-500">
+          <div className="px-3 py-2 border-b border-[#1e1f22] bg-[#313338]">
+            <div className="font-semibold text-gray-100">Board Menu</div>
+            <div className="text-xs text-gray-400">
               Customize your board appearance and settings
             </div>
           </div>
@@ -223,18 +226,25 @@ export function BoardSettingsMenu({
             Board Actions
           </div>
 
-          <DropdownMenuItem onClick={() => setShowSettingsDialog(true)}>
+          <DropdownMenuItem
+            onClick={() => setShowSettingsDialog(true)}
+            className="text-gray-200 focus:text-white focus:bg-[#404249]"
+          >
             <Settings size={16} className="mr-2" />
             Board Settings
           </DropdownMenuItem>
 
-          <DropdownMenuItem onClick={() => setShowBackgroundDialog(true)}>
+          <DropdownMenuItem
+            onClick={() => setShowBackgroundDialog(true)}
+            className="text-gray-200 focus:text-white focus:bg-[#404249]"
+          >
             <Palette size={16} className="mr-2" />
             Change Background
           </DropdownMenuItem>
 
           <DropdownMenuItem
             onClick={() => onUpdateBoard({ isFavorite: !isFavorite })}
+            className="text-gray-200 focus:text-white focus:bg-[#404249]"
           >
             <Star
               size={16}
@@ -245,34 +255,40 @@ export function BoardSettingsMenu({
             {isFavorite ? "Remove from Favorites" : "Add to Favorites"}
           </DropdownMenuItem>
 
-          <DropdownMenuItem onClick={() => setShowActivityDialog(true)}>
+          <DropdownMenuItem
+            onClick={() => setShowActivityDialog(true)}
+            className="text-gray-200 focus:text-white focus:bg-[#404249]"
+          >
             <Activity size={16} className="mr-2" />
             Activity Log
           </DropdownMenuItem>
 
-          <DropdownMenuSeparator />
+          <DropdownMenuSeparator className="bg-[#404249]" />
 
           {/* Visibility */}
           <DropdownMenuSub>
-            <DropdownMenuSubTrigger>
+            <DropdownMenuSubTrigger className="text-gray-200 focus:text-white focus:bg-[#404249]">
               <Eye size={16} className="mr-2" />
               Visibility: {visibility}
             </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
+            <DropdownMenuSubContent className="bg-[#2b2d31] border-[#1e1f22]">
               <DropdownMenuItem
                 onClick={() => onUpdateBoard({ visibility: "private" })}
+                className="text-gray-200 focus:text-white focus:bg-[#404249]"
               >
                 <Lock size={14} className="mr-2" />
                 Private
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => onUpdateBoard({ visibility: "team" })}
+                className="text-gray-200 focus:text-white focus:bg-[#404249]"
               >
                 <Users size={14} className="mr-2" />
                 Team
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => onUpdateBoard({ visibility: "public" })}
+                className="text-gray-200 focus:text-white focus:bg-[#404249]"
               >
                 <Globe size={14} className="mr-2" />
                 Public
@@ -280,20 +296,26 @@ export function BoardSettingsMenu({
             </DropdownMenuSubContent>
           </DropdownMenuSub>
 
-          <DropdownMenuSeparator />
+          <DropdownMenuSeparator className="bg-[#404249]" />
 
           {/* More Actions */}
           <div className="px-2 py-1.5 text-xs font-semibold text-gray-500">
             More Actions
           </div>
 
-          <DropdownMenuItem onClick={onDuplicateBoard}>
+          <DropdownMenuItem
+            onClick={onDuplicateBoard}
+            className="text-gray-200 focus:text-white focus:bg-[#404249]"
+          >
             <Copy size={16} className="mr-2" />
             Duplicate Board
           </DropdownMenuItem>
 
           {onExportBoard && (
-            <DropdownMenuItem onClick={onExportBoard}>
+            <DropdownMenuItem
+              onClick={onExportBoard}
+              className="text-gray-200 focus:text-white focus:bg-[#404249]"
+            >
               <Download size={16} className="mr-2" />
               Export Board
             </DropdownMenuItem>
@@ -301,16 +323,17 @@ export function BoardSettingsMenu({
 
           <DropdownMenuItem
             onClick={() => onUpdateBoard({ isArchived: !isArchived })}
+            className="text-gray-200 focus:text-white focus:bg-[#404249]"
           >
             <Archive size={16} className="mr-2" />
             {isArchived ? "Unarchive Board" : "Archive Board"}
           </DropdownMenuItem>
 
-          <DropdownMenuSeparator />
+          <DropdownMenuSeparator className="bg-[#404249]" />
 
           <DropdownMenuItem
             onClick={onDeleteBoard}
-            className="text-red-600 focus:text-red-600 focus:bg-red-50"
+            className="text-[#ed4245] focus:text-[#ed4245] focus:bg-[#ed4245]/10"
           >
             <Trash2 size={16} className="mr-2" />
             Delete Board
@@ -320,25 +343,25 @@ export function BoardSettingsMenu({
 
       {/* Board Settings Dialog */}
       <Dialog open={showSettingsDialog} onOpenChange={setShowSettingsDialog}>
-        <DialogContent className="max-w-2xl max-h-[90vh]">
+        <DialogContent className="max-w-2xl max-h-[90vh] bg-[#2b2d31] border-[#1e1f22]">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Settings className="text-[#0052cc]" size={24} />
+            <DialogTitle className="flex items-center gap-2 text-white">
+              <Settings className="text-[#5865f2]" size={24} />
               Board Settings
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-gray-400">
               Configure your board settings and preferences.
             </DialogDescription>
           </DialogHeader>
 
           {/* Tabs */}
-          <div className="flex gap-2 border-b">
+          <div className="flex gap-2 border-b border-[#404249]">
             <button
               onClick={() => setSettingsTab("general")}
               className={`px-4 py-2 text-sm transition-colors ${
                 settingsTab === "general"
-                  ? "border-b-2 border-[#0052cc] text-[#0052cc] font-medium"
-                  : "text-gray-600 hover:text-gray-900"
+                  ? "border-b-2 border-[#5865f2] text-[#5865f2] font-medium"
+                  : "text-gray-400 hover:text-white"
               }`}
             >
               General
@@ -347,8 +370,8 @@ export function BoardSettingsMenu({
               onClick={() => setSettingsTab("members")}
               className={`px-4 py-2 text-sm transition-colors ${
                 settingsTab === "members"
-                  ? "border-b-2 border-[#0052cc] text-[#0052cc] font-medium"
-                  : "text-gray-600 hover:text-gray-900"
+                  ? "border-b-2 border-[#5865f2] text-[#5865f2] font-medium"
+                  : "text-gray-400 hover:text-white"
               }`}
             >
               Members
@@ -357,8 +380,8 @@ export function BoardSettingsMenu({
               onClick={() => setSettingsTab("advanced")}
               className={`px-4 py-2 text-sm transition-colors ${
                 settingsTab === "advanced"
-                  ? "border-b-2 border-[#0052cc] text-[#0052cc] font-medium"
-                  : "text-gray-600 hover:text-gray-900"
+                  ? "border-b-2 border-[#5865f2] text-[#5865f2] font-medium"
+                  : "text-gray-400 hover:text-white"
               }`}
             >
               Advanced
@@ -369,59 +392,71 @@ export function BoardSettingsMenu({
             {settingsTab === "general" && (
               <div className="space-y-4 p-4">
                 <div className="space-y-2">
-                  <Label htmlFor="edit-name">Board Name</Label>
+                  <Label htmlFor="edit-name" className="text-gray-300">
+                    Board Name
+                  </Label>
                   <Input
                     id="edit-name"
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
+                    className="bg-[#1e1f22] border-[#404249] text-white"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="edit-description">Description</Label>
+                  <Label htmlFor="edit-description" className="text-gray-300">
+                    Description
+                  </Label>
                   <Textarea
                     id="edit-description"
                     value={editDescription}
                     onChange={(e) => setEditDescription(e.target.value)}
                     rows={4}
+                    className="bg-[#1e1f22] border-[#404249] text-white"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Visibility</Label>
+                  <Label className="text-gray-300">Visibility</Label>
                   <div className="grid grid-cols-3 gap-2">
                     <button
                       onClick={() => setEditVisibility("private")}
                       className={`p-3 border-2 rounded-lg transition-all ${
                         editVisibility === "private"
-                          ? "border-[#0052cc] bg-blue-50"
-                          : "border-gray-200 hover:border-gray-300"
+                          ? "border-[#5865f2] bg-[#5865f2]/10"
+                          : "border-[#404249] hover:border-[#5865f2]/50 bg-[#1e1f22]"
                       }`}
                     >
-                      <Lock size={20} className="mx-auto mb-1" />
-                      <div className="text-xs font-medium">Private</div>
+                      <Lock size={20} className="mx-auto mb-1 text-gray-300" />
+                      <div className="text-xs font-medium text-gray-300">
+                        Private
+                      </div>
                     </button>
                     <button
                       onClick={() => setEditVisibility("team")}
                       className={`p-3 border-2 rounded-lg transition-all ${
                         editVisibility === "team"
-                          ? "border-[#0052cc] bg-blue-50"
-                          : "border-gray-200 hover:border-gray-300"
+                          ? "border-[#5865f2] bg-[#5865f2]/10"
+                          : "border-[#404249] hover:border-[#5865f2]/50 bg-[#1e1f22]"
                       }`}
                     >
-                      <Users size={20} className="mx-auto mb-1" />
-                      <div className="text-xs font-medium">Team</div>
+                      <Users size={20} className="mx-auto mb-1 text-gray-300" />
+                      <div className="text-xs font-medium text-gray-300">
+                        Team
+                      </div>
                     </button>
                     <button
                       onClick={() => setEditVisibility("public")}
                       className={`p-3 border-2 rounded-lg transition-all ${
                         editVisibility === "public"
-                          ? "border-[#0052cc] bg-blue-50"
-                          : "border-gray-200 hover:border-gray-300"
+                          ? "border-[#5865f2] bg-[#5865f2]/10"
+                          : "border-[#404249] hover:border-[#5865f2]/50 bg-[#1e1f22]"
                       }`}
                     >
-                      <Globe size={20} className="mx-auto mb-1" />
-                      <div className="text-xs font-medium">Public</div>
+                      <Globe size={20} className="mx-auto mb-1 text-gray-300" />
+                      <div className="text-xs font-medium text-gray-300">
+                        Public
+                      </div>
                     </button>
                   </div>
                 </div>
@@ -432,28 +467,30 @@ export function BoardSettingsMenu({
               <div className="p-4">
                 <div className="text-center py-8 text-gray-500">
                   <Users size={48} className="mx-auto mb-2 opacity-50" />
-                  <p>Member management coming soon!</p>
+                  <p className="text-gray-400">
+                    Member management coming soon!
+                  </p>
                 </div>
               </div>
             )}
 
             {settingsTab === "advanced" && (
               <div className="space-y-4 p-4">
-                <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <div className="p-4 bg-[#faa61a]/10 border border-[#faa61a]/30 rounded-lg">
                   <div className="flex items-start gap-2">
-                    <Archive size={20} className="text-yellow-600 mt-0.5" />
+                    <Archive size={20} className="text-[#faa61a] mt-0.5" />
                     <div>
-                      <div className="font-medium text-yellow-900">
+                      <div className="font-medium text-[#faa61a]">
                         Archive Board
                       </div>
-                      <p className="text-sm text-yellow-700 mt-1">
+                      <p className="text-sm text-gray-400 mt-1">
                         Archived boards are hidden from view but can be restored
                         later.
                       </p>
                       <Button
                         variant="outline"
                         size="sm"
-                        className="mt-2"
+                        className="mt-2 border-[#faa61a]/50 text-[#faa61a] hover:bg-[#faa61a]/10"
                         onClick={() => {
                           onUpdateBoard({ isArchived: !isArchived });
                           setShowSettingsDialog(false);
@@ -465,21 +502,21 @@ export function BoardSettingsMenu({
                   </div>
                 </div>
 
-                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                <div className="p-4 bg-[#ed4245]/10 border border-[#ed4245]/30 rounded-lg">
                   <div className="flex items-start gap-2">
-                    <Trash2 size={20} className="text-red-600 mt-0.5" />
+                    <Trash2 size={20} className="text-[#ed4245] mt-0.5" />
                     <div>
-                      <div className="font-medium text-red-900">
+                      <div className="font-medium text-[#ed4245]">
                         Delete Board
                       </div>
-                      <p className="text-sm text-red-700 mt-1">
+                      <p className="text-sm text-gray-400 mt-1">
                         Permanently delete this board and all its contents. This
                         action cannot be undone.
                       </p>
                       <Button
                         variant="outline"
                         size="sm"
-                        className="mt-2 text-red-600 border-red-600 hover:bg-red-50"
+                        className="mt-2 text-[#ed4245] border-[#ed4245]/50 hover:bg-[#ed4245]/10"
                         onClick={() => {
                           if (
                             confirm(
@@ -500,17 +537,17 @@ export function BoardSettingsMenu({
             )}
           </ScrollArea>
 
-          <div className="flex gap-3 pt-4 border-t">
+          <div className="flex gap-3 pt-4 border-t border-[#404249]">
             <Button
               variant="outline"
               onClick={() => setShowSettingsDialog(false)}
-              className="flex-1"
+              className="flex-1 bg-[#1e1f22] border-[#404249] text-gray-200 hover:bg-[#404249]"
             >
               Cancel
             </Button>
             <Button
               onClick={handleSaveSettings}
-              className="flex-1 bg-[#0052cc] hover:bg-[#0747a6]"
+              className="flex-1 bg-[#5865f2] hover:bg-[#4752c4]"
             >
               Save Changes
             </Button>
@@ -523,13 +560,13 @@ export function BoardSettingsMenu({
         open={showBackgroundDialog}
         onOpenChange={setShowBackgroundDialog}
       >
-        <DialogContent className="max-w-3xl max-h-[90vh]">
+        <DialogContent className="max-w-3xl max-h-[90vh] bg-[#2b2d31] border-[#1e1f22]">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Palette className="text-[#0052cc]" size={24} />
+            <DialogTitle className="flex items-center gap-2 text-white">
+              <Palette className="text-[#5865f2]" size={24} />
               Change Board Background
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-gray-400">
               Choose from solid colors, gradients, or patterns to customize your
               board.
             </DialogDescription>
@@ -539,7 +576,7 @@ export function BoardSettingsMenu({
             <div className="space-y-6 p-2">
               {/* Solid Colors */}
               <div>
-                <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                <h3 className="text-sm font-semibold mb-3 flex items-center gap-2 text-gray-200">
                   <div className="w-4 h-4 rounded bg-blue-500" />
                   Solid Colors
                 </h3>
@@ -552,7 +589,7 @@ export function BoardSettingsMenu({
                         color.value
                       } ${
                         boardColor === color.value
-                          ? "ring-4 ring-offset-2 ring-[#0052cc] scale-105"
+                          ? "ring-4 ring-offset-2 ring-offset-[#2b2d31] ring-[#5865f2] scale-105"
                           : "hover:scale-105 hover:shadow-lg"
                       }`}
                       title={color.name}
@@ -574,12 +611,12 @@ export function BoardSettingsMenu({
                 </div>
               </div>
 
-              <Separator />
+              <Separator className="bg-[#404249]" />
 
               {/* Gradient Backgrounds */}
               <div>
-                <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                  <div className="w-4 h-4 rounded bg-gradient-to-r from-blue-500 to-purple-500" />
+                <h3 className="text-sm font-semibold mb-3 flex items-center gap-2 text-gray-200">
+                  <div className="w-4 h-4 rounded bg-linear-to-r from-blue-500 to-purple-500" />
                   Gradients
                 </h3>
                 <div className="grid grid-cols-4 gap-3">
@@ -591,7 +628,7 @@ export function BoardSettingsMenu({
                         bg.value
                       } ${
                         boardColor === bg.value
-                          ? "ring-4 ring-offset-2 ring-[#0052cc] scale-105"
+                          ? "ring-4 ring-offset-2 ring-offset-[#2b2d31] ring-[#5865f2] scale-105"
                           : "hover:scale-105 hover:shadow-lg"
                       }`}
                       title={bg.name}
@@ -613,11 +650,11 @@ export function BoardSettingsMenu({
                 </div>
               </div>
 
-              <Separator />
+              <Separator className="bg-[#404249]" />
 
               {/* Pattern Backgrounds */}
               <div>
-                <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                <h3 className="text-sm font-semibold mb-3 flex items-center gap-2 text-gray-200">
                   <Grid3x3 size={16} />
                   Patterns
                 </h3>
@@ -630,7 +667,7 @@ export function BoardSettingsMenu({
                         bg.value
                       } ${
                         boardColor === bg.value
-                          ? "ring-4 ring-offset-2 ring-[#0052cc] scale-105"
+                          ? "ring-4 ring-offset-2 ring-offset-[#2b2d31] ring-[#5865f2] scale-105"
                           : "hover:scale-105 hover:shadow-lg"
                       }`}
                       title={bg.name}
@@ -658,13 +695,13 @@ export function BoardSettingsMenu({
 
       {/* Activity Log Dialog */}
       <Dialog open={showActivityDialog} onOpenChange={setShowActivityDialog}>
-        <DialogContent className="max-w-2xl max-h-[90vh]">
+        <DialogContent className="max-w-2xl max-h-[90vh] bg-[#2b2d31] border-[#1e1f22]">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Activity className="text-[#0052cc]" size={24} />
+            <DialogTitle className="flex items-center gap-2 text-white">
+              <Activity className="text-[#5865f2]" size={24} />
               Board Activity
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-gray-400">
               Recent actions and changes on this board.
             </DialogDescription>
           </DialogHeader>
@@ -672,25 +709,27 @@ export function BoardSettingsMenu({
           <ScrollArea className="max-h-[60vh]">
             <div className="space-y-3 p-4">
               {/* Activity items should be fetched from database */}
-              <div className="flex gap-3 p-3 bg-gray-50 rounded-lg">
-                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                  <Tag size={16} className="text-blue-600" />
+              <div className="flex gap-3 p-3 bg-[#1e1f22] rounded-lg">
+                <div className="w-8 h-8 bg-[#5865f2]/20 rounded-full flex items-center justify-center flex-shrink-0">
+                  <Tag size={16} className="text-[#5865f2]" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm">
-                    <strong>You</strong> changed the board color
+                  <p className="text-sm text-gray-200">
+                    <strong className="text-white">You</strong> changed the
+                    board color
                   </p>
                   <p className="text-xs text-gray-500">2 minutes ago</p>
                 </div>
               </div>
 
-              <div className="flex gap-3 p-3 bg-gray-50 rounded-lg">
-                <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
-                  <Settings size={16} className="text-green-600" />
+              <div className="flex gap-3 p-3 bg-[#1e1f22] rounded-lg">
+                <div className="w-8 h-8 bg-[#57f287]/20 rounded-full flex items-center justify-center flex-shrink-0">
+                  <Settings size={16} className="text-[#57f287]" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm">
-                    <strong>You</strong> updated board settings
+                  <p className="text-sm text-gray-200">
+                    <strong className="text-white">You</strong> updated board
+                    settings
                   </p>
                   <p className="text-xs text-gray-500">1 hour ago</p>
                 </div>

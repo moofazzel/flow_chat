@@ -33,17 +33,20 @@ export function LabelPicker({
           </Button>
         )}
       </PopoverTrigger>
-      <PopoverContent className="w-64 p-2" align="start">
+      <PopoverContent
+        className="w-64 p-2 bg-[#2b2d31] border-[#1e1f22]"
+        align="start"
+      >
         <div className="space-y-1">
           <div className="flex items-center justify-between px-2 py-1.5">
-            <span className="text-sm font-medium text-gray-700">Labels</span>
+            <span className="text-sm font-medium text-gray-200">Labels</span>
             {onManageLabels && (
               <button
                 onClick={() => {
                   setOpen(false);
                   onManageLabels();
                 }}
-                className="text-gray-500 hover:text-gray-700 transition-colors"
+                className="text-gray-500 hover:text-white transition-colors"
               >
                 <Settings size={14} />
               </button>
@@ -61,7 +64,7 @@ export function LabelPicker({
                     setOpen(false);
                     onManageLabels();
                   }}
-                  className="gap-2"
+                  className="gap-2 bg-[#1e1f22] border-[#404249] text-gray-200 hover:bg-[#404249]"
                 >
                   <Plus size={14} />
                   Create Label
@@ -76,13 +79,13 @@ export function LabelPicker({
                   <button
                     key={label.id}
                     onClick={() => onToggleLabel(label.id)}
-                    className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-100 transition-colors"
+                    className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[#404249] transition-colors"
                   >
                     <div
                       className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
                         isSelected
-                          ? "bg-blue-500 border-blue-500"
-                          : "border-gray-300 bg-white"
+                          ? "bg-[#5865f2] border-[#5865f2]"
+                          : "border-[#404249] bg-[#1e1f22]"
                       }`}
                     >
                       {isSelected && <Check size={12} className="text-white" />}

@@ -230,7 +230,7 @@ export function TaskCard({
               }
             : undefined
         }
-        className={`bg-white rounded-lg p-3 shadow-sm transition-shadow cursor-pointer border border-gray-200 border-l-4 ${priorityBorderColor} hover:border-gray-300 group relative ${
+        className={`bg-[#1e1f22] rounded-lg p-3 shadow-sm transition-shadow cursor-pointer border border-[#404249] border-l-4 ${priorityBorderColor} hover:border-[#5865f2] group relative ${
           isDragging ? "cursor-grabbing" : "cursor-grab"
         }`}
         style={{
@@ -244,12 +244,12 @@ export function TaskCard({
             variant="outline"
             className={`text-xs ml-auto ${
               task.priority === "urgent"
-                ? "border-red-500 text-red-600 bg-red-50"
+                ? "border-red-500 text-red-400 bg-red-500/10"
                 : task.priority === "high"
-                ? "border-orange-500 text-orange-600 bg-orange-50"
+                ? "border-orange-500 text-orange-400 bg-orange-500/10"
                 : task.priority === "medium"
-                ? "border-yellow-600 text-yellow-700 bg-yellow-50"
-                : "border-gray-400 text-gray-600 bg-gray-50"
+                ? "border-yellow-600 text-yellow-400 bg-yellow-500/10"
+                : "border-gray-500 text-gray-400 bg-gray-500/10"
             }`}
           >
             {task.priority}
@@ -257,7 +257,7 @@ export function TaskCard({
         </div>
 
         {/* Title */}
-        <h4 className="text-gray-900 mb-2 line-clamp-2">{task.title}</h4>
+        <h4 className="text-gray-200 mb-2 line-clamp-2">{task.title}</h4>
 
         {/* Due Date with Status */}
         {dueDateStatus && (
@@ -273,18 +273,18 @@ export function TaskCard({
         {/* Subtasks Progress */}
         {subtaskProgress && subtaskProgress.total > 0 && (
           <div className="mb-2">
-            <div className="flex items-center gap-2 text-xs text-gray-600 mb-1">
+            <div className="flex items-center gap-2 text-xs text-gray-400 mb-1">
               <CheckSquare size={12} />
               <span>
                 {subtaskProgress.completed}/{subtaskProgress.total} subtasks
               </span>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-1.5">
+            <div className="w-full bg-[#404249] rounded-full h-1.5">
               <div
                 className={`h-1.5 rounded-full transition-all ${
                   subtaskProgress.percentage === 100
-                    ? "bg-green-500"
-                    : "bg-blue-500"
+                    ? "bg-[#57f287]"
+                    : "bg-[#5865f2]"
                 }`}
                 style={{ width: `${subtaskProgress.percentage}%` }}
               />
@@ -300,7 +300,7 @@ export function TaskCard({
           {task.labels.length > 3 && (
             <Badge
               variant="secondary"
-              className="text-xs bg-gray-100 text-gray-700"
+              className="text-xs bg-[#404249] text-gray-300"
             >
               +{task.labels.length - 3}
             </Badge>
@@ -312,20 +312,20 @@ export function TaskCard({
           <div className="flex items-center gap-2">
             {task.assignee && (
               <Avatar className="h-6 w-6">
-                <AvatarFallback className="text-xs bg-[#0052cc] text-white">
+                <AvatarFallback className="text-xs bg-[#5865f2] text-white">
                   {getInitials(task.assignee)}
                 </AvatarFallback>
               </Avatar>
             )}
             {task.attachments && task.attachments.length > 0 && (
-              <div className="flex items-center gap-1 text-gray-500">
+              <div className="flex items-center gap-1 text-gray-400">
                 <Paperclip size={12} />
                 <span>{task.attachments.length}</span>
               </div>
             )}
           </div>
           {task.comments.length > 0 && (
-            <div className="flex items-center gap-1 text-gray-500">
+            <div className="flex items-center gap-1 text-gray-400">
               <MessageSquare size={14} />
               {task.comments.length}
             </div>
@@ -336,7 +336,7 @@ export function TaskCard({
       {/* Context Menu */}
       {showMenu && (
         <div
-          className="fixed z-50 bg-white rounded-lg shadow-2xl border border-gray-200 py-2 min-w-[200px]"
+          className="fixed z-50 bg-[#2b2d31] rounded-lg shadow-2xl border border-[#1e1f22] py-2 min-w-[200px]"
           style={{
             left: `${menuPosition.x}px`,
             top: `${menuPosition.y}px`,
@@ -346,7 +346,7 @@ export function TaskCard({
           <div className="space-y-1 px-1">
             <Button
               variant="ghost"
-              className="w-full justify-start text-sm h-9 px-3 hover:bg-gray-100"
+              className="w-full justify-start text-sm h-9 px-3 text-gray-300 hover:bg-[#404249] hover:text-white"
               onClick={handleOpenInModal}
             >
               <Eye size={16} className="mr-3" />
@@ -355,7 +355,7 @@ export function TaskCard({
 
             <Button
               variant="ghost"
-              className="w-full justify-start text-sm h-9 px-3 hover:bg-gray-100"
+              className="w-full justify-start text-sm h-9 px-3 text-gray-300 hover:bg-[#404249] hover:text-white"
               onClick={() => handleMenuAction(() => onQuickEdit?.(task))}
             >
               <Edit2 size={16} className="mr-3" />
@@ -364,7 +364,7 @@ export function TaskCard({
 
             <Button
               variant="ghost"
-              className="w-full justify-start text-sm h-9 px-3 hover:bg-gray-100"
+              className="w-full justify-start text-sm h-9 px-3 text-gray-300 hover:bg-[#404249] hover:text-white"
               onClick={handleCopyLink}
             >
               <Copy size={16} className="mr-3" />
@@ -373,18 +373,18 @@ export function TaskCard({
 
             <Button
               variant="ghost"
-              className="w-full justify-start text-sm h-9 px-3 hover:bg-gray-100"
+              className="w-full justify-start text-sm h-9 px-3 text-gray-300 hover:bg-[#404249] hover:text-white"
               onClick={handleDuplicate}
             >
               <Tag size={16} className="mr-3" />
               Duplicate Card
             </Button>
 
-            <div className="border-t my-1" />
+            <div className="border-t border-[#404249] my-1" />
 
             <Button
               variant="ghost"
-              className="w-full justify-start text-sm h-9 px-3 hover:bg-gray-100"
+              className="w-full justify-start text-sm h-9 px-3 text-gray-300 hover:bg-[#404249] hover:text-white"
               onClick={handleArchive}
             >
               <Archive size={16} className="mr-3" />
@@ -393,7 +393,7 @@ export function TaskCard({
 
             <Button
               variant="ghost"
-              className="w-full justify-start text-sm h-9 px-3 text-red-600 hover:text-red-700 hover:bg-red-50"
+              className="w-full justify-start text-sm h-9 px-3 text-[#ed4245] hover:text-[#ed4245] hover:bg-[#ed4245]/10"
               onClick={handleDeleteClick}
             >
               <Trash2 size={16} className="mr-3" />

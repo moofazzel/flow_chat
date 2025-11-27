@@ -73,7 +73,10 @@ export function QuickPriorityPicker({
           <ChevronDown size={14} />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-40">
+      <DropdownMenuContent
+        align="start"
+        className="w-40 bg-[#2b2d31] border-[#1e1f22]"
+      >
         {(
           Object.entries(priorityConfig) as [
             Priority,

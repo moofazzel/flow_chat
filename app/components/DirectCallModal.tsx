@@ -22,6 +22,14 @@ import { toast } from "sonner";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Button } from "./ui/button";
 
+// Generate unique session ID for debugging
+const generateSessionId = () => Math.random().toString(36).substring(2, 8);
+
+// Call sound URLs - using Web Audio API generated tones as fallback
+const RINGTONE_FREQUENCY = 440; // A4 note
+const RINGBACK_FREQUENCY = 480; // B4 note
+const CALL_END_FREQUENCY = 300; // D#4 note
+
 interface DirectCallModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -34,8 +42,8 @@ interface DirectCallModalProps {
   currentUserId: string;
   currentUserName: string;
   threadId: string;
-  isInitiator: boolean; // true if this user started the call
-  incomingOffer?: RTCSessionDescriptionInit; // offer from parent component for receivers
+  isInitiator: boolean;
+  incomingOffer?: RTCSessionDescriptionInit;
 }
 
 type CallStatus =
@@ -59,52 +67,329 @@ export function DirectCallModal({
   isInitiator,
   incomingOffer,
 }: DirectCallModalProps) {
+  // Session ID for debugging
+  const sessionIdRef = useRef<string>(generateSessionId());
+
+  // Debug: Only log when modal is actually open (with session ID)
+  useEffect(() => {
+    if (isOpen) {
+      console.log(
+        `[DirectCall:${sessionIdRef.current}] Modal opened with props:`,
+        {
+          callType,
+          otherUserId: otherUser.id,
+          isInitiator,
+          hasIncomingOffer: !!incomingOffer,
+          threadId,
+        }
+      );
+    }
+  }, [isOpen, callType, otherUser.id, isInitiator, incomingOffer, threadId]);
+
   const [callStatus, setCallStatus] = useState<CallStatus>("initializing");
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoEnabled, setIsVideoEnabled] = useState(callType === "video");
   const [isSpeakerOn, setIsSpeakerOn] = useState(true);
   const [callDuration, setCallDuration] = useState(0);
-  const [connectionQuality, setConnectionQuality] = useState<
-    "excellent" | "good" | "fair" | "poor"
-  >("good");
+  const [isReady, setIsReady] = useState(false);
+  const [isChannelReady, setIsChannelReady] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
 
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const channelRef = useRef<ReturnType<
     ReturnType<typeof createClient>["channel"]
   > | null>(null);
+  const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null);
   const callStartTimeRef = useRef<number>(0);
   const durationIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const incomingOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
   const pendingIceCandidatesRef = useRef<RTCIceCandidate[]>([]);
 
-  // Define all functions before useEffect using useCallback
-  const cleanup = useCallback(() => {
-    // Stop duration timer
-    if (durationIntervalRef.current) {
-      clearInterval(durationIntervalRef.current);
+  // Sound refs
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const ringtoneOscillatorRef = useRef<OscillatorNode | null>(null);
+  const ringtoneIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const ringbackIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Key refs for preventing double cleanup and tracking call state
+  const isInitializedRef = useRef(false);
+  const isMountedRef = useRef(true);
+  const isCleanedUpRef = useRef(false);
+  const hasCallStartedRef = useRef(false);
+  const userInitiatedEndRef = useRef(false);
+  const initializationPromiseRef = useRef<Promise<void> | null>(null);
+
+  // Store incoming offer in ref immediately
+  useEffect(() => {
+    if (incomingOffer) {
+      incomingOfferRef.current = incomingOffer;
+      console.log("[DirectCall] Stored incoming offer in ref");
+    }
+  }, [incomingOffer]);
+
+  // Initialize audio context
+  const getAudioContext = useCallback(() => {
+    if (!audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext })
+          .webkitAudioContext)();
+    }
+    return audioContextRef.current;
+  }, []);
+
+  // Play a simple tone
+  const playTone = useCallback(
+    (frequency: number, duration: number, volume: number = 0.3) => {
+      try {
+        const ctx = getAudioContext();
+        const oscillator = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+
+        oscillator.connect(gainNode);
+        gainNode.connect(ctx.destination);
+
+        oscillator.frequency.value = frequency;
+        oscillator.type = "sine";
+        gainNode.gain.value = volume;
+
+        // Fade out at the end
+        gainNode.gain.setValueAtTime(volume, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(
+          0.01,
+          ctx.currentTime + duration
+        );
+
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + duration);
+      } catch (e) {
+        console.warn("[DirectCall] Failed to play tone:", e);
+      }
+    },
+    [getAudioContext]
+  );
+
+  // Start ringtone (incoming call) - plays a pattern
+  const startRingtone = useCallback(() => {
+    console.log("[DirectCall] Starting ringtone");
+    // Clear existing intervals directly instead of calling stopAllSounds
+    if (ringtoneIntervalRef.current) {
+      clearInterval(ringtoneIntervalRef.current);
+      ringtoneIntervalRef.current = null;
+    }
+    if (ringbackIntervalRef.current) {
+      clearInterval(ringbackIntervalRef.current);
+      ringbackIntervalRef.current = null;
     }
 
-    // Stop all tracks
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((track) => track.stop());
+    const playRingPattern = () => {
+      // Play two quick tones
+      playTone(RINGTONE_FREQUENCY, 0.3, 0.4);
+      setTimeout(() => playTone(RINGTONE_FREQUENCY * 1.25, 0.3, 0.4), 350);
+    };
+
+    playRingPattern(); // Play immediately
+    ringtoneIntervalRef.current = setInterval(playRingPattern, 2000); // Repeat every 2 seconds
+  }, [playTone]);
+
+  // Start ringback tone (outgoing call waiting for answer)
+  const startRingback = useCallback(() => {
+    console.log("[DirectCall] Starting ringback tone");
+    // Clear existing intervals directly
+    if (ringtoneIntervalRef.current) {
+      clearInterval(ringtoneIntervalRef.current);
+      ringtoneIntervalRef.current = null;
+    }
+    if (ringbackIntervalRef.current) {
+      clearInterval(ringbackIntervalRef.current);
+      ringbackIntervalRef.current = null;
     }
 
-    // Close peer connection
-    if (peerConnectionRef.current) {
-      peerConnectionRef.current.close();
-    }
+    const playRingbackPattern = () => {
+      playTone(RINGBACK_FREQUENCY, 0.8, 0.2);
+    };
 
-    // Unsubscribe from channel
-    if (channelRef.current) {
-      channelRef.current.unsubscribe();
+    playRingbackPattern();
+    ringbackIntervalRef.current = setInterval(playRingbackPattern, 3000);
+  }, [playTone]);
+
+  // Play call connected sound
+  const playConnectedSound = useCallback(() => {
+    console.log("[DirectCall] Playing connected sound");
+    playTone(523.25, 0.15, 0.3); // C5
+    setTimeout(() => playTone(659.25, 0.15, 0.3), 150); // E5
+    setTimeout(() => playTone(783.99, 0.2, 0.3), 300); // G5
+  }, [playTone]);
+
+  // Play call end sound
+  const playEndSound = useCallback(() => {
+    console.log("[DirectCall] Playing end sound");
+    playTone(CALL_END_FREQUENCY, 0.3, 0.25);
+    setTimeout(() => playTone(CALL_END_FREQUENCY * 0.8, 0.4, 0.2), 350);
+  }, [playTone]);
+
+  // Play declined sound
+  const playDeclinedSound = useCallback(() => {
+    console.log("[DirectCall] Playing declined sound");
+    playTone(350, 0.2, 0.25);
+    setTimeout(() => playTone(300, 0.2, 0.25), 250);
+    setTimeout(() => playTone(250, 0.3, 0.2), 500);
+  }, [playTone]);
+
+  // Stop all sounds
+  const stopAllSounds = useCallback(() => {
+    if (ringtoneIntervalRef.current) {
+      clearInterval(ringtoneIntervalRef.current);
+      ringtoneIntervalRef.current = null;
+    }
+    if (ringbackIntervalRef.current) {
+      clearInterval(ringbackIntervalRef.current);
+      ringbackIntervalRef.current = null;
+    }
+    if (ringtoneOscillatorRef.current) {
+      try {
+        ringtoneOscillatorRef.current.stop();
+      } catch {
+        // Oscillator may already be stopped
+      }
+      ringtoneOscillatorRef.current = null;
     }
   }, []);
 
+  // Handle call status changes for sounds
+  useEffect(() => {
+    if (!isOpen) return;
+
+    switch (callStatus) {
+      case "ringing":
+        startRingtone();
+        break;
+      case "calling":
+        startRingback();
+        break;
+      case "connected":
+        stopAllSounds();
+        playConnectedSound();
+        break;
+      case "ended":
+        stopAllSounds();
+        playEndSound();
+        break;
+      case "declined":
+        stopAllSounds();
+        playDeclinedSound();
+        break;
+      case "failed":
+        stopAllSounds();
+        playEndSound();
+        break;
+      default:
+        break;
+    }
+
+    return () => {
+      // Don't stop sounds on every status change, only when component unmounts
+    };
+  }, [
+    callStatus,
+    isOpen,
+    startRingtone,
+    startRingback,
+    playConnectedSound,
+    playEndSound,
+    playDeclinedSound,
+    stopAllSounds,
+  ]);
+
+  const cleanup = useCallback(
+    async (sendEndSignal: boolean = false) => {
+      const sessionId = sessionIdRef.current;
+
+      // Prevent double cleanup
+      if (isCleanedUpRef.current) {
+        console.log(`[DirectCall:${sessionId}] Already cleaned up, skipping`);
+        return;
+      }
+      isCleanedUpRef.current = true;
+
+      console.log(`[DirectCall:${sessionId}] Cleaning up...`, {
+        sendEndSignal,
+        hasCallStarted: hasCallStartedRef.current,
+        hasChannel: !!channelRef.current,
+      });
+
+      // Stop all notification sounds
+      stopAllSounds();
+
+      // Only send call-end if user explicitly ended AND call had started
+      if (sendEndSignal && hasCallStartedRef.current && channelRef.current) {
+        console.log(`[DirectCall:${sessionId}] Sending call-end event`);
+        try {
+          await channelRef.current.send({
+            type: "broadcast",
+            event: "call-end",
+            payload: {
+              fromUserId: currentUserId,
+              toUserId: otherUser.id,
+              sessionId,
+            },
+          });
+          // Small delay to ensure message is sent before cleanup
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        } catch (e) {
+          console.warn(`[DirectCall:${sessionId}] Failed to send call-end:`, e);
+        }
+      }
+
+      // Stop duration timer
+      if (durationIntervalRef.current) {
+        clearInterval(durationIntervalRef.current);
+        durationIntervalRef.current = null;
+      }
+
+      // Stop all tracks
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach((track) => {
+          track.stop();
+          console.log(`[DirectCall:${sessionId}] Stopped track:`, track.kind);
+        });
+        localStreamRef.current = null;
+      }
+
+      // Close peer connection
+      if (peerConnectionRef.current) {
+        peerConnectionRef.current.close();
+        peerConnectionRef.current = null;
+        console.log(`[DirectCall:${sessionId}] Closed peer connection`);
+      }
+
+      // Unsubscribe from channel with proper removal
+      if (channelRef.current && supabaseRef.current) {
+        try {
+          await supabaseRef.current.removeChannel(channelRef.current);
+          console.log(`[DirectCall:${sessionId}] Removed channel`);
+        } catch (e) {
+          console.warn(
+            `[DirectCall:${sessionId}] Failed to remove channel:`,
+            e
+          );
+        }
+        channelRef.current = null;
+      }
+
+      pendingIceCandidatesRef.current = [];
+      setConnectionError(null);
+    },
+    [currentUserId, otherUser.id, stopAllSounds]
+  );
+
   const startDurationTimer = useCallback(() => {
+    if (durationIntervalRef.current) return;
+    callStartTimeRef.current = Date.now();
     durationIntervalRef.current = setInterval(() => {
       const elapsed = Math.floor(
         (Date.now() - callStartTimeRef.current) / 1000
@@ -113,94 +398,220 @@ export function DirectCallModal({
     }, 1000);
   }, []);
 
-  const terminateCall = useCallback(() => {
-    cleanup();
+  const handleEndCall = useCallback(async () => {
+    console.log(`[DirectCall:${sessionIdRef.current}] User clicked end call`);
+    userInitiatedEndRef.current = true;
+    await cleanup(true); // Send end signal
     onClose();
   }, [cleanup, onClose]);
 
-  const handleEndCall = useCallback(() => {
-    if (channelRef.current && callStatus !== "ended") {
-      console.log("Sending call-end event");
-      channelRef.current.send({
-        type: "broadcast",
-        event: "call-end",
-        payload: {
-          fromUserId: currentUserId,
-          toUserId: otherUser.id,
-        },
-      });
+  const handleAnswer = useCallback(async () => {
+    const sessionId = sessionIdRef.current;
+    const offer = incomingOfferRef.current;
+
+    if (!peerConnectionRef.current || !offer) {
+      console.error(
+        `[DirectCall:${sessionId}] Cannot answer: no peer connection or offer`,
+        {
+          hasPc: !!peerConnectionRef.current,
+          hasOffer: !!offer,
+        }
+      );
+      toast.error("Cannot answer call - connection not ready");
+      return;
     }
-    terminateCall();
-  }, [callStatus, currentUserId, otherUser.id, terminateCall]);
 
-  const handleAnswer = useCallback(
-    async (offer: RTCSessionDescriptionInit) => {
-      if (!peerConnectionRef.current) return;
+    try {
+      console.log(`[DirectCall:${sessionId}] Answering call...`);
 
-      try {
-        console.log("Setting remote description and creating answer");
-        await peerConnectionRef.current.setRemoteDescription(
-          new RTCSessionDescription(offer)
+      // Check signaling state before setting remote description
+      if (peerConnectionRef.current.signalingState !== "stable") {
+        console.warn(
+          `[DirectCall:${sessionId}] Unexpected signaling state:`,
+          peerConnectionRef.current.signalingState
         );
-
-        // Process any pending ICE candidates
-        console.log(
-          "Processing pending ICE candidates:",
-          pendingIceCandidatesRef.current.length
-        );
-        for (const candidate of pendingIceCandidatesRef.current) {
-          await peerConnectionRef.current.addIceCandidate(candidate);
-        }
-        pendingIceCandidatesRef.current = [];
-
-        const answer = await peerConnectionRef.current.createAnswer();
-        await peerConnectionRef.current.setLocalDescription(answer);
-
-        if (channelRef.current) {
-          channelRef.current.send({
-            type: "broadcast",
-            event: "call-answer",
-            payload: {
-              answer,
-              fromUserId: currentUserId,
-              toUserId: otherUser.id,
-            },
-          });
-        }
-
-        setCallStatus("connected");
-      } catch (error) {
-        console.error("Failed to answer call:", error);
-        toast.error("Failed to answer call");
-        setCallStatus("failed");
       }
-    },
-    [currentUserId, otherUser.id]
-  );
 
-  // Initialize call
-  useEffect(() => {
-    if (!isOpen) return;
+      await peerConnectionRef.current.setRemoteDescription(
+        new RTCSessionDescription(offer)
+      );
+      console.log(
+        `[DirectCall:${sessionId}] Remote description set from offer`
+      );
 
-    const initializeCall = async () => {
-      if (!isWebRTCSupported()) {
-        toast.error("Your browser doesn't support voice/video calls");
+      // Process pending ICE candidates
+      console.log(
+        `[DirectCall:${sessionId}] Processing ${pendingIceCandidatesRef.current.length} pending ICE candidates`
+      );
+      for (const candidate of pendingIceCandidatesRef.current) {
+        try {
+          await peerConnectionRef.current.addIceCandidate(candidate);
+        } catch (e) {
+          console.warn(
+            `[DirectCall:${sessionId}] Failed to add pending ICE candidate:`,
+            e
+          );
+        }
+      }
+      pendingIceCandidatesRef.current = [];
+
+      const answer = await peerConnectionRef.current.createAnswer();
+      await peerConnectionRef.current.setLocalDescription(answer);
+      console.log(
+        `[DirectCall:${sessionId}] Local description set with answer`
+      );
+
+      if (channelRef.current) {
+        console.log(
+          `[DirectCall:${sessionId}] Sending call-answer to:`,
+          otherUser.id
+        );
+        await channelRef.current.send({
+          type: "broadcast",
+          event: "call-answer",
+          payload: {
+            answer,
+            fromUserId: currentUserId,
+            toUserId: otherUser.id,
+            sessionId,
+          },
+        });
+        console.log(`[DirectCall:${sessionId}] ✅ Answer sent successfully`);
+      } else {
+        console.error(
+          `[DirectCall:${sessionId}] No channel available to send answer`
+        );
+        toast.error("Connection error - please try again");
         setCallStatus("failed");
         return;
       }
 
-      // Set status to ringing for receivers
+      setCallStatus("connected");
+      startDurationTimer();
+    } catch (error) {
+      console.error(`[DirectCall:${sessionId}] Failed to answer call:`, error);
+      toast.error("Failed to answer call");
+      setCallStatus("failed");
+      setConnectionError("Failed to answer");
+    }
+  }, [currentUserId, otherUser.id, startDurationTimer]);
+
+  const handleDeclineCall = useCallback(async () => {
+    const sessionId = sessionIdRef.current;
+    console.log(`[DirectCall:${sessionId}] Declining call`);
+    userInitiatedEndRef.current = true;
+
+    if (channelRef.current) {
+      try {
+        await channelRef.current.send({
+          type: "broadcast",
+          event: "call-declined",
+          payload: {
+            fromUserId: currentUserId,
+            toUserId: otherUser.id,
+            sessionId,
+          },
+        });
+        // Small delay to ensure message is sent
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      } catch (e) {
+        console.warn(`[DirectCall:${sessionId}] Failed to send decline:`, e);
+      }
+    }
+    await cleanup(false); // Don't send end signal for decline
+    onClose();
+  }, [currentUserId, otherUser.id, cleanup, onClose]);
+
+  // Main initialization effect
+  useEffect(() => {
+    if (!isOpen) return;
+
+    // Check if already initialized or initialization in progress
+    if (isInitializedRef.current || initializationPromiseRef.current) {
+      console.log(
+        `[DirectCall:${sessionIdRef.current}] Already initialized or initializing, skipping`
+      );
+      return;
+    }
+
+    // Generate new session ID for this call
+    sessionIdRef.current = generateSessionId();
+    const sessionId = sessionIdRef.current;
+
+    // Reset flags for new call
+    isCleanedUpRef.current = false;
+    isMountedRef.current = true;
+    isInitializedRef.current = true;
+    hasCallStartedRef.current = false;
+    userInitiatedEndRef.current = false;
+
+    const initializeCall = async () => {
+      console.log(`[DirectCall:${sessionId}] Initializing...`, {
+        isInitiator,
+        hasIncomingOffer: !!incomingOffer,
+        callType,
+        threadId,
+      });
+
+      if (!isWebRTCSupported()) {
+        toast.error("Your browser doesn't support voice/video calls");
+        setCallStatus("failed");
+        setConnectionError("WebRTC not supported");
+        return;
+      }
+
+      // Set initial status for receiver
       if (!isInitiator && incomingOffer) {
+        incomingOfferRef.current = incomingOffer;
         setCallStatus("ringing");
+        hasCallStartedRef.current = true;
       }
 
       try {
         // Request media access
+        console.log(`[DirectCall:${sessionId}] Requesting media access...`);
         const constraints = getMediaConstraints(callType === "audio");
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        localStreamRef.current = stream;
+        let stream: MediaStream;
 
-        // Display local video if video call
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(constraints);
+        } catch (mediaError: unknown) {
+          console.error(
+            `[DirectCall:${sessionId}] Media access failed:`,
+            mediaError
+          );
+          const errorName =
+            mediaError instanceof Error ? mediaError.name : "Unknown";
+          if (errorName === "NotAllowedError") {
+            toast.error(
+              "Microphone access denied. Please allow access and try again."
+            );
+            setConnectionError("Microphone access denied");
+          } else if (errorName === "NotFoundError") {
+            toast.error("No microphone found. Please connect a microphone.");
+            setConnectionError("No microphone found");
+          } else {
+            toast.error("Failed to access microphone");
+            setConnectionError("Media access failed");
+          }
+          setCallStatus("failed");
+          return;
+        }
+
+        if (!isMountedRef.current || isCleanedUpRef.current) {
+          console.log(
+            `[DirectCall:${sessionId}] Component unmounted during media request, cleaning up`
+          );
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+
+        localStreamRef.current = stream;
+        console.log(
+          `[DirectCall:${sessionId}] Got local stream:`,
+          stream.getTracks().map((t) => t.kind)
+        );
+
         if (localVideoRef.current && callType === "video") {
           localVideoRef.current.srcObject = stream;
         }
@@ -209,28 +620,39 @@ export function DirectCallModal({
         const pc = new RTCPeerConnection(getRTCConfiguration());
         peerConnectionRef.current = pc;
 
-        // Add local stream to peer connection
         stream.getTracks().forEach((track) => {
           pc.addTrack(track, stream);
         });
 
         // Handle remote stream
         pc.ontrack = (event) => {
-          console.log("Received remote track:", event.track.kind);
-          if (remoteStreamRef.current) {
-            remoteStreamRef.current.addTrack(event.track);
-          } else {
-            remoteStreamRef.current = event.streams[0];
-          }
+          console.log(
+            `[DirectCall:${sessionId}] Received remote track:`,
+            event.track.kind
+          );
+          remoteStreamRef.current = event.streams[0];
 
           if (remoteVideoRef.current) {
-            remoteVideoRef.current.srcObject = remoteStreamRef.current;
+            remoteVideoRef.current.srcObject = event.streams[0];
+          }
+
+          if (remoteAudioRef.current) {
+            remoteAudioRef.current.srcObject = event.streams[0];
+            remoteAudioRef.current
+              .play()
+              .catch((e) =>
+                console.warn(
+                  `[DirectCall:${sessionId}] Audio autoplay blocked:`,
+                  e
+                )
+              );
           }
         };
 
         // Handle ICE candidates
         pc.onicecandidate = (event) => {
           if (event.candidate && channelRef.current) {
+            console.log(`[DirectCall:${sessionId}] Sending ICE candidate`);
             channelRef.current.send({
               type: "broadcast",
               event: "ice-candidate",
@@ -238,156 +660,310 @@ export function DirectCallModal({
                 candidate: event.candidate,
                 fromUserId: currentUserId,
                 toUserId: otherUser.id,
+                sessionId,
               },
             });
           }
         };
 
-        // Handle connection state changes
-        pc.onconnectionstatechange = () => {
-          console.log("Connection state:", pc.connectionState);
-          if (pc.connectionState === "connected") {
-            setCallStatus("connected");
-            callStartTimeRef.current = Date.now();
-            startDurationTimer();
-          } else if (
-            pc.connectionState === "disconnected" ||
-            pc.connectionState === "failed"
-          ) {
-            setCallStatus("ended");
-            handleEndCall();
+        pc.oniceconnectionstatechange = () => {
+          console.log(
+            `[DirectCall:${sessionId}] ICE state:`,
+            pc.iceConnectionState
+          );
+          if (pc.iceConnectionState === "failed") {
+            console.error(`[DirectCall:${sessionId}] ICE connection failed`);
+            setConnectionError("Connection failed - network issue");
           }
         };
 
-        // Setup Supabase channel for signaling
+        pc.onconnectionstatechange = () => {
+          console.log(
+            `[DirectCall:${sessionId}] Connection state:`,
+            pc.connectionState
+          );
+          if (pc.connectionState === "connected") {
+            setCallStatus("connected");
+            setConnectionError(null);
+            startDurationTimer();
+            toast.success("Call connected!");
+          } else if (pc.connectionState === "disconnected") {
+            console.log(`[DirectCall:${sessionId}] Peer disconnected`);
+            if (!isCleanedUpRef.current) {
+              setConnectionError("Connection lost - trying to reconnect...");
+              // Give some time for reconnection before giving up
+              setTimeout(() => {
+                if (
+                  peerConnectionRef.current?.connectionState ===
+                    "disconnected" &&
+                  !isCleanedUpRef.current
+                ) {
+                  setCallStatus("ended");
+                  toast.info("Call ended - connection lost");
+                  cleanup(false);
+                  onClose();
+                }
+              }, 5000);
+            }
+          } else if (pc.connectionState === "failed") {
+            if (!isCleanedUpRef.current) {
+              setCallStatus("failed");
+              setConnectionError("Connection failed");
+              toast.error("Call failed - could not establish connection");
+              cleanup(false);
+              onClose();
+            }
+          }
+        };
+
+        // For receiver, set isReady now since we have media and PC ready
+        if (!isInitiator && incomingOffer) {
+          console.log(
+            `[DirectCall:${sessionId}] Receiver ready to answer (media + PC ready)`
+          );
+          setIsReady(true);
+        }
+
+        // Setup signaling channel with unique name to avoid conflicts
         const supabase = createClient();
-        const channel = supabase.channel(`dm-call:${threadId}`);
+        supabaseRef.current = supabase;
+
+        // Use a unique channel name per call to avoid conflicts with the listener in EnhancedDirectMessageChat
+        const channelName = `dm-call:${threadId}`;
+        const channel = supabase.channel(channelName, {
+          config: {
+            broadcast: { self: false },
+          },
+        });
         channelRef.current = channel;
 
         channel
-          .on("broadcast", { event: "call-offer" }, async ({ payload }) => {
-            // Only process if we're the initiator (shouldn't happen, but just in case)
-            // Receivers get the offer from the parent component's listener
-            if (payload.toUserId !== currentUserId || !isInitiator) return;
-            console.log("Received call offer");
-
-            // Store the offer for when user clicks answer
-            incomingOfferRef.current = payload.offer;
-            setCallStatus("ringing");
-          })
           .on("broadcast", { event: "call-answer" }, async ({ payload }) => {
-            if (payload.toUserId !== currentUserId) return;
-            console.log("Received call answer");
-
-            await pc.setRemoteDescription(
-              new RTCSessionDescription(payload.answer)
+            if (
+              payload.toUserId !== currentUserId ||
+              !peerConnectionRef.current
+            ) {
+              console.log(
+                `[DirectCall:${sessionId}] Ignoring answer not for us`
+              );
+              return;
+            }
+            console.log(
+              `[DirectCall:${sessionId}] Received answer from:`,
+              payload.fromUserId
             );
-            setCallStatus("connected");
+
+            try {
+              if (
+                peerConnectionRef.current.signalingState !== "have-local-offer"
+              ) {
+                console.warn(
+                  `[DirectCall:${sessionId}] Unexpected signaling state:`,
+                  peerConnectionRef.current.signalingState
+                );
+                return;
+              }
+
+              await peerConnectionRef.current.setRemoteDescription(
+                new RTCSessionDescription(payload.answer)
+              );
+              console.log(`[DirectCall:${sessionId}] Remote description set`);
+
+              // Process pending ICE candidates
+              for (const candidate of pendingIceCandidatesRef.current) {
+                try {
+                  await peerConnectionRef.current.addIceCandidate(candidate);
+                } catch (e) {
+                  console.warn(
+                    `[DirectCall:${sessionId}] Failed to add pending ICE candidate:`,
+                    e
+                  );
+                }
+              }
+              pendingIceCandidatesRef.current = [];
+
+              setCallStatus("connected");
+              startDurationTimer();
+            } catch (error) {
+              console.error(
+                `[DirectCall:${sessionId}] Failed to process answer:`,
+                error
+              );
+              setConnectionError("Failed to process answer");
+            }
           })
           .on("broadcast", { event: "ice-candidate" }, async ({ payload }) => {
             if (payload.toUserId !== currentUserId) return;
-            console.log("Received ICE candidate");
 
-            if (payload.candidate) {
+            if (payload.candidate && peerConnectionRef.current) {
               const candidate = new RTCIceCandidate(payload.candidate);
+              console.log(`[DirectCall:${sessionId}] Received ICE candidate`);
 
-              // If remote description is set, add candidate immediately
-              // Otherwise, queue it for later
-              if (pc.remoteDescription) {
-                await pc.addIceCandidate(candidate);
+              if (peerConnectionRef.current.remoteDescription) {
+                try {
+                  await peerConnectionRef.current.addIceCandidate(candidate);
+                } catch (e) {
+                  console.warn(
+                    `[DirectCall:${sessionId}] Failed to add ICE candidate:`,
+                    e
+                  );
+                }
               } else {
-                console.log(
-                  "Queueing ICE candidate (no remote description yet)"
-                );
                 pendingIceCandidatesRef.current.push(candidate);
+                console.log(
+                  `[DirectCall:${sessionId}] Queued ICE candidate, total:`,
+                  pendingIceCandidatesRef.current.length
+                );
               }
             }
           })
           .on("broadcast", { event: "call-end" }, ({ payload }) => {
-            console.log("Received call-end event", payload);
             if (payload.toUserId !== currentUserId) return;
-
-            console.log("Call ended by other user");
-            setCallStatus("ended");
-            terminateCall();
+            console.log(`[DirectCall:${sessionId}] Call ended by other user`);
+            if (!isCleanedUpRef.current) {
+              setCallStatus("ended");
+              toast.info("Call ended by other user");
+              cleanup(false);
+              onClose();
+            }
           })
           .on("broadcast", { event: "call-declined" }, ({ payload }) => {
             if (payload.toUserId !== currentUserId) return;
-            console.log("Call declined");
-            setCallStatus("declined");
-            setTimeout(() => onClose(), 2000);
+            console.log(`[DirectCall:${sessionId}] Call declined`);
+            if (!isCleanedUpRef.current) {
+              setCallStatus("declined");
+              toast.info("Call was declined");
+              setTimeout(() => {
+                cleanup(false);
+                onClose();
+              }, 2000);
+            }
           })
-          .subscribe();
+          .subscribe(async (status) => {
+            console.log(`[DirectCall:${sessionId}] Channel status:`, status);
 
-        // If initiator, create and send offer
-        if (isInitiator) {
-          setCallStatus("calling");
-          const offer = await pc.createOffer();
-          await pc.setLocalDescription(offer);
+            if (status === "SUBSCRIBED") {
+              console.log(
+                `[DirectCall:${sessionId}] ✅ Successfully subscribed to signaling channel`
+              );
+              setIsChannelReady(true);
 
-          channel.send({
-            type: "broadcast",
-            event: "call-offer",
-            payload: {
-              offer,
-              fromUserId: currentUserId,
-              fromUserName: currentUserName,
-              toUserId: otherUser.id,
-              callType,
-            },
+              // For initiator, send offer after channel is ready
+              if (isInitiator && !hasCallStartedRef.current) {
+                setIsReady(true);
+                try {
+                  setCallStatus("calling");
+
+                  // Small delay to ensure receiver's channel is also ready
+                  await new Promise((resolve) => setTimeout(resolve, 500));
+
+                  if (!isMountedRef.current || isCleanedUpRef.current) {
+                    console.log(
+                      `[DirectCall:${sessionId}] Aborted - component unmounted`
+                    );
+                    return;
+                  }
+
+                  const offer = await pc.createOffer();
+                  await pc.setLocalDescription(offer);
+
+                  hasCallStartedRef.current = true;
+                  console.log(
+                    `[DirectCall:${sessionId}] 📞 Sending call-offer to:`,
+                    otherUser.id
+                  );
+
+                  await channel.send({
+                    type: "broadcast",
+                    event: "call-offer",
+                    payload: {
+                      offer,
+                      fromUserId: currentUserId,
+                      fromUserName: currentUserName,
+                      toUserId: otherUser.id,
+                      callType,
+                      sessionId,
+                    },
+                  });
+                  console.log(
+                    `[DirectCall:${sessionId}] ✅ Call offer sent successfully`
+                  );
+                } catch (error) {
+                  console.error(
+                    `[DirectCall:${sessionId}] Failed to create/send offer:`,
+                    error
+                  );
+                  setCallStatus("failed");
+                  setConnectionError("Failed to start call");
+                  toast.error("Failed to start call");
+                }
+              } else if (!isInitiator) {
+                console.log(
+                  `[DirectCall:${sessionId}] Receiver channel subscribed - ready to answer`
+                );
+                setIsChannelReady(true);
+              }
+            } else if (status === "CHANNEL_ERROR") {
+              console.error(`[DirectCall:${sessionId}] ❌ Channel error`);
+              setCallStatus("failed");
+              setConnectionError("Signaling channel error");
+              toast.error("Connection failed - please try again");
+            } else if (status === "TIMED_OUT") {
+              console.error(`[DirectCall:${sessionId}] ❌ Channel timed out`);
+              setCallStatus("failed");
+              setConnectionError("Connection timed out");
+              toast.error("Connection timed out - please try again");
+            }
           });
-        }
       } catch (error) {
-        console.error("Failed to initialize call:", error);
+        console.error(
+          `[DirectCall:${sessionId}] Initialization failed:`,
+          error
+        );
         toast.error("Failed to start call. Please check your permissions.");
         setCallStatus("failed");
+        setConnectionError("Initialization failed");
       }
     };
 
-    initializeCall();
+    // Store the promise to prevent double initialization
+    initializationPromiseRef.current = initializeCall();
 
+    // Cleanup function
     return () => {
-      cleanup();
+      console.log(`[DirectCall:${sessionId}] useEffect cleanup triggered`);
+      isMountedRef.current = false;
+      initializationPromiseRef.current = null;
+
+      if (!userInitiatedEndRef.current && !isCleanedUpRef.current) {
+        console.log(
+          `[DirectCall:${sessionId}] Cleanup without user action - not sending call-end`
+        );
+        cleanup(false);
+      }
     };
-  }, [
-    isOpen,
-    isInitiator,
-    callType,
-    currentUserId,
-    currentUserName,
-    otherUser.id,
-    threadId,
-    cleanup,
-    handleAnswer,
-    handleEndCall,
-    startDurationTimer,
-    onClose,
-    terminateCall,
-  ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
-  // Update incoming offer ref when prop changes (separate effect to avoid re-initialization)
+  // Reset state when modal closes
   useEffect(() => {
-    if (incomingOffer && !isInitiator) {
-      incomingOfferRef.current = incomingOffer;
-      console.log("Stored incoming offer in ref");
-    }
-  }, [incomingOffer, isInitiator]);
+    if (!isOpen) {
+      // Stop all sounds when modal closes
+      stopAllSounds();
 
-  const handleDeclineCall = () => {
-    if (channelRef.current) {
-      channelRef.current.send({
-        type: "broadcast",
-        event: "call-declined",
-        payload: {
-          fromUserId: currentUserId,
-          toUserId: otherUser.id,
-        },
-      });
+      // Reset all state when modal closes
+      isInitializedRef.current = false;
+      initializationPromiseRef.current = null;
+      setIsChannelReady(false);
+      setCallStatus("initializing");
+      setIsReady(false);
+      setCallDuration(0);
+      setConnectionError(null);
+      setIsMuted(false);
+      setIsVideoEnabled(callType === "video");
+      setIsSpeakerOn(true);
     }
-
-    cleanup();
-    onClose();
-  };
+  }, [isOpen, callType, stopAllSounds]);
 
   const toggleMute = () => {
     if (localStreamRef.current) {
@@ -410,11 +986,14 @@ export function DirectCallModal({
   };
 
   const toggleSpeaker = () => {
-    setIsSpeakerOn(!isSpeakerOn);
-    // Note: Speaker control is limited in web browsers
-    toast.info(isSpeakerOn ? "Speaker muted" : "Speaker unmuted", {
-      duration: 1000,
-    });
+    const newValue = !isSpeakerOn;
+    setIsSpeakerOn(newValue);
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.muted = !newValue;
+    }
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.muted = !newValue;
+    }
   };
 
   const formatDuration = (seconds: number) => {
@@ -426,13 +1005,23 @@ export function DirectCallModal({
   };
 
   const getStatusText = () => {
+    // Show connection error if any
+    if (connectionError && callStatus !== "connected") {
+      return connectionError;
+    }
+
+    // Show specific status for initiator waiting for channel
+    if (isInitiator && callStatus === "initializing" && !isChannelReady) {
+      return "Setting up connection...";
+    }
+
     switch (callStatus) {
       case "initializing":
-        return "Initializing...";
+        return "Connecting...";
       case "calling":
-        return "Calling...";
+        return `Calling ${otherUser.name}...`;
       case "ringing":
-        return "Incoming call...";
+        return `Incoming ${callType} call...`;
       case "connected":
         return formatDuration(callDuration);
       case "ended":
@@ -442,22 +1031,9 @@ export function DirectCallModal({
       case "missed":
         return "Call missed";
       case "failed":
-        return "Call failed";
+        return connectionError || "Call failed";
       default:
         return "";
-    }
-  };
-
-  const getQualityColor = () => {
-    switch (connectionQuality) {
-      case "excellent":
-        return "bg-green-500";
-      case "good":
-        return "bg-blue-500";
-      case "fair":
-        return "bg-yellow-500";
-      case "poor":
-        return "bg-red-500";
     }
   };
 
@@ -465,8 +1041,9 @@ export function DirectCallModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+      <audio ref={remoteAudioRef} autoPlay playsInline />
+
       <div className="relative w-full max-w-2xl bg-[#2b2d31] rounded-lg shadow-2xl overflow-hidden">
-        {/* Close button */}
         <button
           onClick={handleEndCall}
           className="absolute top-4 right-4 z-10 text-gray-400 hover:text-white transition-colors"
@@ -474,31 +1051,27 @@ export function DirectCallModal({
           <X size={24} />
         </button>
 
-        {/* Video area */}
         <div className="relative aspect-video bg-[#1e1f22]">
           {callType === "video" ? (
             <>
-              {/* Remote video (main) */}
               <video
                 ref={remoteVideoRef}
                 autoPlay
                 playsInline
                 className="w-full h-full object-cover"
               />
-
-              {/* Local video (picture-in-picture) */}
               <div className="absolute bottom-4 right-4 w-32 h-24 bg-[#313338] rounded-lg overflow-hidden border-2 border-[#404249]">
                 <video
                   ref={localVideoRef}
                   autoPlay
                   playsInline
                   muted
-                  className="w-full h-full object-cover mirror"
+                  className="w-full h-full object-cover"
+                  style={{ transform: "scaleX(-1)" }}
                 />
               </div>
             </>
           ) : (
-            // Audio call - show avatar
             <div className="w-full h-full flex items-center justify-center">
               <div className="text-center">
                 <Avatar className="h-32 w-32 mx-auto mb-4">
@@ -510,34 +1083,25 @@ export function DirectCallModal({
                   {otherUser.name}
                 </h3>
                 <p className="text-gray-400 text-lg">{getStatusText()}</p>
+                {callStatus === "ringing" && (
+                  <p className="text-green-400 text-sm mt-2 animate-pulse">
+                    📞 Incoming {callType} call
+                  </p>
+                )}
               </div>
             </div>
           )}
 
-          {/* Connection quality indicator */}
           {callStatus === "connected" && (
             <div className="absolute top-4 left-4 flex items-center gap-2 bg-black/50 px-3 py-1.5 rounded-full">
-              <div className={`w-2 h-2 rounded-full ${getQualityColor()}`} />
-              <span className="text-white text-xs capitalize">
-                {connectionQuality}
-              </span>
-            </div>
-          )}
-
-          {/* Call duration (for video) */}
-          {callType === "video" && callStatus === "connected" && (
-            <div className="absolute top-4 right-4 bg-black/50 px-3 py-1.5 rounded-full">
-              <span className="text-white text-sm font-medium">
-                {formatDuration(callDuration)}
-              </span>
+              <div className="w-2 h-2 rounded-full bg-green-500" />
+              <span className="text-white text-xs">Connected</span>
             </div>
           )}
         </div>
 
-        {/* Controls */}
         <div className="p-6 bg-[#2b2d31]">
           <div className="flex items-center justify-center gap-4">
-            {/* Mute button */}
             <Button
               onClick={toggleMute}
               variant="ghost"
@@ -551,7 +1115,6 @@ export function DirectCallModal({
               {isMuted ? <MicOff size={24} /> : <Mic size={24} />}
             </Button>
 
-            {/* Video toggle (only for video calls) */}
             {callType === "video" && (
               <Button
                 onClick={toggleVideo}
@@ -567,7 +1130,20 @@ export function DirectCallModal({
               </Button>
             )}
 
-            {/* End call button */}
+            {/* Answer button for receiver */}
+            {callStatus === "ringing" && !isInitiator && (
+              <Button
+                onClick={handleAnswer}
+                variant="ghost"
+                size="lg"
+                className="rounded-full w-14 h-14 bg-green-500 hover:bg-green-600 text-white animate-pulse"
+                disabled={!isReady}
+              >
+                <Phone size={24} />
+              </Button>
+            )}
+
+            {/* End/Decline call button */}
             <Button
               onClick={
                 callStatus === "ringing" && !isInitiator
@@ -581,7 +1157,6 @@ export function DirectCallModal({
               <PhoneOff size={24} />
             </Button>
 
-            {/* Speaker toggle */}
             <Button
               onClick={toggleSpeaker}
               variant="ghost"
@@ -594,38 +1169,18 @@ export function DirectCallModal({
             >
               {isSpeakerOn ? <Volume2 size={24} /> : <VolumeX size={24} />}
             </Button>
-
-            {/* Answer button (only when ringing and not initiator) */}
-            {callStatus === "ringing" && !isInitiator && (
-              <Button
-                onClick={() => {
-                  if (incomingOfferRef.current) {
-                    handleAnswer(incomingOfferRef.current);
-                  } else {
-                    toast.error("No incoming call to answer");
-                  }
-                }}
-                variant="ghost"
-                size="lg"
-                className="rounded-full w-14 h-14 bg-green-500 hover:bg-green-600 text-white"
-              >
-                <Phone size={24} />
-              </Button>
-            )}
           </div>
 
-          {/* Status text */}
           <div className="text-center mt-4">
             <p className="text-gray-400 text-sm">{getStatusText()}</p>
+            {!isReady && callStatus === "ringing" && (
+              <p className="text-yellow-400 text-xs mt-1">
+                Setting up connection...
+              </p>
+            )}
           </div>
         </div>
       </div>
-
-      <style jsx>{`
-        .mirror {
-          transform: scaleX(-1);
-        }
-      `}</style>
     </div>
   );
 }

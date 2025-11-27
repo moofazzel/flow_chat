@@ -80,6 +80,17 @@ export function EnhancedDirectMessageChat({
   const { isCallModalOpen, callType, isInitiator, incomingOffer } =
     useAppSelector((state) => state.call);
 
+  // Debug: Log Redux call state changes - only when modal opens
+  useEffect(() => {
+    if (isCallModalOpen) {
+      console.log("[EnhancedDMChat] Call modal opened:", {
+        callType,
+        isInitiator,
+        hasIncomingOffer: !!incomingOffer,
+      });
+    }
+  }, [isCallModalOpen, callType, isInitiator, incomingOffer]);
+
   // Use the broadcast-based realtime chat hook
   const {
     messages: realtimeMessages,
@@ -230,12 +241,35 @@ export function EnhancedDirectMessageChat({
     clearMessages,
   ]);
 
-  // Listen for incoming calls
+  // Listen for incoming calls - only when the call modal is NOT open
+  // This prevents conflicts with the DirectCallModal's signaling channel
   useEffect(() => {
-    if (!selectedDM?.threadId) return;
+    // Don't set up listener if modal is already open (DirectCallModal handles signaling)
+    if (isCallModalOpen) {
+      console.log("[CallListener] Call modal is open, skipping listener setup");
+      return;
+    }
+
+    if (!selectedDM?.threadId) {
+      console.log("[CallListener] No threadId, skipping call listener setup");
+      return;
+    }
+
+    console.log(
+      "[CallListener] Setting up call listener for thread:",
+      selectedDM.threadId
+    );
+    console.log("[CallListener] Current user ID:", currentUserId);
 
     const supabase = createClient();
-    const callChannel = supabase.channel(`dm-call:${selectedDM.threadId}`);
+    // Use the same channel name as DirectCallModal but with broadcast config to not conflict
+    const callChannel = supabase.channel(`dm-call:${selectedDM.threadId}`, {
+      config: {
+        broadcast: { self: false },
+      },
+    });
+
+    let isSubscribed = false;
 
     callChannel
       .on(
@@ -250,36 +284,90 @@ export function EnhancedDirectMessageChat({
             fromUserName: string;
             callType: "audio" | "video";
             offer: RTCSessionDescriptionInit;
+            sessionId?: string;
           };
         }) => {
+          // Double-check modal isn't open
+          if (isCallModalOpen) {
+            console.log("[CallListener] Modal opened, ignoring call-offer");
+            return;
+          }
+
+          console.log("[CallListener] Received call-offer event:", {
+            fromUserId: payload.fromUserId,
+            toUserId: payload.toUserId,
+            currentUserId,
+            isForMe: payload.toUserId === currentUserId,
+            callType: payload.callType,
+            sessionId: payload.sessionId,
+          });
+
           // Only respond if this call is for us
           if (payload.toUserId === currentUserId) {
-            console.log("Incoming call from:", payload.fromUserName);
+            console.log(
+              "[CallListener] ✅ Incoming call from:",
+              payload.fromUserName
+            );
 
             dispatch(
               receiveCall({
                 type: payload.callType,
                 userId: payload.fromUserId,
                 userName: payload.fromUserName,
-                userAvatar: "", // We might need to fetch this or pass it in payload
+                userAvatar: selectedDM.userAvatar || "",
                 threadId: selectedDM.threadId,
                 offer: payload.offer,
               })
             );
 
-            // Show notification
+            // Show notification with action
             toast.info(
-              `Incoming ${payload.callType} call from ${payload.fromUserName}`
+              `Incoming ${payload.callType} call from ${payload.fromUserName}`,
+              {
+                duration: 30000, // Keep notification for 30 seconds
+                action: {
+                  label: "Answer",
+                  onClick: () => {
+                    // The modal should already be open via dispatch
+                  },
+                },
+              }
             );
+          } else {
+            console.log("[CallListener] ❌ Call not for me, ignoring");
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log("[CallListener] Channel subscription status:", status);
+        if (status === "SUBSCRIBED") {
+          isSubscribed = true;
+          console.log(
+            "[CallListener] ✅ Successfully subscribed to call channel for thread:",
+            selectedDM.threadId
+          );
+        } else if (status === "CHANNEL_ERROR") {
+          console.error(
+            "[CallListener] ❌ Channel error - check Supabase realtime configuration"
+          );
+        }
+      });
 
     return () => {
-      callChannel.unsubscribe();
+      console.log("[CallListener] Unsubscribing from call channel");
+      if (isSubscribed) {
+        supabase.removeChannel(callChannel);
+      } else {
+        callChannel.unsubscribe();
+      }
     };
-  }, [selectedDM?.threadId, currentUserId, dispatch]);
+  }, [
+    selectedDM?.threadId,
+    selectedDM?.userAvatar,
+    currentUserId,
+    dispatch,
+    isCallModalOpen,
+  ]);
 
   const getStatusColor = () => {
     if (!selectedDM) return "bg-gray-500";

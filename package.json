@@ -78,6 +78,17 @@
     "typescript": "^5"
   },
   "optionalDependencies": {
+    "@tailwindcss/oxide-android-arm64": "^4",
+    "@tailwindcss/oxide-darwin-arm64": "^4",
+    "@tailwindcss/oxide-darwin-x64": "^4",
+    "@tailwindcss/oxide-freebsd-x64": "^4",
+    "@tailwindcss/oxide-linux-arm-gnueabihf": "^4",
+    "@tailwindcss/oxide-linux-arm64-gnu": "^4",
+    "@tailwindcss/oxide-linux-arm64-musl": "^4",
+    "@tailwindcss/oxide-linux-x64-gnu": "^4",
+    "@tailwindcss/oxide-linux-x64-musl": "^4",
+    "@tailwindcss/oxide-win32-arm64-msvc": "^4",
+    "@tailwindcss/oxide-win32-x64-msvc": "^4",
     "lightningcss-darwin-arm64": "^1.28.2",
     "lightningcss-darwin-x64": "^1.28.2",
     "lightningcss-linux-arm64-gnu": "^1.28.2",

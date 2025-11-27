@@ -74,13 +74,6 @@ interface Channel {
   unread?: number;
 }
 
-interface DirectMessage {
-  id: string;
-  name: string;
-  avatar: string;
-  status: "online" | "idle" | "dnd" | "offline";
-}
-
 export function Sidebar({
   currentView,
   onViewChange,
@@ -92,7 +85,6 @@ export function Sidebar({
 }: SidebarProps) {
   const [textChannelsOpen, setTextChannelsOpen] = useState(true);
   const [voiceChannelsOpen, setVoiceChannelsOpen] = useState(true);
-  const [directMessagesOpen, setDirectMessagesOpen] = useState(true);
   const [showCreateServer, setShowCreateServer] = useState(false);
   const [showCreateChannel, setShowCreateChannel] = useState(false);
   const [showCreateCategory, setShowCreateCategory] = useState(false);
@@ -970,7 +962,10 @@ export function Sidebar({
                       voiceChannels.map((channel) => (
                         <div key={channel.id} className="relative group">
                           <button
-                            onClick={() => setActiveVoiceChannel(channel)}
+                            onClick={() => {
+                              setActiveVoiceChannel(channel);
+                              onChannelSelect(channel.id);
+                            }}
                             className={`w-full flex items-center gap-2 px-2 py-1.5 rounded transition-colors ${
                               activeVoiceChannel?.id === channel.id
                                 ? "bg-[#404249] text-white"
@@ -1126,7 +1121,13 @@ export function Sidebar({
           key={activeVoiceChannel.id}
           channelId={activeVoiceChannel.id}
           channelName={activeVoiceChannel.name}
-          onLeave={() => setActiveVoiceChannel(null)}
+          onLeave={() => {
+            setActiveVoiceChannel(null);
+            // Switch back to a text channel
+            if (channels.length > 0) {
+              onChannelSelect(channels[0].id);
+            }
+          }}
         />
       )}
     </div>

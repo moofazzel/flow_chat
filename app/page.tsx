@@ -1,6 +1,7 @@
 "use client";
 
 import { useServerInvites } from "@/hooks/useServerInvites";
+import { getServerChannels } from "@/lib/serverService";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { setUser } from "@/store/slices/authSlice";
 import {
@@ -17,7 +18,7 @@ import { getCurrentUser } from "@/utils/auth";
 import type { BoardData } from "@/utils/storage";
 import { storage } from "@/utils/storage";
 import { AnimatePresence } from "framer-motion";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AuthPage } from "./components/AuthPage";
 import { BoardsContainer } from "./components/BoardsContainer";
@@ -31,6 +32,7 @@ import { ServerInviteNotification } from "./components/ServerInviteNotification"
 import { Sidebar } from "./components/Sidebar";
 import { TaskDetailsModal } from "./components/TaskDetailsModal";
 import { Toaster } from "./components/ui/toaster";
+import { VoiceChannelView } from "./components/VoiceChannelView";
 
 export interface Channel {
   id: string;
@@ -56,6 +58,7 @@ export interface Task {
   subtasks?: SubTask[];
   attachments?: Attachment[];
   sourceMessageId?: string;
+  issueType?: string;
 }
 
 export interface SubTask {
@@ -132,25 +135,6 @@ const readJSON = <T,>(key: string, fallback: T): T => {
   }
 };
 
-const readString = (key: string, fallback: string) => {
-  if (!isBrowser) return fallback;
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ?? fallback;
-  } catch {
-    return fallback;
-  }
-};
-
-const loadInitialView = (): ViewType =>
-  (readString(STORAGE_KEYS.currentView, "chat") as ViewType) || "chat";
-
-const loadInitialChannel = () =>
-  readString(STORAGE_KEYS.selectedChannel, "general");
-
-const loadInitialSidebar = () =>
-  readString(STORAGE_KEYS.sidebarCollapsed, "false") === "true";
-
 const loadInitialBoards = () => {
   if (!isBrowser) return [];
   try {
@@ -187,6 +171,11 @@ export default function Home() {
   const authChecked = !authLoading;
 
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [currentChannel, setCurrentChannel] = useState<{
+    id: string;
+    name: string;
+    type: "text" | "voice";
+  } | null>(null);
 
   const [, setSelectedDM] = useState<{
     userId: string;
@@ -220,9 +209,19 @@ export default function Home() {
     removeInvite,
   } = useServerInvites(user?.id || null);
 
+  // Tasks state (initialize from storage)
+  const [tasks, setTasks] = useState<Task[]>(loadInitialTasks);
+
   // Boards and labels state (initialize from storage to avoid setState in mount effect)
   const [boards, setBoards] = useState<BoardData[]>(loadInitialBoards);
   const [showLabelManagerForTask, setShowLabelManagerForTask] = useState(false);
+
+  // Auto-save tasks whenever they change
+  useEffect(() => {
+    if (!user || tasks.length === 0) return;
+    storage.tasks.save(tasks);
+    console.log(`Auto-saved ${tasks.length} tasks`);
+  }, [tasks, user]);
 
   // Auto-save boards whenever they change
   useEffect(() => {
@@ -238,6 +237,132 @@ export default function Home() {
     const stats = storage.getStats();
     console.log("Storage Stats:", stats);
   }, [user]);
+
+  // First-time user setup (using ref to prevent re-renders)
+  const setupCompleteRef = useRef(false);
+  const initialDataCreated = useRef(false);
+
+  useEffect(() => {
+    if (!user || setupCompleteRef.current) return;
+
+    const hasCompletedSetup = localStorage.getItem("Flow Chat_initialSetup");
+
+    if (!hasCompletedSetup) {
+      console.log("First-time user detected - setting up workspace...");
+
+      // Mark as complete immediately to prevent re-runs
+      setupCompleteRef.current = true;
+      localStorage.setItem("Flow Chat_initialSetup", "true");
+
+      // 1. Set default view to board (boards work without channels)
+      dispatch(setCurrentView("board"));
+
+      // 2. Create default server and channel for chat features
+      const defaultServerId = "server-my-workspace";
+      const defaultChannelId = "channel-general";
+
+      dispatch(setCurrentServerId(defaultServerId));
+      dispatch(setSelectedChannelId(defaultChannelId));
+
+      // 3. Create welcome board if no boards exist
+      if (boards.length === 0 && !initialDataCreated.current) {
+        initialDataCreated.current = true;
+
+        const welcomeBoard: BoardData = {
+          id: "board-welcome",
+          name: "My First Board",
+          description: "Welcome to Flow Chat! Start organizing your work here.",
+          color: "bg-blue-500",
+          columns: [
+            { id: "todo", title: "To Do", color: "bg-gray-300" },
+            { id: "in-progress", title: "In Progress", color: "bg-yellow-300" },
+            { id: "done", title: "Done", color: "bg-green-300" },
+          ],
+          labels: [
+            { id: "welcome", name: "Welcome", color: "bg-blue-500" },
+            { id: "tutorial", name: "Tutorial", color: "bg-purple-500" },
+          ],
+        };
+
+        // Use queueMicrotask to defer state updates
+        queueMicrotask(() => {
+          setBoards([welcomeBoard]);
+          console.log("Created welcome board");
+        });
+
+        // 4. Create sample tasks
+        const sampleTasks: Task[] = [
+          {
+            id: "TASK-1",
+            title: "👋 Welcome to Flow Chat!",
+            description:
+              "Click on this task to see how task management works. You can:\\n\\n• Edit task details\\n• Add comments\\n• Change status by dragging\\n• Set priority and labels\\n• Assign to team members\\n\\nTry dragging this task to 'In Progress'!",
+            status: "todo",
+            boardId: "board-welcome",
+            priority: "medium",
+            reporter: "System",
+            labels: ["welcome"],
+            createdAt: new Date().toISOString().split("T")[0],
+            comments: [],
+          },
+          {
+            id: "TASK-2",
+            title: "🎯 Create tasks from chat messages",
+            description:
+              "One of Flow Chat's best features!\\n\\n1. Go to the Chat view\\n2. Hover over any message\\n3. Click the ⋯ menu\\n4. Select 'Create Task from Message'\\n\\nTasks created from chat are automatically linked to the original message!",
+            status: "todo",
+            boardId: "board-welcome",
+            priority: "high",
+            reporter: "System",
+            labels: ["tutorial"],
+            createdAt: new Date().toISOString().split("T")[0],
+            comments: [],
+          },
+          {
+            id: "TASK-3",
+            title: "✨ Try the board features",
+            description:
+              "Explore these board features:\\n\\n• Drag & drop tasks between columns\\n• Click '+' to create new boards\\n• Use labels to organize tasks\\n• Set priorities (Low, Medium, High, Urgent)\\n• Add detailed descriptions\\n• Collaborate with comments",
+            status: "in-progress",
+            boardId: "board-welcome",
+            priority: "medium",
+            reporter: "System",
+            labels: ["tutorial"],
+            createdAt: new Date().toISOString().split("T")[0],
+            comments: [
+              {
+                id: "comment-1",
+                author: "System",
+                avatar: "SY",
+                content:
+                  "This is what a comment looks like! Use comments to discuss tasks with your team.",
+                timestamp: new Date().toLocaleTimeString("en-US", {
+                  hour: "numeric",
+                  minute: "2-digit",
+                }),
+              },
+            ],
+          },
+        ];
+
+        queueMicrotask(() => {
+          setTasks(sampleTasks);
+          console.log("Created sample tasks");
+        });
+
+        // 5. Show welcome message
+        setTimeout(() => {
+          toast.success("Welcome to Flow Chat! 🎉", {
+            description:
+              "Your workspace is ready. Explore the sample board and tasks to get started!",
+            duration: 6000,
+          });
+        }, 1000);
+
+        console.log("First-time setup complete");
+      }
+    }
+  }, [user, dispatch, boards.length]);
 
   // Show welcome back message if returning to saved state
   useEffect(() => {
@@ -271,6 +396,28 @@ export default function Home() {
     localStorage.setItem(STORAGE_KEYS.selectedChannel, selectedChannelId);
   }, [selectedChannelId, user]);
 
+  // Fetch current channel data to determine type
+  useEffect(() => {
+    if (!currentServerId || !selectedChannelId) {
+      setCurrentChannel(null);
+      return;
+    }
+
+    const fetchChannelData = async () => {
+      const channels = await getServerChannels(currentServerId);
+      const channel = channels.find((c) => c.id === selectedChannelId);
+      if (channel) {
+        setCurrentChannel({
+          id: channel.id,
+          name: channel.name,
+          type: channel.type as "text" | "voice",
+        });
+      }
+    };
+
+    fetchChannelData();
+  }, [currentServerId, selectedChannelId]);
+
   // Save sidebar state to localStorage whenever it changes
   useEffect(() => {
     if (!user) return;
@@ -279,15 +426,6 @@ export default function Home() {
       String(sidebarCollapsed)
     );
   }, [sidebarCollapsed, user]);
-
-  const [tasks, setTasks] = useState<Task[]>(loadInitialTasks);
-
-  // Auto-save tasks whenever they change
-  useEffect(() => {
-    if (!user || tasks.length === 0) return;
-    storage.tasks.save(tasks);
-    console.log(`Auto-saved ${tasks.length} tasks`);
-  }, [tasks, user]);
 
   // Chat messages state
   const [messages, setMessages] = useState<ChatMessage[]>(loadInitialMessages);
@@ -591,13 +729,20 @@ export default function Home() {
 
       <div className="flex-1 flex overflow-hidden">
         {currentView === "chat" ? (
-          <EnhancedChatArea
-            channelId={selectedChannelId}
-            onTaskClick={setSelectedTask}
-            onCreateTask={handleCreateTask}
-            onSendMessage={handleSendMessage}
-            tasks={tasks}
-          />
+          currentChannel?.type === "voice" ? (
+            <VoiceChannelView
+              channelName={currentChannel.name}
+              participants={[]}
+            />
+          ) : (
+            <EnhancedChatArea
+              channelId={selectedChannelId}
+              onTaskClick={setSelectedTask}
+              onCreateTask={handleCreateTask}
+              onSendMessage={handleSendMessage}
+              tasks={tasks}
+            />
+          )
         ) : currentView === "dm" ? (
           <DirectMessageCenter />
         ) : (

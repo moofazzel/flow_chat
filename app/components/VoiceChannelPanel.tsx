@@ -58,6 +58,34 @@ export function VoiceChannelPanel({
   const [isConnecting, setIsConnecting] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
 
+  // Play join/leave sound
+  const playSound = useCallback((frequency: number, duration: number) => {
+    try {
+      const audioContext = new (window.AudioContext ||
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (window as any).webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+
+      oscillator.frequency.value = frequency;
+      oscillator.type = "sine";
+
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(
+        0.01,
+        audioContext.currentTime + duration
+      );
+
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + duration);
+    } catch (error) {
+      console.error("Failed to play sound:", error);
+    }
+  }, []);
+
   const localStreamRef = useRef<MediaStream | null>(null);
   const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const channelRef = useRef<ReturnType<
@@ -67,11 +95,22 @@ export function VoiceChannelPanel({
   const analyserRef = useRef<AnalyserNode | null>(null);
   const isMutedRef = useRef(isMuted);
   const remoteStreamsRef = useRef<Map<string, MediaStream>>(new Map());
+  const remoteAudioElementsRef = useRef<Map<string, HTMLAudioElement>>(
+    new Map()
+  );
   const hasJoinedRef = useRef(false);
   const isJoiningRef = useRef(false);
   const processedUserListRef = useRef<Set<string>>(new Set());
+  const processedAnswersRef = useRef<Set<string>>(new Set()); // Track processed answers
+  const processedOffersRef = useRef<Set<string>>(new Set()); // Track processed offers
   const isCleaningUpRef = useRef(false);
+  const participantsRef = useRef<VoiceParticipant[]>([]); // Track current participants for closures
   const supabase = createClient();
+
+  // Keep participantsRef in sync with participants state
+  useEffect(() => {
+    participantsRef.current = participants;
+  }, [participants]);
 
   // Helper functions for participant management
   const addParticipant = (participant: {
@@ -144,18 +183,29 @@ export function VoiceChannelPanel({
     );
   };
 
-  // Debug participant state changes
-  useEffect(() => {
-    console.log(
-      "🔄 Participants state changed:",
-      participants.length,
-      participants.map((p) => p.full_name)
-    );
-  }, [participants]);
+  // Participants state tracking (logging removed to prevent render spam)
 
   // WebRTC peer connection management
   const createPeerConnection = useCallback(
     (userId: string) => {
+      // Return existing connection if available
+      const existingPc = peerConnectionsRef.current.get(userId);
+      if (
+        existingPc &&
+        existingPc.connectionState !== "closed" &&
+        existingPc.connectionState !== "failed"
+      ) {
+        console.log(
+          "♻️ [WEBRTC] Reusing existing peer connection for:",
+          userId
+        );
+        return existingPc;
+      }
+
+      console.log(
+        "🔧 [WEBRTC] Creating NEW peer connection for userId:",
+        userId
+      );
       const iceServers: RTCConfiguration = {
         iceServers: [
           { urls: "stun:stun.l.google.com:19302" },
@@ -175,7 +225,18 @@ export function VoiceChannelPanel({
 
       // Handle incoming remote tracks
       pc.ontrack = (event) => {
-        console.log("Received remote track from:", userId);
+        console.log(
+          "🎵 [TRACK] Received remote track from:",
+          userId,
+          "| kind:",
+          event.track.kind,
+          "| enabled:",
+          event.track.enabled,
+          "| readyState:",
+          event.track.readyState,
+          "| streams:",
+          event.streams.length
+        );
         const remoteStream = event.streams[0];
         remoteStreamsRef.current.set(userId, remoteStream);
 
@@ -183,12 +244,77 @@ export function VoiceChannelPanel({
         const audio = new Audio();
         audio.srcObject = remoteStream;
         audio.autoplay = true;
-        audio.play().catch((err) => console.error("Audio play failed:", err));
+        audio.volume = volume[0] / 100; // Use volume from slider
+
+        console.log(
+          "🔊 [AUDIO] Creating element for:",
+          userId,
+          "| stream active:",
+          remoteStream.active,
+          "| tracks:",
+          remoteStream.getTracks().map((t) => ({
+            kind: t.kind,
+            id: t.id,
+            enabled: t.enabled,
+            muted: t.muted,
+            readyState: t.readyState,
+          }))
+        );
+
+        // Store the audio element to prevent garbage collection
+        remoteAudioElementsRef.current.set(userId, audio);
+
+        audio
+          .play()
+          .then(() => {
+            console.log(
+              "✅ [AUDIO] Successfully playing for:",
+              userId,
+              "| paused:",
+              audio.paused,
+              "| volume:",
+              audio.volume,
+              "| currentTime:",
+              audio.currentTime
+            );
+          })
+          .catch((err) => {
+            console.error(
+              "❌ [AUDIO] Play failed for:",
+              userId,
+              "| error:",
+              err.name,
+              err.message,
+              "| readyState:",
+              audio.readyState
+            );
+            toast.error("Failed to play audio from " + userId);
+          });
       };
 
       // Handle ICE candidates
+      // Handle ICE connection state changes
+      pc.oniceconnectionstatechange = () => {
+        console.log(
+          "🧊 [ICE-CONNECTION-STATE] With",
+          userId,
+          ":",
+          pc.iceConnectionState,
+          "| Gathering:",
+          pc.iceGatheringState
+        );
+      };
+
       pc.onicecandidate = (event) => {
         if (event.candidate && channelRef.current) {
+          console.log(
+            "🧊 [ICE] Sending candidate to:",
+            userId,
+            "| type:",
+            event.candidate.type,
+            "| protocol:",
+            event.candidate.protocol
+          );
           channelRef.current.send({
             type: "broadcast",
             event: "ice-candidate",
@@ -203,7 +329,16 @@ export function VoiceChannelPanel({
 
       // Handle connection state changes
       pc.onconnectionstatechange = () => {
-        console.log(`Peer connection with ${userId}:`, pc.connectionState);
+        console.log(
+          "🔌 [CONNECTION-STATE] With",
+          userId,
+          ":",
+          pc.connectionState,
+          "| ICE:",
+          pc.iceConnectionState,
+          "| Signaling:",
+          pc.signalingState
+        );
         if (
           pc.connectionState === "failed" ||
           pc.connectionState === "disconnected"
@@ -217,16 +352,35 @@ export function VoiceChannelPanel({
       peerConnectionsRef.current.set(userId, pc);
       return pc;
     },
-    [currentUser?.id]
+    [currentUser?.id, volume]
   );
+
+  // Track sent offers to prevent duplicates
+  const sentOffersRef = useRef<Set<string>>(new Set());
 
   const createOffer = useCallback(
     async (userId: string) => {
+      // Prevent sending duplicate offers
+      if (sentOffersRef.current.has(userId)) {
+        console.log("⏭️ [OFFER] Already sent offer to:", userId);
+        return;
+      }
+      sentOffersRef.current.add(userId);
+
+      console.log("📤 [OFFER] Creating offer for userId:", userId);
       const pc = createPeerConnection(userId);
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
+      console.log(
+        "📤 [OFFER] Created and set local description:",
+        "| type:",
+        offer.type,
+        "| signalingState:",
+        pc.signalingState
+      );
 
       if (channelRef.current) {
+        console.log("📡 [OFFER] Sending offer to:", userId);
         channelRef.current.send({
           type: "broadcast",
           event: "webrtc-offer",
@@ -243,12 +397,33 @@ export function VoiceChannelPanel({
 
   const handleOffer = useCallback(
     async (offer: RTCSessionDescriptionInit, fromUserId: string) => {
+      // Check if we already processed an offer from this user
+      if (processedOffersRef.current.has(fromUserId)) {
+        console.log("⏭️ [OFFER] Already processed offer from:", fromUserId);
+        return;
+      }
+      processedOffersRef.current.add(fromUserId);
+
+      console.log(
+        "📥 [ANSWER] Received offer from:",
+        fromUserId,
+        "| offer type:",
+        offer.type
+      );
       const pc = createPeerConnection(fromUserId);
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
+      console.log(
+        "📤 [ANSWER] Created and set local description:",
+        "| type:",
+        answer.type,
+        "| signalingState:",
+        pc.signalingState
+      );
 
       if (channelRef.current) {
+        console.log("📡 [ANSWER] Sending answer to:", fromUserId);
         channelRef.current.send({
           type: "broadcast",
           event: "webrtc-answer",
@@ -265,13 +440,44 @@ export function VoiceChannelPanel({
 
   const handleAnswer = useCallback(
     async (answer: RTCSessionDescriptionInit, fromUserId: string) => {
+      console.log(
+        "📥 [ANSWER-RECEIVED] From:",
+        fromUserId,
+        "| answer type:",
+        answer.type
+      );
+
+      // Check if we already processed this answer
+      if (processedAnswersRef.current.has(fromUserId)) {
+        console.log("⏭️ [ANSWER] Already processed answer from:", fromUserId);
+        return;
+      }
+
       const pc = peerConnectionsRef.current.get(fromUserId);
-      if (pc && pc.signalingState !== "stable") {
-        await pc.setRemoteDescription(new RTCSessionDescription(answer));
-        console.log("Set remote answer for:", fromUserId);
-      } else if (pc) {
+      if (!pc) {
         console.log(
-          "Ignoring answer, connection already stable with:",
+          "❌ [ANSWER-RECEIVED] No peer connection found for:",
+          fromUserId
+        );
+        return;
+      }
+
+      // Only set remote description if in correct state
+      if (pc.signalingState === "have-local-offer") {
+        processedAnswersRef.current.add(fromUserId); // Mark as processed
+        try {
+          await pc.setRemoteDescription(new RTCSessionDescription(answer));
+          console.log("✅ Set remote answer for:", fromUserId);
+        } catch (error) {
+          console.error("❌ Failed to set remote answer:", error);
+        }
+      } else if (pc.signalingState === "stable" && pc.remoteDescription) {
+        console.log(
+          `⚠️ Already in stable state with remote description for ${fromUserId}, ignoring duplicate answer`
+        );
+      } else {
+        console.log(
+          `⚠️ Ignoring answer, wrong state (${pc.signalingState}) for:`,
           fromUserId
         );
       }
@@ -281,9 +487,29 @@ export function VoiceChannelPanel({
 
   const handleIceCandidate = useCallback(
     async (candidate: RTCIceCandidateInit, fromUserId: string) => {
+      console.log(
+        "🧊 [ICE-CANDIDATE] Received from:",
+        fromUserId,
+        "| signalingState:",
+        peerConnectionsRef.current.get(fromUserId)?.signalingState
+      );
       const pc = peerConnectionsRef.current.get(fromUserId);
       if (pc) {
-        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        try {
+          await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          console.log("✅ [ICE-CANDIDATE] Added successfully for:", fromUserId);
+        } catch (error) {
+          console.error(
+            "❌ [ICE-CANDIDATE] Failed to add for:",
+            fromUserId,
+            error
+          );
+        }
+      } else {
+        console.log(
+          "❌ [ICE-CANDIDATE] No peer connection found for:",
+          fromUserId
+        );
       }
     },
     []
@@ -322,6 +548,13 @@ export function VoiceChannelPanel({
     peerConnectionsRef.current.forEach((pc) => pc.close());
     peerConnectionsRef.current.clear();
 
+    // Stop and remove all remote audio elements
+    remoteAudioElementsRef.current.forEach((audio) => {
+      audio.pause();
+      audio.srcObject = null;
+    });
+    remoteAudioElementsRef.current.clear();
+
     // Only broadcast leave if we actually joined
     if (hasJoinedRef.current && currentUser && channelRef.current) {
       console.log("🚪 Broadcasting leave event");
@@ -341,6 +574,9 @@ export function VoiceChannelPanel({
     hasJoinedRef.current = false;
     isJoiningRef.current = false;
     processedUserListRef.current.clear();
+    processedAnswersRef.current.clear();
+    processedOffersRef.current.clear();
+    sentOffersRef.current.clear(); // Clear sent offers
     isCleaningUpRef.current = false;
     onLeave();
   }, [currentUser, supabase, onLeave]);
@@ -394,7 +630,19 @@ export function VoiceChannelPanel({
           },
           video: false,
         });
-        console.log("✅ Media access granted");
+        console.log(
+          "✅ [MEDIA] Access granted:",
+          "| tracks:",
+          stream.getTracks().length,
+          "| details:",
+          stream.getTracks().map((t) => ({
+            kind: t.kind,
+            id: t.id,
+            enabled: t.enabled,
+            muted: t.muted,
+            readyState: t.readyState,
+          }))
+        );
         localStreamRef.current = stream;
 
         // Setup audio analysis for speaking detection
@@ -405,7 +653,11 @@ export function VoiceChannelPanel({
         analyserRef.current.fftSize = 256;
         audioSource.connect(analyserRef.current);
 
-        // Start speaking detection
+        // Start speaking detection (throttled to 1 update/sec)
+        let lastSpeakingBroadcast = 0;
+        let lastSpeakingState = false;
+        const SPEAKING_BROADCAST_THROTTLE = 1000; // 1 second
+
         const detectSpeaking = () => {
           if (!analyserRef.current || !channelRef.current) return;
 
@@ -417,15 +669,24 @@ export function VoiceChannelPanel({
           const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
           const isSpeaking = average > 10 && !isMutedRef.current; // Threshold for speaking
 
-          // Broadcast speaking status
-          channelRef.current.send({
-            type: "broadcast",
-            event: "speaking",
-            payload: {
-              userId: currentUser.id,
-              isSpeaking,
-            },
-          });
+          // Broadcast speaking status (throttled and only on state change)
+          const now = Date.now();
+          if (
+            (isSpeaking !== lastSpeakingState ||
+              now - lastSpeakingBroadcast > SPEAKING_BROADCAST_THROTTLE) &&
+            channelRef.current
+          ) {
+            lastSpeakingState = isSpeaking;
+            lastSpeakingBroadcast = now;
+            channelRef.current.send({
+              type: "broadcast",
+              event: "speaking",
+              payload: {
+                userId: currentUser.id,
+                isSpeaking,
+              },
+            });
+          }
 
           requestAnimationFrame(detectSpeaking);
         };
@@ -448,22 +709,45 @@ export function VoiceChannelPanel({
 
         await channel
           .on("broadcast", { event: "user-joined" }, ({ payload }) => {
-            console.log("User joined:", payload);
-            // Don't add self
-            if (payload.userId !== currentUser.id) {
-              addParticipant(payload);
-              // Only initiate WebRTC if our ID is greater (prevents duplicate offers)
-              if (currentUser.id > payload.userId) {
-                console.log("Initiating WebRTC offer to:", payload.full_name);
-                createOffer(payload.userId);
-              } else {
-                console.log("Waiting for offer from:", payload.full_name);
-              }
+            const userId = payload.userId;
+            const userName = payload.full_name;
+
+            // Skip if it's ourselves
+            if (userId === currentUser.id) return;
+
+            // Check both processed list AND current participants to prevent duplicates
+            const alreadyProcessed = processedUserListRef.current.has(userId);
+            const alreadyInParticipants = participantsRef.current.some(
+              (p) => p.id === userId
+            );
+
+            if (alreadyProcessed || alreadyInParticipants) {
+              console.log("⏭️ User already in channel:", userName);
+              return;
+            }
+
+            console.log("👋 User joined:", userName);
+            processedUserListRef.current.add(userId);
+            addParticipant(payload);
+
+            // Play join sound (ascending tone)
+            playSound(800, 0.15);
+
+            // Only initiate WebRTC if our ID is lexicographically greater (prevents duplicate offers)
+            if (currentUser.id.localeCompare(userId) > 0) {
+              console.log("📞 Initiating WebRTC offer to:", userName);
+              createOffer(userId);
+            } else {
+              console.log("⏳ Waiting for offer from:", userName);
             }
           })
           .on("broadcast", { event: "user-left" }, ({ payload }) => {
-            console.log("User left:", payload);
+            console.log("👋 User left:", payload.full_name || payload.userId);
             removeParticipant(payload.userId);
+
+            // Play leave sound (descending tone)
+            playSound(400, 0.15);
+
             // Clean up peer connection
             const pc = peerConnectionsRef.current.get(payload.userId);
             if (pc) {
@@ -498,7 +782,17 @@ export function VoiceChannelPanel({
           })
           .on("broadcast", { event: "request-users" }, ({ payload }) => {
             // Respond to new user with our info
+            console.log(
+              "📝 [REQUEST-USERS] From:",
+              payload.requesterId,
+              "| My ID:",
+              currentUser.id
+            );
             if (payload.requesterId !== currentUser.id) {
+              console.log(
+                "📤 [USER-LIST] Responding with my info to:",
+                payload.requesterId
+              );
               channel.send({
                 type: "broadcast",
                 event: "user-list",
@@ -516,40 +810,62 @@ export function VoiceChannelPanel({
           })
           .on("broadcast", { event: "user-list" }, ({ payload }) => {
             // Receive existing user info
+            // Only process if this response was meant for us AND it's not our own message
             if (
               payload.respondingTo === currentUser.id &&
               payload.userId !== currentUser.id
             ) {
               // Check if we've already processed this user
               if (processedUserListRef.current.has(payload.userId)) {
-                console.log("Already processed user:", payload.full_name);
+                console.log("⏭️ Already processed user:", payload.full_name);
                 return;
               }
 
-              console.log("Received existing user:", payload);
+              console.log("👤 Received existing user:", payload);
               processedUserListRef.current.add(payload.userId);
               addParticipant(payload);
 
-              // Only initiate WebRTC if our ID is greater (prevents duplicate offers)
-              if (currentUser.id > payload.userId) {
+              // Check if we already have a peer connection with this user
+              if (peerConnectionsRef.current.has(payload.userId)) {
                 console.log(
-                  "Initiating WebRTC offer to existing user:",
+                  "⏭️ Peer connection already exists for:",
+                  payload.full_name
+                );
+                return;
+              }
+
+              // Only initiate WebRTC if our ID is lexicographically greater (prevents duplicate offers)
+              if (currentUser.id.localeCompare(payload.userId) > 0) {
+                console.log(
+                  "📞 Initiating WebRTC offer to existing user:",
                   payload.full_name
                 );
                 createOffer(payload.userId);
               } else {
                 console.log(
-                  "Waiting for offer from existing user:",
+                  "⏳ Waiting for offer from existing user:",
                   payload.full_name
                 );
               }
             }
           })
           .subscribe(async (status) => {
-            console.log("📡 Channel subscription status:", status);
+            console.log(
+              "📡 [SUBSCRIPTION] Status:",
+              status,
+              "| Channel ID:",
+              channelId,
+              "| User:",
+              currentUser.full_name
+            );
             if (status === "SUBSCRIBED") {
               console.log("🎉 Subscribed to channel, broadcasting join");
               // First, request list of existing users
+              console.log(
+                "📝 [BROADCAST] Requesting existing users:",
+                "| My ID:",
+                currentUser.id
+              );
               channel.send({
                 type: "broadcast",
                 event: "request-users",
@@ -559,6 +875,13 @@ export function VoiceChannelPanel({
               });
 
               // Then announce our join
+              console.log(
+                "📣 [BROADCAST] Announcing join to channel:",
+                "| User:",
+                currentUser.full_name,
+                "| ID:",
+                currentUser.id
+              );
               channel.send({
                 type: "broadcast",
                 event: "user-joined",
@@ -578,7 +901,19 @@ export function VoiceChannelPanel({
                 setIsConnected(true);
                 hasJoinedRef.current = true;
                 isJoiningRef.current = false;
-                console.log("✅ Successfully joined voice channel");
+                console.log(
+                  "✅ [JOIN] Successfully joined voice channel:",
+                  channelName,
+                  "| User:",
+                  currentUser.full_name,
+                  "| Participants:",
+                  participants.length
+                );
+
+                // Play join sound (double ascending tone)
+                playSound(600, 0.1);
+                setTimeout(() => playSound(800, 0.1), 100);
+
                 toast.success(`Joined ${channelName}`);
               } else {
                 console.log("⚠️ Component cleaning up, skipping state updates");
@@ -595,9 +930,10 @@ export function VoiceChannelPanel({
     };
 
     let isMounted = true;
+    let cleanupExecuted = false;
 
     const join = async () => {
-      if (isMounted) {
+      if (isMounted && !cleanupExecuted) {
         await joinVoiceChannel();
       }
     };
@@ -606,9 +942,18 @@ export function VoiceChannelPanel({
 
     // Cleanup on unmount
     return () => {
-      console.log("🧹 VoiceChannelPanel cleanup function called");
-      isMounted = false;
-      handleLeaveChannel();
+      if (!cleanupExecuted) {
+        console.log("🧹 VoiceChannelPanel cleanup function called");
+        cleanupExecuted = true;
+        isMounted = false;
+        // Only cleanup if actually joined
+        if (hasJoinedRef.current) {
+          handleLeaveChannel();
+        } else {
+          // Reset flags if cleanup happens during join
+          isJoiningRef.current = false;
+        }
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser, channelId, channelName]);
@@ -705,13 +1050,18 @@ export function VoiceChannelPanel({
       .slice(0, 2);
   };
 
-  if (!currentUser) return null;
+  // Don't render until user is loaded
+  if (!currentUser) {
+    return (
+      <div className="fixed bottom-0 left-[72px] right-0 bg-[#232428] border-t border-[#1e1f22] z-50">
+        <div className="h-16 px-4 flex items-center justify-center">
+          <div className="text-gray-400">Loading voice channel...</div>
+        </div>
+      </div>
+    );
+  }
 
-  console.log(
-    "VoiceChannelPanel render - participants:",
-    participants.length,
-    participants.map((p) => p.full_name)
-  );
+  // Removed render logging to prevent spam
 
   return (
     <div className="fixed bottom-0 left-[72px] right-0 bg-[#232428] border-t border-[#1e1f22] z-50">

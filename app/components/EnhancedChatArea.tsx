@@ -42,6 +42,8 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { Task } from "../page";
 import { CreateTaskModal } from "./CreateTaskModal";
+import { QuickTaskCreate } from "./QuickTaskCreate";
+import { InlineTaskMention } from "./TaskMentionPreview";
 import { TeamMembersPanel } from "./TeamMembersPanel";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Badge } from "./ui/badge";
@@ -252,6 +254,11 @@ export function EnhancedChatArea({
   const [taskPrefilledData, setTaskPrefilledData] =
     useState<TaskPrefilledData | null>(null);
   const [showMoreMenu, setShowMoreMenu] = useState<string | null>(null);
+
+  // Quick task creation state
+  const [quickTaskOpen, setQuickTaskOpen] = useState(false);
+  const [selectedMessageForTask, setSelectedMessageForTask] =
+    useState<Message | null>(null);
 
   // Dummy setMessages to prevent errors
   const setMessages = (action: React.SetStateAction<Message[]>) => {
@@ -539,10 +546,6 @@ export function EnhancedChatArea({
     inputRef.current?.focus();
   };
 
-  const cancelReply = () => {
-    setReplyingTo(null);
-  };
-
   const handleAddReaction = async (messageId: string, emoji: string) => {
     if (!currentUser) {
       toast.error("You must be logged in to react");
@@ -627,54 +630,56 @@ export function EnhancedChatArea({
   };
 
   const handleCreateTaskFromMessage = (msg: Message) => {
-    // Detect priority from keywords
-    const content = msg.content.toLowerCase();
-    let detectedPriority: "low" | "medium" | "high" | "urgent" = "medium";
+    // Use QuickTaskCreate for faster task creation
+    // Priority detection and title extraction are handled in the QuickTaskCreate component
+    setSelectedMessageForTask(msg);
+    setQuickTaskOpen(true);
+    setShowMoreMenu(null);
+  };
 
-    if (
-      content.includes("urgent") ||
-      content.includes("asap") ||
-      content.includes("critical")
-    ) {
-      detectedPriority = "urgent";
-    } else if (
-      content.includes("important") ||
-      content.includes("high priority")
-    ) {
-      detectedPriority = "high";
-    } else if (
-      content.includes("low priority") ||
-      content.includes("when you can")
-    ) {
-      detectedPriority = "low";
+  // Parse task mentions in message content (e.g., CHAT-123, TASK-456)
+  const parseTaskMentions = (
+    content: string
+  ): (string | React.ReactElement)[] | string => {
+    // Regex to match task IDs like CHAT-123, TASK-456, PROJ-789, etc.
+    const taskIdRegex = /\b([A-Z]+-\d+)\b/g;
+    const parts: (string | React.ReactElement)[] = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = taskIdRegex.exec(content)) !== null) {
+      // Add text before the match
+      if (match.index > lastIndex) {
+        parts.push(content.substring(lastIndex, match.index));
+      }
+
+      // Find the task
+      const taskId = match[1];
+      const task = tasks.find((t) => t.id === taskId);
+
+      if (task) {
+        // Add inline task mention component
+        parts.push(
+          <InlineTaskMention
+            key={`${taskId}-${match.index}`}
+            taskId={taskId}
+            onClick={() => onTaskClick(task)}
+          />
+        );
+      } else {
+        // If task not found, just add the text
+        parts.push(taskId);
+      }
+
+      lastIndex = match.index + match[0].length;
     }
 
-    // Extract title from message (first sentence or first 50 chars)
-    const firstSentence = msg.content.split(/[.!?]/)[0];
-    const title =
-      firstSentence.length > 50
-        ? firstSentence.substring(0, 50) + "..."
-        : firstSentence;
+    // Add remaining text
+    if (lastIndex < content.length) {
+      parts.push(content.substring(lastIndex));
+    }
 
-    // Extract mentioned users for auto-assignment
-    const mentionedUser =
-      msg.mentions && msg.mentions.length > 0 ? msg.mentions[0] : undefined;
-
-    setTaskPrefilledData({
-      title: title,
-      description: msg.content,
-      priority: detectedPriority,
-      assignee: mentionedUser,
-      sourceMessage: {
-        id: msg.id,
-        author: msg.author,
-        content: msg.content,
-        timestamp: msg.timestamp,
-      },
-    });
-
-    setCreateTaskModalOpen(true);
-    setShowMoreMenu(null);
+    return parts.length > 0 ? parts : content;
   };
 
   const applyFormatting = (format: "bold" | "italic" | "strike" | "code") => {
@@ -1150,7 +1155,7 @@ export function EnhancedChatArea({
                           : ""
                       }`}
                     >
-                      {msg.content}
+                      {parseTaskMentions(msg.content)}
                       {msg.isEdited && (
                         <span className="text-[10px] text-gray-400 ml-1">
                           (edited)
@@ -1670,6 +1675,60 @@ export function EnhancedChatArea({
           }
         }}
         prefilledData={taskPrefilledData || undefined}
+      />
+
+      {/* Quick Task Create Modal */}
+      <QuickTaskCreate
+        open={quickTaskOpen}
+        onOpenChange={setQuickTaskOpen}
+        onCreateTask={(taskData) => {
+          if (onCreateTask) {
+            const newTask = onCreateTask({
+              title: taskData.title,
+              description: taskData.description,
+              status: taskData.status,
+              priority: taskData.priority,
+              assignee: taskData.assignee,
+              labels: taskData.labels,
+              sourceMessageId: taskData.sourceMessageId,
+            });
+
+            // Post task creation activity to channel
+            const activityMessage = `✅ **Task Created:** ${newTask.id} - ${
+              newTask.title
+            }\n📋 Type: ${taskData.issueType || "task"} | Priority: ${
+              taskData.priority
+            }`;
+
+            sendMessage(activityMessage, currentUser?.id || "");
+
+            toast.success(`Task ${newTask.id} created successfully!`);
+            setQuickTaskOpen(false);
+            setSelectedMessageForTask(null);
+          }
+        }}
+        prefilledData={
+          selectedMessageForTask
+            ? {
+                title: selectedMessageForTask.content
+                  .split(/[.!?]/)[0]
+                  .substring(0, 100),
+                description: selectedMessageForTask.content,
+                priority: selectedMessageForTask.content
+                  .toLowerCase()
+                  .includes("urgent")
+                  ? "urgent"
+                  : selectedMessageForTask.content
+                      .toLowerCase()
+                      .includes("important")
+                  ? "high"
+                  : "medium",
+                sourceMessageId: selectedMessageForTask.id,
+                sourceMessageContent: selectedMessageForTask.content,
+                sourceMessageAuthor: selectedMessageForTask.author,
+              }
+            : undefined
+        }
       />
     </div>
   );

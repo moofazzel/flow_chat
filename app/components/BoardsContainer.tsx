@@ -67,10 +67,14 @@ export function BoardsContainer({
 }: BoardsContainerProps) {
   const {
     boards,
+    currentBoard,
     createBoard,
     updateBoard,
     deleteBoard,
     createList,
+    updateList,
+    deleteList,
+    createCard,
     // isLoading, // Unused for now
   } = useBoard(undefined, currentServerId);
   const [showAddBoardModal, setShowAddBoardModal] = useState(false);
@@ -314,7 +318,16 @@ export function BoardsContainer({
                   isChatOpen={isChatOpen}
                   onTaskStatusChange={onTaskStatusChange}
                   onTaskAssignment={onTaskAssignment}
-                  onAddTask={onAddTask}
+                  onAddTask={async (taskData) => {
+                    // Create card in Supabase
+                    await createCard(
+                      taskData.columnId,
+                      taskData.title,
+                      taskData.description
+                    );
+                    // Also call parent handler if provided
+                    onAddTask?.(taskData);
+                  }}
                   onTasksUpdate={onTasksUpdate}
                   onDeleteTask={onDeleteTask}
                   onDuplicateTask={onDuplicateTask}
@@ -345,12 +358,43 @@ export function BoardsContainer({
                       updatedLabels
                     );
                   }}
-                  onColumnsChange={(updatedColumns) => {
-                    // Columns update not yet supported fully (reorder)
-                    console.log(
-                      "Columns update not supported yet",
-                      updatedColumns
-                    );
+                  onColumnsChange={async (updatedColumns) => {
+                    // Handle column changes - create new lists, delete removed ones
+                    const currentColumns = board.columns || [];
+
+                    // Find new columns (not in current)
+                    for (const col of updatedColumns) {
+                      const exists = currentColumns.find(
+                        (c) => c.id === col.id
+                      );
+                      if (!exists) {
+                        await createList(
+                          board.id,
+                          col.title,
+                          updatedColumns.indexOf(col)
+                        );
+                      }
+                    }
+
+                    // Find deleted columns (in current but not in updated)
+                    for (const col of currentColumns) {
+                      const stillExists = updatedColumns.find(
+                        (c) => c.id === col.id
+                      );
+                      if (!stillExists) {
+                        await deleteList(col.id);
+                      }
+                    }
+
+                    // Update positions/titles for existing columns
+                    for (const col of updatedColumns) {
+                      const current = currentColumns.find(
+                        (c) => c.id === col.id
+                      );
+                      if (current && current.title !== col.title) {
+                        await updateList(col.id, { title: col.title });
+                      }
+                    }
                   }}
                 />
               </motion.div>

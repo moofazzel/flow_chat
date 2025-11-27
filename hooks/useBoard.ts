@@ -37,10 +37,19 @@ export const useBoard = (boardId?: string, serverId?: string | null) => {
   const [isLoading, setIsLoading] = useState(true);
   const supabase = createClient();
 
-  // Fetch all boards (filtered by serverId if provided)
+  // Fetch all boards (filtered by serverId if provided) with their lists
   useEffect(() => {
     const fetchBoards = async () => {
-      let query = supabase.from("boards").select("*");
+      let query = supabase.from("boards").select(`
+        *,
+        lists:lists (
+          id,
+          board_id,
+          title,
+          position,
+          cards:cards (*)
+        )
+      `);
 
       // Filter by serverId if provided, otherwise get personal boards (null server_id)
       if (serverId !== undefined) {
@@ -55,12 +64,48 @@ export const useBoard = (boardId?: string, serverId?: string | null) => {
         toast.error("Failed to load boards");
         console.error(error);
       } else {
-        setBoards(data || []);
+        // Sort lists and cards by position
+        const sortedData = (data || []).map((board: any) => {
+          if (board.lists) {
+            board.lists.sort((a: List, b: List) => a.position - b.position);
+            board.lists.forEach((list: any) => {
+              if (list.cards) {
+                list.cards.sort((a: Card, b: Card) => a.position - b.position);
+              }
+            });
+          }
+          return board;
+        });
+        setBoards(sortedData);
       }
       setIsLoading(false);
     };
 
     fetchBoards();
+
+    // Real-time subscription for boards updates
+    const channel = supabase
+      .channel("boards-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "boards" },
+        () => fetchBoards()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "lists" },
+        () => fetchBoards()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "cards" },
+        () => fetchBoards()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [serverId]);
 
   // Fetch specific board details (lists and cards)
@@ -193,11 +238,34 @@ export const useBoard = (boardId?: string, serverId?: string | null) => {
     title: string,
     position: number
   ) => {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("lists")
-      .insert({ board_id: boardId, title, position });
+      .insert({ board_id: boardId, title, position })
+      .select()
+      .single();
 
-    if (error) toast.error("Failed to create list");
+    if (error) {
+      toast.error("Failed to create list");
+      return null;
+    }
+
+    // Update local state
+    setBoards((prev) =>
+      prev.map((board) => {
+        if (board.id === boardId) {
+          const newList = { ...data, cards: [] };
+          return {
+            ...board,
+            lists: [...(board.lists || []), newList].sort(
+              (a, b) => a.position - b.position
+            ),
+          };
+        }
+        return board;
+      })
+    );
+
+    return data;
   };
 
   const updateList = async (listId: string, updates: Partial<List>) => {
@@ -212,19 +280,74 @@ export const useBoard = (boardId?: string, serverId?: string | null) => {
   const deleteList = async (listId: string) => {
     const { error } = await supabase.from("lists").delete().eq("id", listId);
 
-    if (error) toast.error("Failed to delete list");
+    if (error) {
+      toast.error("Failed to delete list");
+    } else {
+      // Update local state
+      setBoards((prev) =>
+        prev.map((board) => ({
+          ...board,
+          lists: board.lists?.filter((list) => list.id !== listId),
+        }))
+      );
+    }
   };
 
   const createCard = async (
     listId: string,
     title: string,
-    position: number
+    description: string = "",
+    position?: number
   ) => {
-    const { error } = await supabase
-      .from("cards")
-      .insert({ list_id: listId, title, position });
+    // Calculate position if not provided
+    let cardPosition = position;
+    if (cardPosition === undefined) {
+      // Find the list and get the next position
+      for (const board of boards) {
+        const list = board.lists?.find((l) => l.id === listId);
+        if (list) {
+          cardPosition = list.cards?.length || 0;
+          break;
+        }
+      }
+    }
 
-    if (error) toast.error("Failed to create card");
+    const { data, error } = await supabase
+      .from("cards")
+      .insert({
+        list_id: listId,
+        title,
+        description,
+        position: cardPosition || 0,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      toast.error("Failed to create card");
+      return null;
+    }
+
+    // Update local state
+    setBoards((prev) =>
+      prev.map((board) => ({
+        ...board,
+        lists: board.lists?.map((list) => {
+          if (list.id === listId) {
+            return {
+              ...list,
+              cards: [...(list.cards || []), data].sort(
+                (a, b) => a.position - b.position
+              ),
+            };
+          }
+          return list;
+        }),
+      }))
+    );
+
+    toast.success("Card created");
+    return data;
   };
 
   const updateCardPosition = async (

@@ -98,7 +98,7 @@ export function AddListButton({
   // Empty board state - compact centered design
   if (isEmpty) {
     return (
-      <div className="flex items-center justify-center h-full w-full">
+      <div className="flex items-centerf justify-center w-full">
         <div className="bg-[#2b2d31] rounded-xl p-6 max-w-sm w-full mx-4 border border-[#404249]">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 rounded-lg bg-[#5865f2]/20 flex items-center justify-center">

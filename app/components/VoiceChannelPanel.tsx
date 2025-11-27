@@ -104,13 +104,32 @@ export function VoiceChannelPanel({
   const processedAnswersRef = useRef<Set<string>>(new Set()); // Track processed answers
   const processedOffersRef = useRef<Set<string>>(new Set()); // Track processed offers
   const isCleaningUpRef = useRef(false);
+  const speakingDetectionRef = useRef<number | null>(null); // Track animation frame for cleanup
   const participantsRef = useRef<VoiceParticipant[]>([]); // Track current participants for closures
+  const isDeafenedRef = useRef(false); // Track deafened state for closures
+  const iceCandidateQueueRef = useRef<Map<string, RTCIceCandidateInit[]>>(
+    new Map()
+  ); // Queue ICE candidates before remote description is set
   const supabase = createClient();
 
   // Keep participantsRef in sync with participants state
   useEffect(() => {
     participantsRef.current = participants;
   }, [participants]);
+
+  // Keep isDeafenedRef in sync with isDeafened state
+  useEffect(() => {
+    isDeafenedRef.current = isDeafened;
+  }, [isDeafened]);
+
+  // Update all remote audio elements when volume changes
+  useEffect(() => {
+    const newVolume = volume[0] / 100;
+    remoteAudioElementsRef.current.forEach((audio, oderId) => {
+      audio.volume = newVolume;
+      console.log("🔊 Updated volume for", oderId, "to", newVolume);
+    });
+  }, [volume]);
 
   // Helper functions for participant management
   const addParticipant = (participant: {
@@ -245,12 +264,15 @@ export function VoiceChannelPanel({
         audio.srcObject = remoteStream;
         audio.autoplay = true;
         audio.volume = volume[0] / 100; // Use volume from slider
+        audio.muted = isDeafenedRef.current; // Respect current deafen state
 
         console.log(
           "🔊 [AUDIO] Creating element for:",
           userId,
           "| stream active:",
           remoteStream.active,
+          "| muted (deafened):",
+          isDeafenedRef.current,
           "| tracks:",
           remoteStream.getTracks().map((t) => ({
             kind: t.kind,
@@ -343,9 +365,24 @@ export function VoiceChannelPanel({
           pc.connectionState === "failed" ||
           pc.connectionState === "disconnected"
         ) {
+          console.log("⚠️ Connection failed/disconnected with:", userId);
           pc.close();
           peerConnectionsRef.current.delete(userId);
           remoteStreamsRef.current.delete(userId);
+
+          // Clean up audio element
+          const audio = remoteAudioElementsRef.current.get(userId);
+          if (audio) {
+            audio.pause();
+            audio.srcObject = null;
+            remoteAudioElementsRef.current.delete(userId);
+          }
+
+          // Clear processed refs to allow reconnection
+          processedOffersRef.current.delete(userId);
+          processedAnswersRef.current.delete(userId);
+          sentOffersRef.current.delete(userId);
+          iceCandidateQueueRef.current.delete(userId);
         }
       };
 
@@ -395,6 +432,29 @@ export function VoiceChannelPanel({
     [createPeerConnection, currentUser?.id]
   );
 
+  // Process queued ICE candidates for a user
+  const processQueuedIceCandidates = useCallback(async (userId: string) => {
+    const queue = iceCandidateQueueRef.current.get(userId);
+    if (!queue || queue.length === 0) return;
+
+    const pc = peerConnectionsRef.current.get(userId);
+    if (!pc || !pc.remoteDescription) return;
+
+    console.log(
+      `🧊 [ICE-QUEUE] Processing ${queue.length} queued candidates for:`,
+      userId
+    );
+    for (const candidate of queue) {
+      try {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        console.log("✅ [ICE-QUEUE] Added queued candidate for:", userId);
+      } catch (error) {
+        console.error("❌ [ICE-QUEUE] Failed to add queued candidate:", error);
+      }
+    }
+    iceCandidateQueueRef.current.delete(userId);
+  }, []);
+
   const handleOffer = useCallback(
     async (offer: RTCSessionDescriptionInit, fromUserId: string) => {
       // Check if we already processed an offer from this user
@@ -412,6 +472,10 @@ export function VoiceChannelPanel({
       );
       const pc = createPeerConnection(fromUserId);
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
+
+      // Process any queued ICE candidates now that remote description is set
+      await processQueuedIceCandidates(fromUserId);
+
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
       console.log(
@@ -435,7 +499,7 @@ export function VoiceChannelPanel({
         });
       }
     },
-    [createPeerConnection, currentUser?.id]
+    [createPeerConnection, currentUser?.id, processQueuedIceCandidates]
   );
 
   const handleAnswer = useCallback(
@@ -468,6 +532,9 @@ export function VoiceChannelPanel({
         try {
           await pc.setRemoteDescription(new RTCSessionDescription(answer));
           console.log("✅ Set remote answer for:", fromUserId);
+
+          // Process any queued ICE candidates now that remote description is set
+          await processQueuedIceCandidates(fromUserId);
         } catch (error) {
           console.error("❌ Failed to set remote answer:", error);
         }
@@ -482,7 +549,7 @@ export function VoiceChannelPanel({
         );
       }
     },
-    []
+    [processQueuedIceCandidates]
   );
 
   const handleIceCandidate = useCallback(
@@ -495,21 +562,42 @@ export function VoiceChannelPanel({
       );
       const pc = peerConnectionsRef.current.get(fromUserId);
       if (pc) {
-        try {
-          await pc.addIceCandidate(new RTCIceCandidate(candidate));
-          console.log("✅ [ICE-CANDIDATE] Added successfully for:", fromUserId);
-        } catch (error) {
-          console.error(
-            "❌ [ICE-CANDIDATE] Failed to add for:",
+        // Only add candidate if remote description is set
+        if (pc.remoteDescription) {
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+            console.log(
+              "✅ [ICE-CANDIDATE] Added successfully for:",
+              fromUserId
+            );
+          } catch (error) {
+            console.error(
+              "❌ [ICE-CANDIDATE] Failed to add for:",
+              fromUserId,
+              error
+            );
+          }
+        } else {
+          // Queue ICE candidate to be added after remote description is set
+          console.log(
+            "⏳ [ICE-CANDIDATE] Queuing for:",
             fromUserId,
-            error
+            "- waiting for remote description"
           );
+          const queue = iceCandidateQueueRef.current.get(fromUserId) || [];
+          queue.push(candidate);
+          iceCandidateQueueRef.current.set(fromUserId, queue);
         }
       } else {
+        // Peer connection not created yet, queue the candidate
         console.log(
-          "❌ [ICE-CANDIDATE] No peer connection found for:",
-          fromUserId
+          "⏳ [ICE-CANDIDATE] Queuing for:",
+          fromUserId,
+          "- no peer connection yet"
         );
+        const queue = iceCandidateQueueRef.current.get(fromUserId) || [];
+        queue.push(candidate);
+        iceCandidateQueueRef.current.set(fromUserId, queue);
       }
     },
     []
@@ -532,55 +620,116 @@ export function VoiceChannelPanel({
     }
     isCleaningUpRef.current = true;
 
-    // Stop all tracks
+    // FIRST: Broadcast leave event BEFORE closing connections (so others receive it)
+    if (hasJoinedRef.current && currentUser && channelRef.current) {
+      console.log("🚪 Broadcasting leave event");
+      try {
+        await channelRef.current.send({
+          type: "broadcast",
+          event: "user-left",
+          payload: {
+            userId: currentUser.id,
+            full_name: currentUser.full_name,
+          },
+        });
+        // Small delay to ensure broadcast is sent
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      } catch (err) {
+        console.error("Failed to broadcast leave:", err);
+      }
+    }
+
+    // Cancel speaking detection animation frame
+    if (speakingDetectionRef.current) {
+      console.log("🛑 Canceling speaking detection");
+      cancelAnimationFrame(speakingDetectionRef.current);
+      speakingDetectionRef.current = null;
+    }
+
+    // Stop all local tracks
     if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((track) => track.stop());
+      console.log("🛑 Stopping local stream tracks");
+      localStreamRef.current.getTracks().forEach((track) => {
+        track.stop();
+        console.log("  Stopped track:", track.kind, track.readyState);
+      });
       localStreamRef.current = null;
     }
 
-    // Close audio context
+    // Close audio context and analyser
+    if (analyserRef.current) {
+      analyserRef.current = null;
+    }
     if (audioContextRef.current) {
-      audioContextRef.current.close();
+      try {
+        await audioContextRef.current.close();
+      } catch (err) {
+        console.error("Error closing audio context:", err);
+      }
       audioContextRef.current = null;
     }
 
     // Close all peer connections
-    peerConnectionsRef.current.forEach((pc) => pc.close());
+    console.log(
+      "🔌 Closing",
+      peerConnectionsRef.current.size,
+      "peer connections"
+    );
+    peerConnectionsRef.current.forEach((pc, oderId) => {
+      console.log("  Closing connection to:", oderId);
+      pc.close();
+    });
     peerConnectionsRef.current.clear();
 
+    // Clear remote streams
+    remoteStreamsRef.current.clear();
+
     // Stop and remove all remote audio elements
-    remoteAudioElementsRef.current.forEach((audio) => {
+    console.log(
+      "🔇 Stopping",
+      remoteAudioElementsRef.current.size,
+      "audio elements"
+    );
+    remoteAudioElementsRef.current.forEach((audio, oderId) => {
+      console.log("  Stopping audio for:", oderId);
       audio.pause();
       audio.srcObject = null;
     });
     remoteAudioElementsRef.current.clear();
 
-    // Only broadcast leave if we actually joined
-    if (hasJoinedRef.current && currentUser && channelRef.current) {
-      console.log("🚪 Broadcasting leave event");
-      channelRef.current.send({
-        type: "broadcast",
-        event: "user-left",
-        payload: {
-          userId: currentUser.id,
-        },
-      });
-      await supabase.removeChannel(channelRef.current);
+    // Remove channel subscription
+    if (channelRef.current) {
+      console.log("📡 Removing channel subscription");
+      try {
+        await supabase.removeChannel(channelRef.current);
+      } catch (err) {
+        console.error("Error removing channel:", err);
+      }
       channelRef.current = null;
     }
 
+    // Reset all state
     setIsConnected(false);
+    setIsConnecting(false);
     setParticipants([]);
+
+    // Reset all refs
     hasJoinedRef.current = false;
     isJoiningRef.current = false;
     processedUserListRef.current.clear();
     processedAnswersRef.current.clear();
     processedOffersRef.current.clear();
-    sentOffersRef.current.clear(); // Clear sent offers
+    sentOffersRef.current.clear();
+    iceCandidateQueueRef.current.clear();
+
+    // Reset cleanup flag LAST
     isCleaningUpRef.current = false;
+
+    console.log("✅ Disconnect complete");
+
+    // Call onLeave callback
     onLeave();
   }, [currentUser, supabase, onLeave]);
-
   // Load current user
   useEffect(() => {
     const loadUser = async () => {
@@ -659,7 +808,15 @@ export function VoiceChannelPanel({
         const SPEAKING_BROADCAST_THROTTLE = 1000; // 1 second
 
         const detectSpeaking = () => {
-          if (!analyserRef.current || !channelRef.current) return;
+          // Stop if cleaning up or refs are gone
+          if (
+            isCleaningUpRef.current ||
+            !analyserRef.current ||
+            !channelRef.current
+          ) {
+            speakingDetectionRef.current = null;
+            return;
+          }
 
           const dataArray = new Uint8Array(
             analyserRef.current.frequencyBinCount
@@ -674,7 +831,8 @@ export function VoiceChannelPanel({
           if (
             (isSpeaking !== lastSpeakingState ||
               now - lastSpeakingBroadcast > SPEAKING_BROADCAST_THROTTLE) &&
-            channelRef.current
+            channelRef.current &&
+            !isCleaningUpRef.current
           ) {
             lastSpeakingState = isSpeaking;
             lastSpeakingBroadcast = now;
@@ -688,7 +846,8 @@ export function VoiceChannelPanel({
             });
           }
 
-          requestAnimationFrame(detectSpeaking);
+          // Store animation frame ID so we can cancel it
+          speakingDetectionRef.current = requestAnimationFrame(detectSpeaking);
         };
         detectSpeaking();
 
@@ -743,18 +902,40 @@ export function VoiceChannelPanel({
           })
           .on("broadcast", { event: "user-left" }, ({ payload }) => {
             console.log("👋 User left:", payload.full_name || payload.userId);
-            removeParticipant(payload.userId);
+            const leftUserId = payload.userId;
+
+            // Remove from participants
+            removeParticipant(leftUserId);
 
             // Play leave sound (descending tone)
             playSound(400, 0.15);
 
             // Clean up peer connection
-            const pc = peerConnectionsRef.current.get(payload.userId);
+            const pc = peerConnectionsRef.current.get(leftUserId);
             if (pc) {
+              console.log("🔌 Closing peer connection for:", leftUserId);
               pc.close();
-              peerConnectionsRef.current.delete(payload.userId);
+              peerConnectionsRef.current.delete(leftUserId);
             }
-            remoteStreamsRef.current.delete(payload.userId);
+
+            // Clean up remote stream
+            remoteStreamsRef.current.delete(leftUserId);
+
+            // Clean up audio element
+            const audio = remoteAudioElementsRef.current.get(leftUserId);
+            if (audio) {
+              console.log("🔇 Stopping audio element for:", leftUserId);
+              audio.pause();
+              audio.srcObject = null;
+              remoteAudioElementsRef.current.delete(leftUserId);
+            }
+
+            // Clear from processed refs so they can rejoin fresh
+            processedUserListRef.current.delete(leftUserId);
+            processedOffersRef.current.delete(leftUserId);
+            processedAnswersRef.current.delete(leftUserId);
+            sentOffersRef.current.delete(leftUserId);
+            iceCandidateQueueRef.current.delete(leftUserId);
           })
           .on("broadcast", { event: "user-updated" }, ({ payload }) => {
             console.log("User updated:", payload);
@@ -988,7 +1169,7 @@ export function VoiceChannelPanel({
     const newDeafened = !isDeafened;
     setIsDeafened(newDeafened);
 
-    // If deafening, also mute
+    // If deafening, also mute microphone
     if (newDeafened && !isMuted) {
       setIsMuted(true);
       if (localStreamRef.current) {
@@ -997,6 +1178,12 @@ export function VoiceChannelPanel({
         });
       }
     }
+
+    // Mute/unmute all remote audio elements
+    remoteAudioElementsRef.current.forEach((audio, oderId) => {
+      audio.muted = newDeafened;
+      console.log(`[Deafen] Set audio for ${oderId} muted:`, newDeafened);
+    });
 
     toast.success(newDeafened ? "Audio deafened" : "Audio undeafened");
   };

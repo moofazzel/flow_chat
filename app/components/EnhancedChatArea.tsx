@@ -1311,7 +1311,7 @@ export function EnhancedChatArea({
               variant="ghost"
               size="sm"
               className="text-gray-400 hover:text-white p-1 h-auto shrink-0"
-              onClick={cancelReply}
+              // onClick={cancelReply}
             >
               <X size={14} />
             </Button>

@@ -1,5 +1,11 @@
 "use client";
 
+import type {
+  BoardMember,
+  CardAttachment,
+  CardComment,
+  CardSubtask,
+} from "@/hooks/useBoard";
 import { copyToClipboard } from "@/utils/clipboard";
 import {
   Archive,
@@ -10,11 +16,11 @@ import {
   ChevronUp,
   Clock,
   Copy,
-  CreditCard,
   Edit2,
   File,
   Image as ImageIcon,
   Link as LinkIcon,
+  MessageSquare,
   MoreHorizontal,
   Paperclip,
   Plus,
@@ -26,13 +32,13 @@ import {
   XCircle,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import type { Attachment, Comment, SubTask, Task } from "../page";
+import type { Task, Comment as TaskComment } from "../page";
 import { Label, LabelBadge } from "./LabelBadge";
 import { QuickPriorityPicker } from "./QuickPriorityPicker";
 import { RichTextEditor } from "./RichTextEditor";
-import { Avatar, AvatarFallback } from "./ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Calendar as CalendarComponent } from "./ui/calendar";
@@ -58,6 +64,50 @@ interface TaskDetailsModalProps {
   onArchiveTask?: (taskId: string) => void;
   boardLabels?: Label[];
   onManageLabels?: () => void;
+  // New props for Supabase integration
+  boardMembers?: BoardMember[];
+  currentUser?: {
+    id: string;
+    username: string;
+    avatar_url: string | null;
+  } | null;
+  // Server/workspace members for adding to board
+  serverId?: string | null;
+  onSearchUsers?: (
+    query: string
+  ) => Promise<{ id: string; username: string; avatar_url: string | null }[]>;
+  onGetServerMembers?: (
+    serverId: string
+  ) => Promise<{ id: string; username: string; avatar_url: string | null }[]>;
+  onAddBoardMember?: (
+    boardId: string,
+    userId: string,
+    role?: "admin" | "member" | "observer"
+  ) => Promise<BoardMember | null>;
+  // Card operations
+  onUpdateCard?: (cardId: string, updates: Partial<Task>) => Promise<boolean>;
+  // Comments
+  onGetComments?: (cardId: string) => Promise<CardComment[]>;
+  onAddComment?: (
+    cardId: string,
+    content: string
+  ) => Promise<CardComment | null>;
+  onDeleteComment?: (commentId: string) => Promise<boolean>;
+  // Subtasks
+  onGetSubtasks?: (cardId: string) => Promise<CardSubtask[]>;
+  onAddSubtask?: (cardId: string, title: string) => Promise<CardSubtask | null>;
+  onToggleSubtask?: (subtaskId: string, completed: boolean) => Promise<boolean>;
+  onDeleteSubtask?: (subtaskId: string) => Promise<boolean>;
+  // Attachments
+  onGetAttachments?: (cardId: string) => Promise<CardAttachment[]>;
+  onUploadAttachment?: (
+    cardId: string,
+    file: File
+  ) => Promise<CardAttachment | null>;
+  onDeleteAttachment?: (
+    attachmentId: string,
+    fileUrl: string
+  ) => Promise<boolean>;
 }
 
 export function TaskDetailsModal({
@@ -67,6 +117,23 @@ export function TaskDetailsModal({
   onDeleteTask,
   boardLabels,
   onManageLabels,
+  boardMembers = [],
+  currentUser,
+  serverId,
+  onSearchUsers,
+  onGetServerMembers,
+  onAddBoardMember,
+  onUpdateCard,
+  onGetComments,
+  onAddComment,
+  onDeleteComment,
+  onGetSubtasks,
+  onAddSubtask,
+  onToggleSubtask,
+  onDeleteSubtask,
+  onGetAttachments,
+  onUploadAttachment,
+  onDeleteAttachment,
 }: TaskDetailsModalProps) {
   const [localTask, setLocalTask] = useState<Task>(task);
   const [isEditingDescription, setIsEditingDescription] = useState(false);
@@ -84,15 +151,111 @@ export function TaskDetailsModal({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showCompleteAnimation, setShowCompleteAnimation] = useState(false);
 
+  // State for server members and user search
+  const [serverMembers, setServerMembers] = useState<
+    { id: string; username: string; avatar_url: string | null }[]
+  >([]);
+  const [memberSearchQuery, setMemberSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<
+    { id: string; username: string; avatar_url: string | null }[]
+  >([]);
+  const [isSearching, setIsSearching] = useState(false);
+
+  // Sync local state when task prop changes
+  useEffect(() => {
+    setLocalTask(task);
+    setEditedTitle(task.title);
+    setEditedDescription(task.description);
+  }, [task]);
+
+  // Real data from Supabase
+  const [supabaseComments, setSupabaseComments] = useState<CardComment[]>([]);
+  const [subtasks, setSubtasks] = useState<CardSubtask[]>([]);
+  const [attachments, setAttachments] = useState<CardAttachment[]>([]);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
-  // Mock members data - in production this should come from props or API
-  const availableMembers = [
-    { id: "1", name: "John Doe", avatar: "JD", color: "bg-blue-500" },
-    { id: "2", name: "Jane Smith", avatar: "JS", color: "bg-green-500" },
-    { id: "3", name: "Bob Wilson", avatar: "BW", color: "bg-purple-500" },
-  ];
+  // Load real data on mount
+  useEffect(() => {
+    const loadData = async () => {
+      // Load comments
+      if (onGetComments) {
+        const fetchedComments = await onGetComments(task.id);
+        setSupabaseComments(fetchedComments);
+      }
+
+      // Load subtasks
+      if (onGetSubtasks) {
+        const fetchedSubtasks = await onGetSubtasks(task.id);
+        setSubtasks(fetchedSubtasks);
+      }
+
+      // Load attachments
+      if (onGetAttachments) {
+        const fetchedAttachments = await onGetAttachments(task.id);
+        setAttachments(fetchedAttachments);
+      }
+
+      // Load server members if serverId is provided
+      if (serverId && onGetServerMembers) {
+        const members = await onGetServerMembers(serverId);
+        setServerMembers(members);
+      }
+    };
+
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [task.id, serverId]);
+
+  // Search users with debounce
+  useEffect(() => {
+    const searchTimeout = setTimeout(async () => {
+      if (memberSearchQuery.trim() && onSearchUsers) {
+        setIsSearching(true);
+        const results = await onSearchUsers(memberSearchQuery);
+        setSearchResults(results);
+        setIsSearching(false);
+      } else {
+        setSearchResults([]);
+      }
+    }, 300);
+
+    return () => clearTimeout(searchTimeout);
+  }, [memberSearchQuery, onSearchUsers]);
+
+  // Use real board members, fall back to server members, or show message
+  const availableMembers =
+    boardMembers.length > 0
+      ? boardMembers.map((m) => ({
+          id: m.user_id,
+          name: m.user?.username || "Unknown",
+          avatar: m.user?.username?.slice(0, 2).toUpperCase() || "??",
+          avatarUrl: m.user?.avatar_url,
+          color: "bg-[#5865f2]",
+          isBoardMember: true,
+        }))
+      : serverMembers.length > 0
+      ? serverMembers.map((m) => ({
+          id: m.id,
+          name: m.username || "Unknown",
+          avatar: m.username?.slice(0, 2).toUpperCase() || "??",
+          avatarUrl: m.avatar_url,
+          color: "bg-[#5865f2]",
+          isBoardMember: false,
+        }))
+      : [];
+
+  // Helper to add user to board and then assign to card
+  const handleAddMemberToBoard = async (userId: string, username: string) => {
+    if (onAddBoardMember && task.boardId) {
+      const newMember = await onAddBoardMember(task.boardId, userId, "member");
+      if (newMember) {
+        // Also assign to the current card
+        handleAddMember(userId, username);
+      }
+    }
+  };
 
   const getInitials = (name: string) => {
     return name
@@ -102,163 +265,255 @@ export function TaskDetailsModal({
       .toUpperCase();
   };
 
-  const updateTask = (updates: Partial<Task>) => {
+  const updateTask = async (updates: Partial<Task>) => {
     const updatedTask = { ...localTask, ...updates };
     setLocalTask(updatedTask);
+
+    // Update in Supabase if handler provided
+    if (onUpdateCard) {
+      await onUpdateCard(task.id, updates);
+    }
+
     onUpdateTask?.(updatedTask);
   };
 
-  const handleSaveTitle = () => {
+  const handleSaveTitle = async () => {
     if (editedTitle.trim()) {
-      updateTask({ title: editedTitle.trim() });
+      await updateTask({ title: editedTitle.trim() });
       setIsEditingTitle(false);
-      toast.success("Title updated");
     }
   };
 
-  const handleSaveDescription = () => {
-    updateTask({ description: editedDescription.trim() });
+  const handleSaveDescription = async () => {
+    await updateTask({ description: editedDescription.trim() });
     setIsEditingDescription(false);
-    toast.success("Description updated");
   };
 
-  const handleAddComment = () => {
+  const handleAddComment = async () => {
     if (!newComment.trim()) return;
 
-    const comment: Comment = {
-      id: `c-${Date.now()}`,
-      author: "You",
-      content: newComment.trim(),
-      timestamp: new Date().toLocaleTimeString("en-US", {
-        hour: "numeric",
-        minute: "2-digit",
-      }),
-      avatar: "YO",
-    };
-
-    updateTask({
-      comments: [...(localTask.comments || []), comment],
-    });
-    setNewComment("");
-    toast.success("Comment added");
+    if (onAddComment) {
+      const comment = await onAddComment(task.id, newComment.trim());
+      if (comment) {
+        setSupabaseComments((prev) => [...prev, comment]);
+        setNewComment("");
+      }
+    } else {
+      // Fallback to local state
+      const comment = {
+        id: `c-${Date.now()}`,
+        card_id: task.id,
+        author_id: currentUser?.id || "",
+        content: newComment.trim(),
+        is_edited: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        author: currentUser
+          ? {
+              id: currentUser.id,
+              username: currentUser.username,
+              avatar_url: currentUser.avatar_url,
+            }
+          : undefined,
+      };
+      setSupabaseComments((prev) => [...prev, comment]);
+      setNewComment("");
+      toast.success("Comment added");
+    }
   };
 
-  const handleDeleteComment = (commentId: string) => {
-    updateTask({
-      comments: localTask.comments.filter((c) => c.id !== commentId),
-    });
-    toast.success("Comment deleted");
+  const handleDeleteComment = async (commentId: string) => {
+    if (onDeleteComment) {
+      const success = await onDeleteComment(commentId);
+      if (success) {
+        setSupabaseComments((prev) => prev.filter((c) => c.id !== commentId));
+      }
+    } else {
+      setSupabaseComments((prev) => prev.filter((c) => c.id !== commentId));
+      toast.success("Comment deleted");
+    }
   };
 
-  const handleAddSubtask = () => {
+  const handleAddSubtask = async () => {
     if (!newSubtask.trim()) return;
 
-    const subtask: SubTask = {
-      id: `st-${Date.now()}`,
-      title: newSubtask.trim(),
-      completed: false,
-    };
-
-    updateTask({
-      subtasks: [...(localTask.subtasks || []), subtask],
-    });
-    setNewSubtask("");
-    setIsAddingSubtask(false);
-    toast.success("Subtask added");
+    if (onAddSubtask) {
+      const subtask = await onAddSubtask(task.id, newSubtask.trim());
+      if (subtask) {
+        setSubtasks((prev) => [...prev, subtask]);
+        setNewSubtask("");
+        setIsAddingSubtask(false);
+      }
+    } else {
+      // Fallback to local state
+      const subtask: CardSubtask = {
+        id: `st-${Date.now()}`,
+        card_id: task.id,
+        title: newSubtask.trim(),
+        completed: false,
+        position: subtasks.length,
+        created_at: new Date().toISOString(),
+      };
+      setSubtasks((prev) => [...prev, subtask]);
+      setNewSubtask("");
+      setIsAddingSubtask(false);
+      toast.success("Subtask added");
+    }
   };
 
-  const handleToggleSubtask = (subtaskId: string) => {
-    updateTask({
-      subtasks: localTask.subtasks?.map((st) =>
-        st.id === subtaskId ? { ...st, completed: !st.completed } : st
-      ),
-    });
+  const handleToggleSubtask = async (subtaskId: string) => {
+    const subtask = subtasks.find((st) => st.id === subtaskId);
+    if (!subtask) return;
+
+    const newCompleted = !subtask.completed;
+
+    // Optimistic update
+    setSubtasks((prev) =>
+      prev.map((st) =>
+        st.id === subtaskId ? { ...st, completed: newCompleted } : st
+      )
+    );
+
+    if (onToggleSubtask) {
+      const success = await onToggleSubtask(subtaskId, newCompleted);
+      if (!success) {
+        // Revert on failure
+        setSubtasks((prev) =>
+          prev.map((st) =>
+            st.id === subtaskId ? { ...st, completed: !newCompleted } : st
+          )
+        );
+      }
+    }
   };
 
-  const handleDeleteSubtask = (subtaskId: string) => {
-    updateTask({
-      subtasks: localTask.subtasks?.filter((st) => st.id !== subtaskId),
-    });
-    toast.success("Subtask deleted");
+  const handleDeleteSubtask = async (subtaskId: string) => {
+    if (onDeleteSubtask) {
+      const success = await onDeleteSubtask(subtaskId);
+      if (success) {
+        setSubtasks((prev) => prev.filter((st) => st.id !== subtaskId));
+      }
+    } else {
+      setSubtasks((prev) => prev.filter((st) => st.id !== subtaskId));
+      toast.success("Subtask deleted");
+    }
   };
 
-  const handleAddLabel = (labelId: string) => {
+  const handleAddLabel = async (labelId: string) => {
     if (!localTask.labels.includes(labelId)) {
-      updateTask({ labels: [...localTask.labels, labelId] });
-      toast.success("Label added");
+      await updateTask({ labels: [...localTask.labels, labelId] });
     }
     setShowLabelsModal(false);
   };
 
-  const handleRemoveLabel = (labelId: string) => {
-    updateTask({ labels: localTask.labels.filter((l) => l !== labelId) });
-    toast.success("Label removed");
+  const handleRemoveLabel = async (labelId: string) => {
+    await updateTask({ labels: localTask.labels.filter((l) => l !== labelId) });
   };
 
-  const handleSetDueDate = (date: Date | undefined) => {
+  const handleSetDueDate = async (date: Date | undefined) => {
     if (date) {
       const formattedDate = date.toISOString().split("T")[0];
-      updateTask({ dueDate: formattedDate });
-      toast.success(`Due date set to ${formattedDate}`);
+      await updateTask({ dueDate: formattedDate });
     } else {
-      updateTask({ dueDate: undefined });
-      toast.success("Due date removed");
+      await updateTask({ dueDate: undefined });
     }
     setShowDatePicker(false);
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    const newAttachments: Attachment[] = Array.from(files).map((file) => ({
-      id: `att-${Date.now()}-${Math.random()}`,
-      name: file.name,
-      size: `${(file.size / 1024).toFixed(1)} KB`,
-      type: "image",
-      url: URL.createObjectURL(file),
-    }));
+    for (const file of Array.from(files)) {
+      if (onUploadAttachment) {
+        const attachment = await onUploadAttachment(task.id, file);
+        if (attachment) {
+          setAttachments((prev) => [...prev, attachment]);
+        }
+      } else {
+        // Fallback to local state
+        const attachment: CardAttachment = {
+          id: `att-${Date.now()}-${Math.random()}`,
+          card_id: task.id,
+          uploader_id: currentUser?.id || "",
+          filename: file.name,
+          file_url: URL.createObjectURL(file),
+          file_type: file.type.startsWith("image/") ? "image" : "file",
+          file_size: file.size,
+          created_at: new Date().toISOString(),
+        };
+        setAttachments((prev) => [...prev, attachment]);
+        toast.success("Attachment added");
+      }
+    }
 
-    updateTask({
-      attachments: [...(localTask.attachments || []), ...newAttachments],
-    });
-
-    toast.success(`${files.length} image(s) added`);
     if (imageInputRef.current) imageInputRef.current.value = "";
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    const newAttachments: Attachment[] = Array.from(files).map((file) => ({
-      id: `att-${Date.now()}-${Math.random()}`,
-      name: file.name,
-      size: `${(file.size / 1024).toFixed(1)} KB`,
-      type: "file",
-      url: URL.createObjectURL(file),
-    }));
+    for (const file of Array.from(files)) {
+      if (onUploadAttachment) {
+        const attachment = await onUploadAttachment(task.id, file);
+        if (attachment) {
+          setAttachments((prev) => [...prev, attachment]);
+        }
+      } else {
+        // Fallback to local state
+        const attachment: CardAttachment = {
+          id: `att-${Date.now()}-${Math.random()}`,
+          card_id: task.id,
+          uploader_id: currentUser?.id || "",
+          filename: file.name,
+          file_url: URL.createObjectURL(file),
+          file_type: file.type,
+          file_size: file.size,
+          created_at: new Date().toISOString(),
+        };
+        setAttachments((prev) => [...prev, attachment]);
+        toast.success("Attachment added");
+      }
+    }
 
-    updateTask({
-      attachments: [...(localTask.attachments || []), ...newAttachments],
-    });
-
-    toast.success(`${files.length} file(s) added`);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const handleDeleteAttachment = (attachmentId: string) => {
-    updateTask({
-      attachments: localTask.attachments?.filter(
-        (att) => att.id !== attachmentId
-      ),
-    });
-    toast.success("Attachment deleted");
+  const handleDeleteAttachment = async (
+    attachmentId: string,
+    fileUrl?: string
+  ) => {
+    // Find the attachment in Supabase data or use provided URL
+    const attachment = attachments.find((att) => att.id === attachmentId);
+    const urlToDelete = attachment?.file_url || fileUrl || "";
+
+    if (onDeleteAttachment && urlToDelete) {
+      const success = await onDeleteAttachment(attachmentId, urlToDelete);
+      if (success) {
+        setAttachments((prev) => prev.filter((att) => att.id !== attachmentId));
+        // Also update local task attachments
+        setLocalTask((prev) => ({
+          ...prev,
+          attachments: prev.attachments?.filter(
+            (att) => att.id !== attachmentId
+          ),
+        }));
+      }
+    } else {
+      // Fallback for local-only attachments
+      setAttachments((prev) => prev.filter((att) => att.id !== attachmentId));
+      setLocalTask((prev) => ({
+        ...prev,
+        attachments: prev.attachments?.filter((att) => att.id !== attachmentId),
+      }));
+      toast.success("Attachment deleted");
+    }
   };
 
-  const handleMarkComplete = () => {
+  const handleMarkComplete = async () => {
     // Update status to done
-    updateTask({ status: "column-1-3" }); // Done column
+    await updateTask({ status: "column-1-3" }); // Done column
 
     // Show celebration animation
     setShowCompleteAnimation(true);
@@ -311,7 +566,7 @@ export function TaskDetailsModal({
     }
   };
 
-  const handleAddMember = (memberId: string, memberName: string) => {
+  const handleAddMember = async (memberId: string, memberName: string) => {
     if (memberName) {
       // Initialize assignees array if it doesn't exist
       const currentAssignees = localTask.assignees || [];
@@ -324,15 +579,15 @@ export function TaskDetailsModal({
         const newAssignees = currentAssignees.filter(
           (name) => name !== memberName
         );
-        updateTask({
+        await updateTask({
           assignees: newAssignees,
-          assignee: newAssignees[0], // Keep backward compatibility
+          assignee: newAssignees[0] || undefined, // Keep backward compatibility
         });
         toast.success(`Removed ${memberName}`);
       } else {
         // Add member
         const newAssignees = [...currentAssignees, memberName];
-        updateTask({
+        await updateTask({
           assignees: newAssignees,
           assignee: memberName, // Keep backward compatibility
         });
@@ -341,19 +596,38 @@ export function TaskDetailsModal({
     }
   };
 
+  // Use Supabase subtasks if available, otherwise fall back to local
+  const displaySubtasks = subtasks.length > 0 ? subtasks : localTask.subtasks;
   const completedSubtasks =
-    localTask.subtasks?.filter((st) => st.completed).length || 0;
-  const totalSubtasks = localTask.subtasks?.length || 0;
+    displaySubtasks?.filter((st) => st.completed).length || 0;
+  const totalSubtasks = displaySubtasks?.length || 0;
   const subtaskProgress =
     totalSubtasks > 0 ? (completedSubtasks / totalSubtasks) * 100 : 0;
+
+  // Use Supabase attachments if available
+  const displayAttachments =
+    attachments.length > 0
+      ? attachments.map((a) => ({
+          id: a.id,
+          name: a.filename,
+          size: a.file_size ? `${Math.round(a.file_size / 1024)} KB` : "",
+          type: a.file_type?.startsWith("image/")
+            ? ("image" as const)
+            : ("file" as const),
+          url: a.file_url,
+        }))
+      : localTask.attachments;
 
   const isTaskComplete = localTask.status === "column-1-3";
 
   return (
     <>
       {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/50 z-40 backdrop-blur-sm"
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/60 z-40 backdrop-blur-sm"
         onClick={onClose}
       />
 
@@ -372,32 +646,26 @@ export function TaskDetailsModal({
                 scale: [1, 1.2, 1],
               }}
               transition={{ duration: 0.6 }}
-              className="bg-green-500 rounded-full p-8 shadow-2xl"
+              className="bg-emerald-500 rounded-full p-8 shadow-2xl shadow-emerald-500/30"
             >
               <Check size={80} className="text-white" strokeWidth={3} />
             </motion.div>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: [0, 1, 0] }}
-              transition={{ duration: 1, times: [0, 0.5, 1] }}
-              className="absolute inset-0 bg-green-500/20"
-            />
           </motion.div>
         )}
       </AnimatePresence>
 
       {/* Modal */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="bg-[#2b2d31] rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col border border-[#1e1f22]">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        transition={{ duration: 0.2, ease: "easeOut" }}
+        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      >
+        <div className="bg-[#1e1f22] rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden border border-[#2b2d31]">
           {/* Header */}
-          <div className="px-6 py-4 flex items-center justify-between border-b border-[#1e1f22]">
+          <div className="px-6 py-4 flex items-center justify-between bg-[#2b2d31] border-b border-[#1e1f22]">
             <div className="flex items-center gap-3 flex-1">
-              <Badge
-                variant="outline"
-                className="text-sm font-mono border-[#404249] text-gray-400"
-              >
-                {localTask.id}
-              </Badge>
               <QuickPriorityPicker
                 currentPriority={localTask.priority}
                 onPriorityChange={(priority) => updateTask({ priority })}
@@ -405,63 +673,86 @@ export function TaskDetailsModal({
               {localTask.dueDate && (
                 <Badge
                   variant="outline"
-                  className="text-sm gap-1 border-[#404249] text-gray-400"
+                  className={`text-xs gap-1.5 ${
+                    new Date(localTask.dueDate) < new Date()
+                      ? "border-red-500/50 text-red-400 bg-red-500/10"
+                      : "border-[#404249] text-gray-400 bg-[#1e1f22]"
+                  }`}
                 >
                   <Clock size={12} />
-                  Due: {localTask.dueDate}
+                  {new Date(localTask.dueDate).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                  })}
                 </Badge>
               )}
               {isTaskComplete && (
-                <Badge className="bg-[#57f287] text-white gap-1">
+                <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 gap-1">
                   <Check size={12} />
                   Complete
                 </Badge>
               )}
             </div>
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" onClick={handleCopyLink}>
-                <LinkIcon size={18} />
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleCopyLink}
+                className="h-8 w-8 p-0 text-gray-400 hover:text-white hover:bg-[#404249] rounded-lg"
+              >
+                <LinkIcon size={16} />
               </Button>
               <Popover open={showActionsMenu} onOpenChange={setShowActionsMenu}>
                 <PopoverTrigger asChild>
-                  <Button variant="ghost" size="sm">
-                    <MoreHorizontal size={18} />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0 text-gray-400 hover:text-white hover:bg-[#404249] rounded-lg"
+                  >
+                    <MoreHorizontal size={16} />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-56 p-2" align="end">
-                  <div className="space-y-1">
-                    <Button
-                      variant="ghost"
-                      className="w-full justify-start text-sm"
-                      onClick={handleCopyTask}
-                    >
-                      <Copy size={16} className="mr-2" />
-                      Copy Task
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      className="w-full justify-start text-sm"
-                      onClick={handleArchiveTask}
-                    >
-                      <Archive size={16} className="mr-2" />
-                      Archive
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      className="w-full justify-start text-sm text-red-600 hover:text-red-700 hover:bg-red-50"
-                      onClick={() => {
-                        setShowActionsMenu(false);
-                        setShowDeleteConfirm(true);
-                      }}
-                    >
-                      <Trash2 size={16} className="mr-2" />
-                      Delete Task
-                    </Button>
-                  </div>
+                <PopoverContent
+                  className="w-48 p-1.5 bg-[#2b2d31] border-[#404249]"
+                  align="end"
+                >
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start text-sm h-9 text-gray-300 hover:text-white hover:bg-[#404249] rounded-lg"
+                    onClick={handleCopyTask}
+                  >
+                    <Copy size={14} className="mr-2" />
+                    Copy Task
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start text-sm h-9 text-gray-300 hover:text-white hover:bg-[#404249] rounded-lg"
+                    onClick={handleArchiveTask}
+                  >
+                    <Archive size={14} className="mr-2" />
+                    Archive
+                  </Button>
+                  <div className="h-px bg-[#404249] my-1" />
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start text-sm h-9 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg"
+                    onClick={() => {
+                      setShowActionsMenu(false);
+                      setShowDeleteConfirm(true);
+                    }}
+                  >
+                    <Trash2 size={14} className="mr-2" />
+                    Delete
+                  </Button>
                 </PopoverContent>
               </Popover>
-              <Button variant="ghost" size="sm" onClick={onClose}>
-                <X size={18} />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onClose}
+                className="h-8 w-8 p-0 text-gray-400 hover:text-white hover:bg-[#404249] rounded-lg"
+              >
+                <X size={16} />
               </Button>
             </div>
           </div>
@@ -477,7 +768,7 @@ export function TaskDetailsModal({
                       <Input
                         value={editedTitle}
                         onChange={(e) => setEditedTitle(e.target.value)}
-                        className="text-2xl bg-[#1e1f22] border-[#1e1f22] text-white"
+                        className="text-xl font-semibold bg-[#2b2d31] border-[#404249] text-white focus-visible:ring-[#5865f2]"
                         autoFocus
                         onKeyDown={(e) => {
                           if (e.key === "Enter") handleSaveTitle();
@@ -487,7 +778,7 @@ export function TaskDetailsModal({
                       <Button
                         size="sm"
                         onClick={handleSaveTitle}
-                        className="bg-[#5865f2] hover:bg-[#4752c4]"
+                        className="bg-[#5865f2] hover:bg-[#4752c4] h-10"
                       >
                         <Save size={16} />
                       </Button>
@@ -495,34 +786,29 @@ export function TaskDetailsModal({
                         size="sm"
                         variant="ghost"
                         onClick={() => setIsEditingTitle(false)}
-                        className="text-gray-400 hover:text-white hover:bg-[#404249]"
+                        className="text-gray-400 hover:text-white hover:bg-[#404249] h-10"
                       >
                         <XCircle size={16} />
                       </Button>
                     </div>
                   ) : (
                     <h2
-                      className="text-white text-2xl mb-2 cursor-pointer hover:text-[#5865f2] transition-colors group flex items-center gap-2"
+                      className="text-white text-xl font-semibold cursor-pointer hover:text-[#5865f2] transition-colors group flex items-center gap-2"
                       onClick={() => setIsEditingTitle(true)}
                     >
                       {localTask.title}
                       <Edit2
-                        size={16}
+                        size={14}
                         className="opacity-0 group-hover:opacity-50"
                       />
                     </h2>
                   )}
-                  <div className="text-sm text-gray-500">
-                    in column{" "}
-                    <span className="text-gray-300">{localTask.status}</span>
-                  </div>
                 </div>
 
                 {/* Labels */}
                 {localTask.labels && localTask.labels.length > 0 && (
                   <div>
-                    <label className="text-sm text-gray-400 mb-2 block flex items-center gap-2">
-                      <Tag size={16} />
+                    <label className="text-xs font-medium uppercase tracking-wide text-gray-500 mb-2 block">
                       Labels
                     </label>
                     <div className="flex flex-wrap gap-2">
@@ -545,57 +831,42 @@ export function TaskDetailsModal({
                 {/* Assigned Members */}
                 {localTask.assignees && localTask.assignees.length > 0 && (
                   <div>
-                    <label className="text-sm text-gray-400 mb-2 block flex items-center gap-2">
-                      <Users size={16} />
-                      Assigned Members
+                    <label className="text-xs font-medium uppercase tracking-wide text-gray-500 mb-2 block">
+                      Assignees
                     </label>
                     <div className="flex flex-wrap gap-2">
                       {localTask.assignees.map((assigneeName) => {
                         const member = availableMembers.find(
                           (m) => m.name === assigneeName
                         );
-                        return member ? (
+                        return (
                           <div
                             key={assigneeName}
-                            className="flex items-center gap-2 bg-[#1e1f22] rounded-lg px-3 py-2 group hover:bg-[#404249] transition-colors"
+                            className="flex items-center gap-2 bg-[#2b2d31] rounded-full pl-1 pr-3 py-1 group hover:bg-[#404249] transition-colors"
                           >
                             <Avatar className="h-6 w-6">
                               <AvatarFallback
-                                className={`text-xs ${member.color} text-white`}
+                                className={`text-xs ${
+                                  member?.color || "bg-gray-500"
+                                } text-white`}
                               >
-                                {member.avatar}
+                                {member?.avatar || getInitials(assigneeName)}
                               </AvatarFallback>
                             </Avatar>
                             <span className="text-sm text-gray-200">
                               {assigneeName}
                             </span>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-auto p-0 opacity-0 group-hover:opacity-100 transition-opacity ml-1"
+                            <button
+                              className="opacity-0 group-hover:opacity-100 transition-opacity"
                               onClick={() =>
-                                handleAddMember(member.id, member.name)
+                                handleAddMember(member?.id || "", assigneeName)
                               }
                             >
                               <X
-                                size={14}
-                                className="text-gray-500 hover:text-red-500"
+                                size={12}
+                                className="text-gray-500 hover:text-red-400"
                               />
-                            </Button>
-                          </div>
-                        ) : (
-                          <div
-                            key={assigneeName}
-                            className="flex items-center gap-2 bg-[#1e1f22] rounded-lg px-3 py-2"
-                          >
-                            <Avatar className="h-6 w-6">
-                              <AvatarFallback className="text-xs bg-gray-500 text-white">
-                                {getInitials(assigneeName)}
-                              </AvatarFallback>
-                            </Avatar>
-                            <span className="text-sm text-gray-200">
-                              {assigneeName}
-                            </span>
+                            </button>
                           </div>
                         );
                       })}
@@ -605,8 +876,7 @@ export function TaskDetailsModal({
 
                 {/* Description */}
                 <div>
-                  <label className="text-sm text-gray-400 mb-2 block flex items-center gap-2">
-                    <CreditCard size={16} />
+                  <label className="text-xs font-medium uppercase tracking-wide text-gray-500 mb-2 block">
                     Description
                   </label>
                   {isEditingDescription ? (
@@ -615,9 +885,9 @@ export function TaskDetailsModal({
                         value={editedDescription}
                         onChange={setEditedDescription}
                         placeholder="Add a more detailed description..."
-                        minHeight="200px"
+                        minHeight="150px"
                       />
-                      <div className="flex gap-2 mt-2">
+                      <div className="flex gap-2 mt-3">
                         <Button
                           size="sm"
                           onClick={handleSaveDescription}
@@ -639,42 +909,54 @@ export function TaskDetailsModal({
                       </div>
                     </div>
                   ) : (
-                    <div>
-                      <div
-                        className="bg-[#1e1f22] rounded-lg p-4 mb-3 min-h-[60px] cursor-pointer hover:bg-[#404249] transition-colors"
-                        onClick={() => setIsEditingDescription(true)}
-                      >
-                        {localTask.description ? (
-                          <div
-                            className="text-gray-300 text-sm prose prose-sm prose-invert max-w-none"
-                            dangerouslySetInnerHTML={{
-                              __html: localTask.description,
-                            }}
-                          />
-                        ) : (
-                          <p className="text-gray-500 text-sm">
-                            Add a more detailed description...
-                          </p>
-                        )}
-                      </div>
+                    <div
+                      className="bg-[#2b2d31] rounded-lg p-4 min-h-[80px] cursor-pointer hover:bg-[#313338] transition-colors border border-transparent hover:border-[#404249]"
+                      onClick={() => setIsEditingDescription(true)}
+                    >
+                      {localTask.description ? (
+                        <div
+                          className="text-gray-300 text-sm prose prose-sm prose-invert max-w-none"
+                          dangerouslySetInnerHTML={{
+                            __html: localTask.description,
+                          }}
+                        />
+                      ) : (
+                        <p className="text-gray-500 text-sm">
+                          Click to add a description...
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
 
                 {/* Subtasks */}
-                {(localTask.subtasks && localTask.subtasks.length > 0) ||
+                {(displaySubtasks && displaySubtasks.length > 0) ||
                 isAddingSubtask ? (
                   <div>
-                    <label className="text-sm text-gray-400 flex items-center gap-2 mb-2">
-                      <CheckSquare size={16} />
-                      Subtasks ({completedSubtasks}/{totalSubtasks})
-                    </label>
+                    <div className="flex items-center justify-between mb-3">
+                      <label className="text-xs font-medium uppercase tracking-wide text-gray-500 flex items-center gap-2">
+                        <CheckSquare size={14} />
+                        Checklist
+                        <span className="text-gray-400 normal-case">
+                          ({completedSubtasks}/{totalSubtasks})
+                        </span>
+                      </label>
+                      {totalSubtasks > 0 && (
+                        <span className="text-xs text-gray-500">
+                          {Math.round(subtaskProgress)}%
+                        </span>
+                      )}
+                    </div>
 
                     {/* Progress bar */}
                     {totalSubtasks > 0 && (
-                      <div className="w-full bg-[#1e1f22] rounded-full h-2 mb-3">
+                      <div className="w-full bg-[#2b2d31] rounded-full h-1.5 mb-4">
                         <motion.div
-                          className="bg-[#57f287] h-2 rounded-full"
+                          className={`h-1.5 rounded-full ${
+                            subtaskProgress === 100
+                              ? "bg-emerald-500"
+                              : "bg-[#5865f2]"
+                          }`}
                           initial={{ width: 0 }}
                           animate={{ width: `${subtaskProgress}%` }}
                           transition={{ duration: 0.3 }}
@@ -682,17 +964,18 @@ export function TaskDetailsModal({
                       </div>
                     )}
 
-                    <div className="space-y-2">
-                      {localTask.subtasks?.map((subtask) => (
+                    <div className="space-y-1">
+                      {displaySubtasks?.map((subtask) => (
                         <div
                           key={subtask.id}
-                          className="flex items-center gap-3 p-2 bg-[#1e1f22] rounded-lg group hover:bg-[#404249] transition-colors"
+                          className="flex items-center gap-3 p-2 rounded-lg group hover:bg-[#2b2d31] transition-colors"
                         >
                           <Checkbox
                             checked={subtask.completed}
                             onCheckedChange={() =>
                               handleToggleSubtask(subtask.id)
                             }
+                            className="border-[#404249] data-[state=checked]:bg-[#5865f2] data-[state=checked]:border-[#5865f2]"
                           />
                           <span
                             className={`flex-1 text-sm ${
@@ -706,22 +989,22 @@ export function TaskDetailsModal({
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="opacity-0 group-hover:opacity-100 transition-opacity h-auto p-1"
+                            className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0 text-gray-500 hover:text-red-400 hover:bg-red-500/10"
                             onClick={() => handleDeleteSubtask(subtask.id)}
                           >
-                            <Trash2 size={14} className="text-[#ed4245]" />
+                            <Trash2 size={12} />
                           </Button>
                         </div>
                       ))}
 
                       {/* Add subtask form */}
                       {isAddingSubtask && (
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 mt-2">
                           <Input
                             value={newSubtask}
                             onChange={(e) => setNewSubtask(e.target.value)}
-                            placeholder="Subtask title..."
-                            className="bg-[#1e1f22] border-[#404249] text-white"
+                            placeholder="Add an item..."
+                            className="bg-[#2b2d31] border-[#404249] text-white h-9 focus-visible:ring-[#5865f2]"
                             autoFocus
                             onKeyDown={(e) => {
                               if (e.key === "Enter") handleAddSubtask();
@@ -734,7 +1017,7 @@ export function TaskDetailsModal({
                           <Button
                             size="sm"
                             onClick={handleAddSubtask}
-                            className="bg-[#5865f2] hover:bg-[#4752c4]"
+                            className="bg-[#5865f2] hover:bg-[#4752c4] h-9"
                           >
                             Add
                           </Button>
@@ -745,7 +1028,7 @@ export function TaskDetailsModal({
                               setIsAddingSubtask(false);
                               setNewSubtask("");
                             }}
-                            className="text-gray-400 hover:text-white hover:bg-[#404249]"
+                            className="text-gray-400 hover:text-white hover:bg-[#404249] h-9"
                           >
                             Cancel
                           </Button>
@@ -757,38 +1040,38 @@ export function TaskDetailsModal({
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="mt-2 text-gray-400 hover:text-white hover:bg-[#404249]"
+                        className="mt-2 text-gray-500 hover:text-white hover:bg-[#2b2d31] h-8"
                         onClick={() => setIsAddingSubtask(true)}
                       >
-                        <Plus size={14} className="mr-2" />
-                        Add subtask
+                        <Plus size={14} className="mr-1" />
+                        Add item
                       </Button>
                     )}
                   </div>
                 ) : null}
 
                 {/* Attachments */}
-                {localTask.attachments && localTask.attachments.length > 0 && (
+                {displayAttachments && displayAttachments.length > 0 && (
                   <div>
-                    <label className="text-sm text-gray-400 flex items-center gap-2 mb-2">
-                      <Paperclip size={16} />
-                      Attachments ({localTask.attachments.length})
+                    <label className="text-xs font-medium uppercase tracking-wide text-gray-500 mb-3 flex items-center gap-2">
+                      <Paperclip size={14} />
+                      Attachments ({displayAttachments.length})
                     </label>
-                    <div className="grid grid-cols-2 gap-3">
-                      {localTask.attachments.map((attachment) => (
+                    <div className="grid grid-cols-2 gap-2">
+                      {displayAttachments.map((attachment) => (
                         <div
                           key={attachment.id}
-                          className="flex items-center gap-3 p-3 bg-[#1e1f22] rounded-lg hover:bg-[#404249] transition-colors group"
+                          className="flex items-center gap-3 p-3 bg-[#2b2d31] rounded-lg hover:bg-[#313338] transition-colors group border border-transparent hover:border-[#404249]"
                         >
                           {attachment.type === "image" && attachment.url ? (
                             <img
                               src={attachment.url}
                               alt={attachment.name}
-                              className="w-12 h-12 object-cover rounded"
+                              className="w-10 h-10 object-cover rounded"
                             />
                           ) : (
-                            <div className="w-12 h-12 bg-[#313338] rounded flex items-center justify-center">
-                              <File size={20} className="text-gray-500" />
+                            <div className="w-10 h-10 bg-[#1e1f22] rounded flex items-center justify-center">
+                              <File size={18} className="text-gray-500" />
                             </div>
                           )}
                           <div className="flex-1 min-w-0">
@@ -802,12 +1085,15 @@ export function TaskDetailsModal({
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="opacity-0 group-hover:opacity-100 transition-opacity h-auto p-1"
+                            className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0 text-gray-500 hover:text-red-400 hover:bg-red-500/10"
                             onClick={() =>
-                              handleDeleteAttachment(attachment.id)
+                              handleDeleteAttachment(
+                                attachment.id,
+                                attachment.url || ""
+                              )
                             }
                           >
-                            <Trash2 size={14} className="text-[#ed4245]" />
+                            <Trash2 size={12} />
                           </Button>
                         </div>
                       ))}
@@ -818,25 +1104,25 @@ export function TaskDetailsModal({
                 {/* Comments */}
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    <label className="text-sm text-gray-400 flex items-center gap-2">
-                      <CheckSquare size={16} />
-                      Activity ({localTask.comments?.length || 0})
+                    <label className="text-xs font-medium uppercase tracking-wide text-gray-500 flex items-center gap-2">
+                      <MessageSquare size={14} />
+                      Activity
                     </label>
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => setShowComments(!showComments)}
-                      className="text-xs text-gray-400 hover:text-white hover:bg-[#404249]"
+                      className="text-xs text-gray-500 hover:text-white hover:bg-[#2b2d31] h-7"
                     >
                       {showComments ? (
                         <>
-                          <ChevronUp size={14} className="mr-1" />
-                          Hide Comments
+                          <ChevronUp size={12} className="mr-1" />
+                          Hide
                         </>
                       ) : (
                         <>
-                          <ChevronDown size={14} className="mr-1" />
-                          Show Comments
+                          <ChevronDown size={12} className="mr-1" />
+                          Show
                         </>
                       )}
                     </Button>
@@ -849,71 +1135,106 @@ export function TaskDetailsModal({
                         animate={{ height: "auto", opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
                         transition={{ duration: 0.2 }}
-                        className="space-y-4 overflow-hidden"
+                        className="space-y-3 overflow-hidden"
                       >
-                        {localTask.comments?.map((comment) => (
-                          <div
-                            key={comment.id}
-                            className="flex gap-3 p-3 bg-[#1e1f22] rounded-lg group"
-                          >
-                            <Avatar className="h-8 w-8">
-                              <AvatarFallback className="text-xs bg-[#5865f2] text-white">
-                                {getInitials(comment.author)}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="text-sm text-gray-200">
-                                  {comment.author}
-                                </span>
-                                <span className="text-xs text-gray-500">
-                                  {comment.timestamp}
-                                </span>
-                              </div>
-                              <p className="text-sm text-gray-300">
-                                {comment.content}
-                              </p>
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="opacity-0 group-hover:opacity-100 transition-opacity h-auto p-1"
-                              onClick={() => handleDeleteComment(comment.id)}
-                            >
-                              <Trash2 size={14} className="text-[#ed4245]" />
-                            </Button>
-                          </div>
-                        ))}
-
                         {/* Add comment */}
-                        <div className="flex gap-3 pt-4 border-t border-[#404249]">
-                          <Avatar className="h-8 w-8">
+                        <div className="flex gap-3">
+                          <Avatar className="h-8 w-8 shrink-0">
                             <AvatarFallback className="text-xs bg-[#5865f2] text-white">
                               YO
                             </AvatarFallback>
                           </Avatar>
                           <div className="flex-1">
                             <Textarea
-                              placeholder="Add a comment..."
-                              className="mb-2 bg-[#1e1f22] border-[#404249] text-white"
+                              placeholder="Write a comment..."
+                              className="mb-2 bg-[#2b2d31] border-[#404249] text-white min-h-[80px] focus-visible:ring-[#5865f2] resize-none"
                               value={newComment}
                               onChange={(e) => setNewComment(e.target.value)}
                               onKeyDown={(e) => {
-                                if (e.key === "Enter" && e.metaKey) {
+                                if (
+                                  e.key === "Enter" &&
+                                  (e.metaKey || e.ctrlKey)
+                                ) {
                                   handleAddComment();
                                 }
                               }}
                             />
-                            <Button
-                              size="sm"
-                              className="bg-[#5865f2] hover:bg-[#4752c4]"
-                              onClick={handleAddComment}
-                              disabled={!newComment.trim()}
-                            >
-                              Comment
-                            </Button>
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs text-gray-500">
+                                Press ⌘+Enter to send
+                              </span>
+                              <Button
+                                size="sm"
+                                className="bg-[#5865f2] hover:bg-[#4752c4] h-8"
+                                onClick={handleAddComment}
+                                disabled={!newComment.trim()}
+                              >
+                                Comment
+                              </Button>
+                            </div>
                           </div>
                         </div>
+
+                        {/* Comments list - prefer Supabase data over local */}
+                        {(supabaseComments.length > 0
+                          ? supabaseComments
+                          : localTask.comments
+                        )?.map((comment) => {
+                          // Handle both CardComment (Supabase) and TaskComment (local) types
+                          // For local TaskComment: has 'author' as string
+                          // For CardComment: has 'author' as { id, username, avatar_url }
+                          let authorName: string;
+                          let timestamp: string;
+
+                          if ("timestamp" in comment) {
+                            // Local TaskComment type
+                            authorName = (comment as TaskComment).author;
+                            timestamp = (comment as TaskComment).timestamp;
+                          } else {
+                            // CardComment (Supabase) type
+                            const cardComment = comment as CardComment;
+                            authorName =
+                              cardComment.author?.username || "Unknown";
+                            timestamp = new Date(
+                              cardComment.created_at
+                            ).toLocaleString();
+                          }
+
+                          const authorInitials = getInitials(authorName);
+
+                          return (
+                            <div key={comment.id} className="flex gap-3 group">
+                              <Avatar className="h-8 w-8 shrink-0">
+                                <AvatarFallback className="text-xs bg-[#5865f2] text-white">
+                                  {authorInitials}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-sm font-medium text-gray-200">
+                                    {authorName}
+                                  </span>
+                                  <span className="text-xs text-gray-500">
+                                    {timestamp}
+                                  </span>
+                                </div>
+                                <div className="bg-[#2b2d31] rounded-lg p-3">
+                                  <p className="text-sm text-gray-300">
+                                    {comment.content}
+                                  </p>
+                                </div>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0 text-gray-500 hover:text-red-400 hover:bg-red-500/10 shrink-0"
+                                onClick={() => handleDeleteComment(comment.id)}
+                              >
+                                <Trash2 size={12} />
+                              </Button>
+                            </div>
+                          );
+                        })}
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -922,72 +1243,185 @@ export function TaskDetailsModal({
             </ScrollArea>
 
             {/* Sidebar - "Add to Card" Actions */}
-            <div className="w-64 border-l border-[#1e1f22] bg-[#313338] p-4 space-y-4 overflow-y-auto">
+            <div className="w-56 border-l border-[#2b2d31] bg-[#1e1f22] p-4 space-y-4 overflow-y-auto">
               <div>
-                <h3 className="text-xs text-gray-500 uppercase mb-2">
+                <h3 className="text-xs font-medium uppercase tracking-wide text-gray-500 mb-2">
                   Add to card
                 </h3>
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   {/* Members */}
                   <Popover
                     open={showMembersModal}
-                    onOpenChange={setShowMembersModal}
+                    onOpenChange={(open) => {
+                      setShowMembersModal(open);
+                      if (!open) {
+                        setMemberSearchQuery("");
+                        setSearchResults([]);
+                      }
+                    }}
                   >
                     <PopoverTrigger asChild>
                       <Button
-                        variant="outline"
-                        className="w-full justify-start text-sm bg-[#1e1f22] border-[#404249] text-gray-200 hover:bg-[#404249]"
-                        size="sm"
+                        variant="ghost"
+                        className="w-full justify-start text-sm h-9 bg-[#2b2d31] text-gray-300 hover:bg-[#404249] hover:text-white"
                       >
-                        <Users size={16} className="mr-2" />
+                        <Users size={14} className="mr-2" />
                         Members
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent
-                      className="w-64 p-3 bg-[#2b2d31] border-[#1e1f22]"
+                      className="w-72 p-2 bg-[#2b2d31] border-[#404249]"
                       align="start"
                     >
-                      <h4 className="text-sm mb-2 text-white">Members</h4>
-                      <div className="text-xs text-gray-500 mb-3">
-                        Click to add or remove
+                      {/* Search input */}
+                      <div className="px-2 mb-2">
+                        <Input
+                          placeholder="Search members..."
+                          value={memberSearchQuery}
+                          onChange={(e) => setMemberSearchQuery(e.target.value)}
+                          className="h-8 text-sm bg-[#1e1f22] border-[#404249] text-white placeholder:text-gray-500"
+                        />
                       </div>
-                      <div className="space-y-2">
-                        {availableMembers.map((member) => {
-                          const isAssigned = localTask.assignees?.includes(
-                            member.name
-                          );
-                          return (
-                            <Button
-                              key={member.id}
-                              variant={isAssigned ? "default" : "ghost"}
-                              className={`w-full justify-start text-sm ${
-                                isAssigned
-                                  ? "bg-[#5865f2] text-white hover:bg-[#4752c4]"
-                                  : "text-gray-200 hover:bg-[#404249]"
-                              }`}
-                              onClick={() =>
-                                handleAddMember(member.id, member.name)
-                              }
-                            >
-                              {isAssigned && (
-                                <Check size={14} className="mr-2" />
-                              )}
-                              <Avatar className="h-6 w-6 mr-2">
-                                <AvatarFallback
-                                  className={`text-xs ${
+
+                      {/* Search Results */}
+                      {memberSearchQuery.trim() && (
+                        <div className="mb-2">
+                          <h4 className="text-xs font-medium uppercase tracking-wide text-gray-500 mb-2 px-2">
+                            Search Results
+                          </h4>
+                          <div className="space-y-1 max-h-32 overflow-y-auto">
+                            {isSearching ? (
+                              <p className="text-xs text-gray-500 px-2">
+                                Searching...
+                              </p>
+                            ) : searchResults.length > 0 ? (
+                              searchResults.map((user) => {
+                                const isAlreadyMember = availableMembers.some(
+                                  (m) => m.id === user.id
+                                );
+                                const isAssigned =
+                                  localTask.assignees?.includes(user.username);
+                                return (
+                                  <Button
+                                    key={user.id}
+                                    variant="ghost"
+                                    className={`w-full justify-start text-sm h-9 ${
+                                      isAssigned
+                                        ? "bg-[#5865f2]/20 text-[#5865f2]"
+                                        : "text-gray-300 hover:bg-[#404249]"
+                                    }`}
+                                    onClick={() => {
+                                      if (isAlreadyMember) {
+                                        handleAddMember(user.id, user.username);
+                                      } else {
+                                        handleAddMemberToBoard(
+                                          user.id,
+                                          user.username
+                                        );
+                                      }
+                                    }}
+                                  >
+                                    {isAssigned && (
+                                      <Check size={12} className="mr-2" />
+                                    )}
+                                    <Avatar className="h-5 w-5 mr-2">
+                                      {user.avatar_url ? (
+                                        <AvatarImage src={user.avatar_url} />
+                                      ) : null}
+                                      <AvatarFallback className="text-[10px] bg-[#5865f2] text-white">
+                                        {user.username
+                                          ?.slice(0, 2)
+                                          .toUpperCase() || "??"}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <span className="truncate">
+                                      {user.username}
+                                    </span>
+                                    {!isAlreadyMember && (
+                                      <span className="ml-auto text-[10px] text-gray-500">
+                                        + Add
+                                      </span>
+                                    )}
+                                  </Button>
+                                );
+                              })
+                            ) : (
+                              <p className="text-xs text-gray-500 px-2">
+                                No users found
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Board Members */}
+                      {availableMembers.length > 0 && (
+                        <div className="mb-2">
+                          <h4 className="text-xs font-medium uppercase tracking-wide text-gray-500 mb-2 px-2">
+                            {boardMembers.length > 0
+                              ? "Board Members"
+                              : "Server Members"}
+                          </h4>
+                          <div className="space-y-1 max-h-40 overflow-y-auto">
+                            {availableMembers.map((member) => {
+                              const isAssigned = localTask.assignees?.includes(
+                                member.name
+                              );
+                              return (
+                                <Button
+                                  key={member.id}
+                                  variant="ghost"
+                                  className={`w-full justify-start text-sm h-9 ${
                                     isAssigned
-                                      ? "bg-white text-[#5865f2]"
-                                      : member.color + " text-white"
+                                      ? "bg-[#5865f2]/20 text-[#5865f2]"
+                                      : "text-gray-300 hover:bg-[#404249]"
                                   }`}
+                                  onClick={() => {
+                                    if (!member.isBoardMember) {
+                                      handleAddMemberToBoard(
+                                        member.id,
+                                        member.name
+                                      );
+                                    } else {
+                                      handleAddMember(member.id, member.name);
+                                    }
+                                  }}
                                 >
-                                  {member.avatar}
-                                </AvatarFallback>
-                              </Avatar>
-                              {member.name}
-                            </Button>
-                          );
-                        })}
-                      </div>
+                                  {isAssigned && (
+                                    <Check size={12} className="mr-2" />
+                                  )}
+                                  <Avatar className="h-5 w-5 mr-2">
+                                    {member.avatarUrl ? (
+                                      <AvatarImage src={member.avatarUrl} />
+                                    ) : null}
+                                    <AvatarFallback
+                                      className={`text-[10px] ${member.color} text-white`}
+                                    >
+                                      {member.avatar}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <span className="truncate">
+                                    {member.name}
+                                  </span>
+                                  {!member.isBoardMember && (
+                                    <span className="ml-auto text-[10px] text-gray-500">
+                                      + Add
+                                    </span>
+                                  )}
+                                </Button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Empty state */}
+                      {availableMembers.length === 0 &&
+                        !memberSearchQuery.trim() && (
+                          <p className="text-xs text-gray-500 px-2 py-2">
+                            No members yet. Search to add members to this board.
+                          </p>
+                        )}
                     </PopoverContent>
                   </Popover>
 
@@ -998,20 +1432,21 @@ export function TaskDetailsModal({
                   >
                     <PopoverTrigger asChild>
                       <Button
-                        variant="outline"
-                        className="w-full justify-start text-sm bg-[#1e1f22] border-[#404249] text-gray-200 hover:bg-[#404249]"
-                        size="sm"
+                        variant="ghost"
+                        className="w-full justify-start text-sm h-9 bg-[#2b2d31] text-gray-300 hover:bg-[#404249] hover:text-white"
                       >
-                        <Tag size={16} className="mr-2" />
+                        <Tag size={14} className="mr-2" />
                         Labels
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent
-                      className="w-64 p-3 bg-[#2b2d31] border-[#1e1f22]"
+                      className="w-56 p-2 bg-[#2b2d31] border-[#404249]"
                       align="start"
                     >
-                      <h4 className="text-sm mb-2 text-white">Labels</h4>
-                      <div className="space-y-2">
+                      <h4 className="text-xs font-medium uppercase tracking-wide text-gray-500 mb-2 px-2">
+                        Labels
+                      </h4>
+                      <div className="space-y-1">
                         {boardLabels?.map((label) => {
                           const isSelected = localTask.labels.includes(
                             label.id
@@ -1019,11 +1454,11 @@ export function TaskDetailsModal({
                           return (
                             <Button
                               key={label.id}
-                              variant={isSelected ? "default" : "outline"}
-                              className={`w-full justify-start text-sm ${
+                              variant="ghost"
+                              className={`w-full justify-start text-sm h-9 ${
                                 isSelected
-                                  ? `${label.color} ${label.textColor}`
-                                  : "bg-[#1e1f22] border-[#404249] text-gray-200 hover:bg-[#404249]"
+                                  ? "bg-[#5865f2]/20"
+                                  : "hover:bg-[#404249]"
                               }`}
                               onClick={() =>
                                 isSelected
@@ -1032,36 +1467,41 @@ export function TaskDetailsModal({
                               }
                             >
                               {isSelected && (
-                                <Check size={14} className="mr-2" />
+                                <Check
+                                  size={12}
+                                  className="mr-2 text-[#5865f2]"
+                                />
                               )}
                               <div
-                                className={`w-3 h-3 rounded-full ${label.color} mr-2`}
+                                className={`w-3 h-3 rounded ${label.color} mr-2`}
                               />
-                              {label.name}
+                              <span className="text-gray-300">
+                                {label.name}
+                              </span>
                             </Button>
                           );
                         })}
+                        <div className="h-px bg-[#404249] my-1" />
                         <Button
-                          variant="outline"
-                          className="w-full justify-start text-sm bg-[#1e1f22] border-[#404249] text-gray-200 hover:bg-[#404249]"
-                          size="sm"
+                          variant="ghost"
+                          className="w-full justify-start text-sm h-9 text-gray-400 hover:bg-[#404249] hover:text-white"
                           onClick={onManageLabels}
                         >
-                          Manage Labels
+                          <Plus size={14} className="mr-2" />
+                          Create label
                         </Button>
                       </div>
                     </PopoverContent>
                   </Popover>
 
                   {/* Checklist */}
-                  {!localTask.subtasks?.length && !isAddingSubtask && (
+                  {!displaySubtasks?.length && !isAddingSubtask && (
                     <Button
-                      variant="outline"
-                      className="w-full justify-start text-sm bg-[#1e1f22] border-[#404249] text-gray-200 hover:bg-[#404249]"
-                      size="sm"
+                      variant="ghost"
+                      className="w-full justify-start text-sm h-9 bg-[#2b2d31] text-gray-300 hover:bg-[#404249] hover:text-white"
                       onClick={() => setIsAddingSubtask(true)}
                     >
-                      <CheckSquare size={16} className="mr-2" />
+                      <CheckSquare size={14} className="mr-2" />
                       Checklist
                     </Button>
                   )}
@@ -1073,16 +1513,15 @@ export function TaskDetailsModal({
                   >
                     <PopoverTrigger asChild>
                       <Button
-                        variant="outline"
-                        className="w-full justify-start text-sm bg-[#1e1f22] border-[#404249] text-gray-200 hover:bg-[#404249]"
-                        size="sm"
+                        variant="ghost"
+                        className="w-full justify-start text-sm h-9 bg-[#2b2d31] text-gray-300 hover:bg-[#404249] hover:text-white"
                       >
-                        <Calendar size={16} className="mr-2" />
-                        Dates
+                        <Calendar size={14} className="mr-2" />
+                        Due date
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent
-                      className="w-auto p-0 bg-[#2b2d31] border-[#1e1f22]"
+                      className="w-auto p-0 bg-[#2b2d31] border-[#404249]"
                       align="start"
                     >
                       <CalendarComponent
@@ -1094,30 +1533,30 @@ export function TaskDetailsModal({
                         }
                         onSelect={handleSetDueDate}
                         initialFocus
+                        className="bg-[#2b2d31]"
                       />
                       {localTask.dueDate && (
-                        <div className="p-3 border-t border-[#404249]">
+                        <div className="p-2 border-t border-[#404249]">
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="w-full text-gray-400 hover:text-white hover:bg-[#404249]"
+                            className="w-full text-gray-400 hover:text-white hover:bg-[#404249] h-8"
                             onClick={() => handleSetDueDate(undefined)}
                           >
-                            Remove Due Date
+                            Remove date
                           </Button>
                         </div>
                       )}
                     </PopoverContent>
                   </Popover>
 
-                  {/* Attachment - Image */}
+                  {/* Image */}
                   <Button
-                    variant="outline"
-                    className="w-full justify-start text-sm bg-[#1e1f22] border-[#404249] text-gray-200 hover:bg-[#404249]"
-                    size="sm"
+                    variant="ghost"
+                    className="w-full justify-start text-sm h-9 bg-[#2b2d31] text-gray-300 hover:bg-[#404249] hover:text-white"
                     onClick={() => imageInputRef.current?.click()}
                   >
-                    <ImageIcon size={16} className="mr-2" />
+                    <ImageIcon size={14} className="mr-2" />
                     Image
                   </Button>
                   <input
@@ -1129,14 +1568,13 @@ export function TaskDetailsModal({
                     onChange={handleImageUpload}
                   />
 
-                  {/* Attachment - File */}
+                  {/* Attachment */}
                   <Button
-                    variant="outline"
-                    className="w-full justify-start text-sm bg-[#1e1f22] border-[#404249] text-gray-200 hover:bg-[#404249]"
-                    size="sm"
+                    variant="ghost"
+                    className="w-full justify-start text-sm h-9 bg-[#2b2d31] text-gray-300 hover:bg-[#404249] hover:text-white"
                     onClick={() => fileInputRef.current?.click()}
                   >
-                    <Paperclip size={16} className="mr-2" />
+                    <Paperclip size={14} className="mr-2" />
                     Attachment
                   </Button>
                   <input
@@ -1151,52 +1589,48 @@ export function TaskDetailsModal({
 
               {/* Actions */}
               <div>
-                <h3 className="text-xs text-gray-500 uppercase mb-2">
+                <h3 className="text-xs font-medium uppercase tracking-wide text-gray-500 mb-2">
                   Actions
                 </h3>
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   {/* Mark as Complete */}
                   {!isTaskComplete ? (
                     <Button
-                      variant="outline"
-                      className="w-full justify-start text-sm bg-[#57f287]/10 hover:bg-[#57f287]/20 border-[#57f287]/30 text-[#57f287]"
-                      size="sm"
+                      variant="ghost"
+                      className="w-full justify-start text-sm h-9 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20"
                       onClick={handleMarkComplete}
                     >
-                      <Check size={16} className="mr-2" />
-                      Mark Complete
+                      <Check size={14} className="mr-2" />
+                      Mark complete
                     </Button>
                   ) : (
                     <Button
-                      variant="outline"
-                      className="w-full justify-start text-sm bg-[#1e1f22] border-[#404249] text-gray-200 hover:bg-[#404249]"
-                      size="sm"
+                      variant="ghost"
+                      className="w-full justify-start text-sm h-9 bg-[#2b2d31] text-gray-300 hover:bg-[#404249] hover:text-white"
                       onClick={() => updateTask({ status: "column-1-1" })}
                     >
-                      <XCircle size={16} className="mr-2" />
-                      Mark Incomplete
+                      <XCircle size={14} className="mr-2" />
+                      Mark incomplete
                     </Button>
                   )}
 
                   {/* Archive */}
                   <Button
-                    variant="outline"
-                    className="w-full justify-start text-sm bg-[#1e1f22] border-[#404249] text-gray-200 hover:bg-[#404249]"
-                    size="sm"
+                    variant="ghost"
+                    className="w-full justify-start text-sm h-9 bg-[#2b2d31] text-gray-300 hover:bg-[#404249] hover:text-white"
                     onClick={handleArchiveTask}
                   >
-                    <Archive size={16} className="mr-2" />
+                    <Archive size={14} className="mr-2" />
                     Archive
                   </Button>
 
                   {/* Delete */}
                   <Button
-                    variant="outline"
-                    className="w-full justify-start text-sm text-[#ed4245] hover:bg-[#ed4245]/10 border-[#ed4245]/30"
-                    size="sm"
+                    variant="ghost"
+                    className="w-full justify-start text-sm h-9 text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20"
                     onClick={() => setShowDeleteConfirm(true)}
                   >
-                    <Trash2 size={16} className="mr-2" />
+                    <Trash2 size={14} className="mr-2" />
                     Delete
                   </Button>
                 </div>
@@ -1204,16 +1638,16 @@ export function TaskDetailsModal({
             </div>
           </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-        <DialogContent className="bg-[#2b2d31] border-[#1e1f22]">
+        <DialogContent className="bg-[#2b2d31] border-[#404249] max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-white">Delete Task?</DialogTitle>
+            <DialogTitle className="text-white">Delete task?</DialogTitle>
             <DialogDescription className="text-gray-400">
-              Are you sure you want to delete {localTask.title}? This action
-              cannot be undone.
+              This will permanently delete{localTask.title}. This action cannot
+              be undone.
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2 mt-4">
@@ -1225,11 +1659,10 @@ export function TaskDetailsModal({
               Cancel
             </Button>
             <Button
-              variant="destructive"
               onClick={handleDeleteTask}
-              className="bg-[#ed4245] hover:bg-[#c93b3e]"
+              className="bg-red-500 hover:bg-red-600 text-white"
             >
-              Delete Task
+              Delete
             </Button>
           </div>
         </DialogContent>

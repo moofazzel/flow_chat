@@ -20,7 +20,6 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import { AnimatePresence, motion } from "framer-motion";
 import { Filter, MessageSquare, Plus, Search, Star, Tag } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -122,17 +121,40 @@ function SortableTaskCard({
     isDragging,
   } = useSortable({ id: task.id });
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
+  // Use Translate instead of Transform to avoid scale/rotation issues
+  const style: React.CSSProperties = {
+    transform: transform
+      ? `translate3d(${transform.x}px, ${transform.y}px, 0)`
+      : undefined,
     transition,
-    opacity: isDragging ? 0.3 : 1,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 1000 : 1,
+    position: "relative" as const,
+  };
+
+  // Handle click - only trigger if not dragging
+  const handleClick = (e: React.MouseEvent) => {
+    // Don't trigger click if we just finished dragging
+    if (isDragging) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    onClick();
   };
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      onClick={handleClick}
+      className={isDragging ? "cursor-grabbing" : "cursor-grab"}
+    >
       <TaskCard
         task={task}
-        onClick={onClick}
+        onClick={() => {}} // Handle click at wrapper level
         onDelete={onDelete}
         onDuplicate={onDuplicate}
         onArchive={onArchive}
@@ -422,13 +444,11 @@ export function TaskBoard({
     }
   }, [localTasks]);
 
-  // Drag sensors
+  // Drag sensors - require longer distance to distinguish from click
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 5, // Reduced to 5px for more responsive drag
-        delay: 0,
-        tolerance: 5,
+        distance: 5, // Require 10px movement before drag starts
       },
     }),
     useSensor(KeyboardSensor, {
@@ -442,20 +462,26 @@ export function TaskBoard({
       // Only on left click
       const target = e.target as HTMLElement;
 
-      // Don't scroll if clicking on interactive elements
+      // Don't scroll if clicking on interactive elements or task cards
       const isInteractive =
         target.closest("button") ||
         target.closest('[role="button"]') ||
         target.closest("input") ||
         target.closest("a") ||
-        target.closest("[data-task-card]");
+        target.closest("[data-task-card]") ||
+        target.closest(".cursor-grab") ||
+        target.closest(".cursor-grabbing");
 
       if (isInteractive) return;
+
+      // Also check if we're inside a column's task area
+      const isInTaskArea = target.closest(".space-y-2");
+      if (isInTaskArea) return;
 
       e.preventDefault();
       setIsDraggingBoard(true);
       setDragStart({
-        x: e.pageX - boardContainerRef.current.offsetLeft,
+        x: e.pageX,
         scrollLeft: boardContainerRef.current.scrollLeft,
       });
     }
@@ -464,8 +490,7 @@ export function TaskBoard({
   const handleBoardMouseMove = (e: React.MouseEvent) => {
     if (!isDraggingBoard || !boardContainerRef.current) return;
     e.preventDefault();
-    const x = e.pageX - boardContainerRef.current.offsetLeft;
-    const walk = (x - dragStart.x) * 2; // Scroll speed multiplier
+    const walk = (e.pageX - dragStart.x) * 1.5; // Scroll speed multiplier
     boardContainerRef.current.scrollLeft = dragStart.scrollLeft - walk;
   };
 

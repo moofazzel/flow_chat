@@ -16,7 +16,6 @@ import {
   Gift,
   Hash,
   Hash as HashTag,
-  HelpCircle,
   Image as ImageIcon,
   Inbox,
   Italic,
@@ -24,7 +23,6 @@ import {
   MessageSquare,
   MoreHorizontal,
   Paperclip,
-  Phone,
   Pin,
   Reply,
   Search,
@@ -33,7 +31,6 @@ import {
   Sticker,
   Strikethrough,
   Users,
-  Video,
   VolumeX,
   X,
   Zap,
@@ -187,8 +184,7 @@ import { useChat } from "@/hooks/useChat";
 import { getCurrentUser, User } from "@/utils/auth";
 import { createClient } from "@/utils/supabase/client";
 
-// ... existing imports ...
-
+// workspace/board chat
 export function EnhancedChatArea({
   channelId,
   onTaskClick,
@@ -789,24 +785,6 @@ export function EnhancedChatArea({
             />
           </div>
 
-          {/* Video call */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-gray-400 hover:text-gray-200 p-1.5 h-auto"
-          >
-            <Video size={16} />
-          </Button>
-
-          {/* Voice call */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-gray-400 hover:text-gray-200 p-1.5 h-auto"
-          >
-            <Phone size={16} />
-          </Button>
-
           {/* Inbox */}
           <Button
             variant="ghost"
@@ -820,498 +798,580 @@ export function EnhancedChatArea({
               </span>
             )}
           </Button>
-
-          {/* Help */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-gray-400 hover:text-gray-200 p-1.5 h-auto"
-          >
-            <HelpCircle size={16} />
-          </Button>
         </div>
       </div>
 
-      {/* Pinned messages panel */}
-      {showPinnedMessages && pinnedMessages.length > 0 && (
-        <div className="bg-[#2b2d31] border-b border-[#1e1f22] p-2">
-          <div className="flex items-center justify-between mb-2">
+      {/* Pinned messages panel - Discord style */}
+      {showPinnedMessages && (
+        <div className="absolute top-12 right-4 w-96 max-w-[calc(100vw-2rem)] bg-[#2b2d31] border border-[#1e1f22] rounded-lg shadow-xl z-50 overflow-hidden">
+          <div className="flex items-center justify-between p-3 border-b border-[#1e1f22]">
             <div className="flex items-center gap-2">
-              <Pin size={14} className="text-yellow-500" />
-              <span className="text-white text-xs">Pinned Messages</span>
+              <Pin size={16} className="text-yellow-500" />
+              <span className="text-white font-semibold text-sm">
+                Pinned Messages
+              </span>
+              {pinnedMessages.length > 0 && (
+                <span className="bg-[#5865f2] text-white text-xs px-1.5 py-0.5 rounded-full">
+                  {pinnedMessages.length}
+                </span>
+              )}
             </div>
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setShowPinnedMessages(false)}
-              className="p-1 h-auto"
+              className="p-1 h-auto hover:bg-[#404249]"
             >
-              <X size={14} className="text-gray-400" />
+              <X size={16} className="text-gray-400 hover:text-white" />
             </Button>
           </div>
-          <ScrollArea className="max-h-32">
-            {pinnedMessages.map((msg) => (
-              <div
-                key={msg.id}
-                className="p-2 bg-[#35363c] rounded mb-1 text-xs"
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <Avatar className="h-5 w-5">
-                    <AvatarFallback className="text-[10px]">
-                      {msg.avatar}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className="text-white">{msg.author}</span>
-                  <span className="text-gray-400">{msg.timestamp}</span>
-                </div>
-                <div className="text-gray-300">{msg.content}</div>
+          <ScrollArea className="max-h-[400px]">
+            {pinnedMessages.length === 0 ? (
+              <div className="p-8 text-center">
+                <Pin size={32} className="text-gray-500 mx-auto mb-3" />
+                <p className="text-gray-400 text-sm">No pinned messages yet</p>
+                <p className="text-gray-500 text-xs mt-1">
+                  Pin important messages to find them easily
+                </p>
               </div>
-            ))}
+            ) : (
+              <div className="p-2 space-y-2">
+                {pinnedMessages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className="p-3 bg-[#1e1f22] rounded-lg hover:bg-[#35363c] transition-colors cursor-pointer group"
+                    onClick={() => {
+                      const originalMessage = document.getElementById(
+                        `message-${msg.id}`
+                      );
+                      if (originalMessage) {
+                        setShowPinnedMessages(false);
+                        originalMessage.scrollIntoView({
+                          behavior: "smooth",
+                          block: "center",
+                        });
+                        originalMessage.classList.add("bg-[#5865f2]/20");
+                        setTimeout(() => {
+                          originalMessage.classList.remove("bg-[#5865f2]/20");
+                        }, 2000);
+                      }
+                    }}
+                  >
+                    <div className="flex items-start gap-3">
+                      <Avatar className="h-8 w-8 shrink-0">
+                        <AvatarFallback className="text-xs bg-[#5865f2]">
+                          {msg.avatar}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-white font-medium text-sm">
+                            {msg.author}
+                          </span>
+                          <span className="text-gray-500 text-xs">
+                            {msg.timestamp}
+                          </span>
+                        </div>
+                        <p className="text-gray-300 text-sm line-clamp-3">
+                          {msg.content}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="opacity-0 group-hover:opacity-100 p-1 h-auto hover:bg-[#404249]"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleUnpinMessage(msg.id);
+                        }}
+                        title="Unpin message"
+                      >
+                        <X
+                          size={14}
+                          className="text-gray-400 hover:text-red-400"
+                        />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </ScrollArea>
         </div>
       )}
 
-      {/* Messages */}
-      <ScrollArea className="flex-1 px-3 py-2">
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center h-full text-center px-4 py-20">
-            <div className="w-12 h-12 border-4 border-[#5865f2] border-t-transparent rounded-full animate-spin mb-4" />
-            <p className="text-gray-400 text-sm">Loading messages...</p>
-          </div>
-        ) : messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center px-4 py-20">
-            <div className="w-16 h-16 bg-[#2b2d31] rounded-full flex items-center justify-center mb-4">
-              <Hash className="text-gray-500" size={32} />
-            </div>
-            <h3 className="text-white text-lg font-semibold mb-2">
-              Welcome to #{channelName}
-            </h3>
-            <p className="text-gray-400 text-sm max-w-md">
-              This is the beginning of the #{channelName} channel. Start the
-              conversation by sending a message below!
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {messages.map((msg, index) => {
-              const prevMsg = messages[index - 1];
-              const isGrouped =
-                prevMsg && prevMsg.author === msg.author && !msg.replyTo;
+      {/* Messages - Responsive & Scrollable */}
+      <div className="flex-1 overflow-hidden relative">
+        <ScrollArea className="h-full">
+          <div className="px-4 py-4 min-h-full flex flex-col">
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center flex-1 text-center px-4 py-20">
+                <div className="w-12 h-12 border-4 border-[#5865f2] border-t-transparent rounded-full animate-spin mb-4" />
+                <p className="text-gray-400 text-sm">Loading messages...</p>
+              </div>
+            ) : messages.length === 0 ? (
+              <div className="flex flex-col items-center justify-center flex-1 text-center px-4 py-20">
+                <div className="w-16 h-16 bg-[#2b2d31] rounded-full flex items-center justify-center mb-4">
+                  <Hash className="text-gray-500" size={32} />
+                </div>
+                <h3 className="text-white text-lg font-semibold mb-2">
+                  Welcome to #{channelName}
+                </h3>
+                <p className="text-gray-400 text-sm max-w-md">
+                  This is the beginning of the #{channelName} channel. Start the
+                  conversation by sending a message below!
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-1 mt-auto">
+                {messages.map((msg, index) => {
+                  const prevMsg = messages[index - 1];
+                  const isGrouped =
+                    prevMsg && prevMsg.author === msg.author && !msg.replyTo;
 
-              return (
-                <div
-                  key={msg.id}
-                  id={`message-${msg.id}`}
-                  className={`flex gap-2 hover:bg-[#2e3035] -mx-3 px-3 ${
-                    isGrouped ? "py-0" : "py-0.5"
-                  } group rounded transition-colors duration-300 ${
-                    msg.isCurrentUser ? "flex-row-reverse" : ""
-                  } ${showMoreMenu === msg.id ? "relative z-50" : "relative"}`}
-                >
-                  {/* Hover action buttons */}
-                  <div
-                    className={`absolute -top-3 ${
-                      msg.isCurrentUser ? "left-3" : "right-3"
-                    } opacity-0 group-hover:opacity-100 transition-opacity bg-[#1e1f22] rounded-md border border-[#3f4147] shadow-lg flex items-center gap-0.5 p-0.5 z-10`}
-                  >
-                    {/* Quick reactions */}
-                    {quickEmojis.slice(0, 4).map((emoji) => (
-                      <Button
-                        key={emoji}
-                        variant="ghost"
-                        size="sm"
-                        className="text-gray-400 hover:text-white hover:bg-[#35363c] p-1 h-auto"
-                        onClick={() => handleAddReaction(msg.id, emoji)}
-                      >
-                        {emoji}
-                      </Button>
-                    ))}
-                    <div className="w-px h-4 bg-[#3f4147] mx-0.5" />
-
-                    {/* Action buttons */}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-gray-400 hover:text-white hover:bg-[#35363c] p-1 h-auto"
-                      onClick={() => handleReply(msg)}
-                      title="Reply"
+                  return (
+                    <div
+                      key={msg.id}
+                      id={`message-${msg.id}`}
+                      className={`hover:bg-[#2e3035] rounded px-2 sm:px-4 ${
+                        isGrouped ? "py-0.5" : "pt-3 pb-1"
+                      } group transition-colors duration-300 ${
+                        showMoreMenu === msg.id ? "relative z-50" : "relative"
+                      }`}
                     >
-                      <Reply size={16} />
-                    </Button>
-
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-gray-400 hover:text-white hover:bg-[#35363c] p-1 h-auto"
-                      onClick={() => handleCreateThread(msg)}
-                      title="Create Thread"
-                    >
-                      <MessageSquare size={16} />
-                    </Button>
-
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-gray-400 hover:text-white hover:bg-[#35363c] p-1 h-auto"
-                          title="Add Reaction"
+                      {/* Discord-style Reply Indicator */}
+                      {msg.replyTo && (
+                        <div
+                          className="flex items-center gap-2 mb-1 ml-12 sm:ml-14 cursor-pointer group/reply"
+                          onClick={() => {
+                            const originalMessage = document.getElementById(
+                              `message-${msg.replyTo?.id}`
+                            );
+                            if (originalMessage) {
+                              originalMessage.scrollIntoView({
+                                behavior: "smooth",
+                                block: "center",
+                              });
+                              originalMessage.classList.add("bg-[#5865f2]/20");
+                              setTimeout(() => {
+                                originalMessage.classList.remove(
+                                  "bg-[#5865f2]/20"
+                                );
+                              }, 2000);
+                            }
+                          }}
                         >
-                          <Smile size={16} />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-64 p-2 bg-[#1e1f22] border-[#3f4147]">
-                        <div className="grid grid-cols-8 gap-1">
-                          {quickEmojis.map((emoji) => (
-                            <button
-                              key={emoji}
-                              onClick={() => {
-                                handleAddReaction(msg.id, emoji);
-                              }}
-                              className="text-lg hover:bg-[#35363c] p-1 rounded"
-                            >
-                              {emoji}
-                            </button>
-                          ))}
+                          {/* Reply connector line */}
+                          <div className="absolute left-6 sm:left-8 top-3 w-6 sm:w-8 h-3 border-l-2 border-t-2 border-gray-500 rounded-tl-md" />
+                          <Avatar className="h-4 w-4 shrink-0">
+                            <AvatarFallback className="text-[8px] bg-[#5865f2]">
+                              {msg.replyTo.author.slice(0, 2).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="text-[#00aff4] text-xs font-medium hover:underline">
+                            @{msg.replyTo.author}
+                          </span>
+                          <span className="text-gray-400 text-xs truncate max-w-[200px] sm:max-w-md group-hover/reply:text-gray-300">
+                            {msg.replyTo.content.length > 50
+                              ? `${msg.replyTo.content.substring(0, 50)}...`
+                              : msg.replyTo.content}
+                          </span>
                         </div>
-                      </PopoverContent>
-                    </Popover>
-
-                    <div className="relative">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-gray-400 hover:text-white hover:bg-[#35363c] p-1 h-auto"
-                        onClick={() =>
-                          setShowMoreMenu(
-                            showMoreMenu === msg.id ? null : msg.id
-                          )
-                        }
-                        title="More"
-                      >
-                        <MoreHorizontal size={16} />
-                      </Button>
-
-                      {showMoreMenu === msg.id && (
-                        <>
-                          {/* Backdrop to close menu when clicking outside */}
-                          <div
-                            className="fixed inset-0 z-30"
-                            onClick={() => setShowMoreMenu(null)}
-                          />
-
-                          {/* Dropdown menu */}
-                          <div className="absolute top-full mt-1 right-0 bg-[#1e1f22] border border-[#3f4147] rounded-lg shadow-xl min-w-[180px] overflow-hidden z-40">
-                            <button
-                              onClick={() => handleMarkUnread()}
-                              className="w-full px-3 py-1.5 text-left text-gray-300 hover:bg-[#35363c] hover:text-white flex items-center gap-2 text-xs"
-                            >
-                              <Eye size={14} />
-                              Mark as Unread
-                            </button>
-                            <button
-                              onClick={() => handleTogglePin(msg)}
-                              className="w-full px-3 py-1.5 text-left text-gray-300 hover:bg-[#35363c] hover:text-white flex items-center gap-2 text-xs"
-                            >
-                              <Pin size={14} />
-                              {msg.isPinned ? "Unpin" : "Pin"} Message
-                            </button>
-                            <button
-                              onClick={() => handleCopyMessage(msg)}
-                              className="w-full px-3 py-1.5 text-left text-gray-300 hover:bg-[#35363c] hover:text-white flex items-center gap-2 text-xs"
-                            >
-                              <LinkIcon size={14} />
-                              Copy Message Link
-                            </button>
-                            <button
-                              onClick={() => handleCopyMessage(msg)}
-                              className="w-full px-3 py-1.5 text-left text-gray-300 hover:bg-[#35363c] hover:text-white flex items-center gap-2 text-xs"
-                            >
-                              <FileText size={14} />
-                              Copy Text
-                            </button>
-                            <Separator className="bg-[#3f4147]" />
-                            <button
-                              onClick={() => handleCreateTaskFromMessage(msg)}
-                              className="w-full px-3 py-1.5 text-left text-green-400 hover:bg-green-900/20 hover:text-green-300 flex items-center gap-2 text-xs"
-                            >
-                              <ClipboardList size={14} />
-                              Create Task from Message
-                            </button>
-                            {msg.isCurrentUser && (
-                              <>
-                                <Separator className="bg-[#3f4147]" />
-                                <button
-                                  onClick={() => handleStartEdit(msg)}
-                                  className="w-full px-3 py-1.5 text-left text-gray-300 hover:bg-[#35363c] hover:text-white flex items-center gap-2 text-xs"
-                                >
-                                  <Edit2 size={14} />
-                                  Edit Message
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteMessage(msg.id)}
-                                  className="w-full px-3 py-1.5 text-left text-red-400 hover:bg-red-900/20 hover:text-red-300 flex items-center gap-2 text-xs"
-                                >
-                                  <X size={14} />
-                                  Delete Message
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </>
                       )}
-                    </div>
-                  </div>
 
-                  {/* Avatar - only show if not grouped or if has reply */}
-                  {!isGrouped || msg.replyTo ? (
-                    <Avatar className="h-8 w-8 mt-0.5 shrink-0">
-                      <AvatarFallback
-                        className={msg.isCurrentUser ? "bg-[#5865f2]" : ""}
-                      >
-                        {msg.avatar}
-                      </AvatarFallback>
-                    </Avatar>
-                  ) : (
-                    <div className="w-8 shrink-0 flex items-center justify-center">
-                      <span className="text-[10px] text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {msg.timestamp.split(" ")[0]}
-                      </span>
-                    </div>
-                  )}
-
-                  <div
-                    className={`flex-1 min-w-0 ${
-                      msg.isCurrentUser ? "flex flex-col items-end" : ""
-                    }`}
-                  >
-                    {/* Author and timestamp - only show if not grouped */}
-                    {(!isGrouped || msg.replyTo) && (
                       <div
-                        className={`flex items-baseline gap-2 ${
+                        className={`flex gap-3 sm:gap-4 ${
                           msg.isCurrentUser ? "flex-row-reverse" : ""
                         }`}
                       >
-                        <span
-                          className={`text-sm ${
-                            msg.isCurrentUser ? "text-[#5865f2]" : "text-white"
+                        {/* Hover action buttons */}
+                        <div
+                          className={`absolute -top-3 ${
+                            msg.isCurrentUser
+                              ? "left-2 sm:left-4"
+                              : "right-2 sm:right-4"
+                          } opacity-0 group-hover:opacity-100 transition-opacity bg-[#1e1f22] rounded-md border border-[#3f4147] shadow-lg flex items-center gap-0.5 p-0.5 z-10`}
+                        >
+                          {/* Quick reactions - hide some on mobile */}
+                          <div className="hidden sm:flex items-center gap-0.5">
+                            {quickEmojis.slice(0, 4).map((emoji) => (
+                              <Button
+                                key={emoji}
+                                variant="ghost"
+                                size="sm"
+                                className="text-gray-400 hover:text-white hover:bg-[#35363c] p-1 h-auto"
+                                onClick={() => handleAddReaction(msg.id, emoji)}
+                              >
+                                {emoji}
+                              </Button>
+                            ))}
+                            <div className="w-px h-4 bg-[#3f4147] mx-0.5" />
+                          </div>
+
+                          {/* Action buttons */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-gray-400 hover:text-white hover:bg-[#35363c] p-1 h-auto"
+                            onClick={() => handleReply(msg)}
+                            title="Reply"
+                          >
+                            <Reply size={16} />
+                          </Button>
+
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-gray-400 hover:text-white hover:bg-[#35363c] p-1 h-auto hidden sm:flex"
+                            onClick={() => handleCreateThread(msg)}
+                            title="Create Thread"
+                          >
+                            <MessageSquare size={16} />
+                          </Button>
+
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-gray-400 hover:text-white hover:bg-[#35363c] p-1 h-auto"
+                                title="Add Reaction"
+                              >
+                                <Smile size={16} />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-64 p-2 bg-[#1e1f22] border-[#3f4147]">
+                              <div className="grid grid-cols-8 gap-1">
+                                {quickEmojis.map((emoji) => (
+                                  <button
+                                    key={emoji}
+                                    onClick={() => {
+                                      handleAddReaction(msg.id, emoji);
+                                    }}
+                                    className="text-lg hover:bg-[#35363c] p-1 rounded"
+                                  >
+                                    {emoji}
+                                  </button>
+                                ))}
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+
+                          <div className="relative">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-gray-400 hover:text-white hover:bg-[#35363c] p-1 h-auto"
+                              onClick={() =>
+                                setShowMoreMenu(
+                                  showMoreMenu === msg.id ? null : msg.id
+                                )
+                              }
+                              title="More"
+                            >
+                              <MoreHorizontal size={16} />
+                            </Button>
+
+                            {showMoreMenu === msg.id && (
+                              <>
+                                <div
+                                  className="fixed inset-0 z-30"
+                                  onClick={() => setShowMoreMenu(null)}
+                                />
+                                <div className="absolute top-full mt-1 right-0 bg-[#1e1f22] border border-[#3f4147] rounded-lg shadow-xl min-w-[180px] overflow-hidden z-40">
+                                  <button
+                                    onClick={() => handleMarkUnread()}
+                                    className="w-full px-3 py-1.5 text-left text-gray-300 hover:bg-[#35363c] hover:text-white flex items-center gap-2 text-xs"
+                                  >
+                                    <Eye size={14} />
+                                    Mark as Unread
+                                  </button>
+                                  <button
+                                    onClick={() => handleTogglePin(msg)}
+                                    className="w-full px-3 py-1.5 text-left text-gray-300 hover:bg-[#35363c] hover:text-white flex items-center gap-2 text-xs"
+                                  >
+                                    <Pin size={14} />
+                                    {msg.isPinned ? "Unpin" : "Pin"} Message
+                                  </button>
+                                  <button
+                                    onClick={() => handleCopyMessage(msg)}
+                                    className="w-full px-3 py-1.5 text-left text-gray-300 hover:bg-[#35363c] hover:text-white flex items-center gap-2 text-xs"
+                                  >
+                                    <LinkIcon size={14} />
+                                    Copy Message Link
+                                  </button>
+                                  <button
+                                    onClick={() => handleCopyMessage(msg)}
+                                    className="w-full px-3 py-1.5 text-left text-gray-300 hover:bg-[#35363c] hover:text-white flex items-center gap-2 text-xs"
+                                  >
+                                    <FileText size={14} />
+                                    Copy Text
+                                  </button>
+                                  <Separator className="bg-[#3f4147]" />
+                                  <button
+                                    onClick={() =>
+                                      handleCreateTaskFromMessage(msg)
+                                    }
+                                    className="w-full px-3 py-1.5 text-left text-green-400 hover:bg-green-900/20 hover:text-green-300 flex items-center gap-2 text-xs"
+                                  >
+                                    <ClipboardList size={14} />
+                                    Create Task from Message
+                                  </button>
+                                  {msg.isCurrentUser && (
+                                    <>
+                                      <Separator className="bg-[#3f4147]" />
+                                      <button
+                                        onClick={() => handleStartEdit(msg)}
+                                        className="w-full px-3 py-1.5 text-left text-gray-300 hover:bg-[#35363c] hover:text-white flex items-center gap-2 text-xs"
+                                      >
+                                        <Edit2 size={14} />
+                                        Edit Message
+                                      </button>
+                                      <button
+                                        onClick={() =>
+                                          handleDeleteMessage(msg.id)
+                                        }
+                                        className="w-full px-3 py-1.5 text-left text-red-400 hover:bg-red-900/20 hover:text-red-300 flex items-center gap-2 text-xs"
+                                      >
+                                        <X size={14} />
+                                        Delete Message
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Avatar - only show if not grouped or if has reply */}
+                        {!isGrouped || msg.replyTo ? (
+                          <Avatar className="h-9 w-9 sm:h-10 sm:w-10 mt-0.5 shrink-0">
+                            <AvatarFallback
+                              className={
+                                msg.isCurrentUser
+                                  ? "bg-[#5865f2]"
+                                  : "bg-[#5865f2]"
+                              }
+                            >
+                              {msg.avatar}
+                            </AvatarFallback>
+                          </Avatar>
+                        ) : (
+                          <div className="w-9 sm:w-10 shrink-0 flex items-center justify-center">
+                            <span className="text-[10px] text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                              {msg.timestamp.split(" ")[0]}
+                            </span>
+                          </div>
+                        )}
+
+                        <div
+                          className={`flex-1 min-w-0 ${
+                            msg.isCurrentUser ? "flex flex-col items-end" : ""
                           }`}
                         >
-                          {msg.author}
-                        </span>
-                        <span className="text-gray-400 text-[11px]">
-                          {msg.timestamp}
-                        </span>
-                        {msg.isPinned && (
-                          <Pin size={10} className="text-yellow-500" />
-                        )}
-                      </div>
-                    )}
-
-                    {/* Reply indicator */}
-                    {msg.replyTo && (
-                      <div
-                        onClick={() => {
-                          const originalMessage = document.getElementById(
-                            `message-${msg.replyTo?.id}`
-                          );
-                          if (originalMessage) {
-                            originalMessage.scrollIntoView({
-                              behavior: "smooth",
-                              block: "center",
-                            });
-                            // Highlight the message briefly
-                            originalMessage.classList.add("bg-[#404249]");
-                            setTimeout(() => {
-                              originalMessage.classList.remove("bg-[#404249]");
-                            }, 2000);
-                          }
-                        }}
-                        className={`mt-0.5 mb-0.5 p-1.5 bg-[#2b2d31] rounded border-l-2 border-gray-500 cursor-pointer hover:border-gray-400 transition-colors ${
-                          msg.isCurrentUser ? "ml-auto max-w-md" : "max-w-md"
-                        }`}
-                      >
-                        <div className="flex items-center gap-1.5 mb-0.5">
-                          <Reply size={10} className="text-gray-400" />
-                          <span className="text-gray-400 text-[10px]">
-                            {msg.replyTo.author}
-                          </span>
-                        </div>
-                        <div className="text-gray-400 text-[11px] truncate">
-                          {msg.replyTo.content.length > 60
-                            ? `${msg.replyTo.content.substring(0, 60)}...`
-                            : msg.replyTo.content}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Message content */}
-                    <div
-                      className={`text-gray-300 text-[13px] ${
-                        !isGrouped || msg.replyTo ? "mt-0.5" : ""
-                      } ${
-                        msg.isCurrentUser
-                          ? "bg-[#5865f2] px-2.5 py-1.5 rounded-lg max-w-md"
-                          : ""
-                      }`}
-                    >
-                      {parseTaskMentions(msg.content)}
-                      {msg.isEdited && (
-                        <span className="text-[10px] text-gray-400 ml-1">
-                          (edited)
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Task card */}
-                    {msg.task && (
-                      <button
-                        onClick={() => onTaskClick(msg.task!)}
-                        className={`mt-1.5 p-2 bg-[#2b2d31] rounded-md border-l-4 border-blue-500 hover:bg-[#35363c] transition-colors text-left w-full max-w-md ${
-                          msg.isCurrentUser ? "ml-auto" : ""
-                        }`}
-                      >
-                        <div className="flex items-start gap-1.5 mb-1">
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] px-1.5 py-0"
-                          >
-                            {msg.task.id}
-                          </Badge>
-                          <Badge
-                            variant="outline"
-                            className={`text-[10px] px-1.5 py-0 ${
-                              msg.task.priority === "urgent"
-                                ? "border-red-500 text-red-500"
-                                : msg.task.priority === "high"
-                                ? "border-orange-500 text-orange-500"
-                                : msg.task.priority === "medium"
-                                ? "border-yellow-500 text-yellow-500"
-                                : "border-gray-500 text-gray-500"
-                            }`}
-                          >
-                            {msg.task.priority}
-                          </Badge>
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] px-1.5 py-0"
-                          >
-                            {msg.task.status}
-                          </Badge>
-                        </div>
-                        <div className="text-white text-sm mb-0.5">
-                          {msg.task.title}
-                        </div>
-                        <div className="text-gray-400 text-xs line-clamp-2">
-                          {msg.task.description}
-                        </div>
-                        <div className="flex gap-1 mt-1.5 flex-wrap">
-                          {msg.task.labels.map((label) => (
-                            <Badge
-                              key={label}
-                              variant="secondary"
-                              className="text-[10px] px-1.5 py-0"
-                            >
-                              {label}
-                            </Badge>
-                          ))}
-                        </div>
-                      </button>
-                    )}
-
-                    {/* Thread info */}
-                    {msg.thread && (
-                      <button className="mt-1 flex items-center gap-1.5 text-[11px] text-[#5865f2] hover:text-[#4752c4] transition-colors">
-                        <div className="flex -space-x-2">
-                          {msg.thread.participants.map((avatar, i) => (
-                            <Avatar
-                              key={i}
-                              className="h-4 w-4 border border-[#313338]"
-                            >
-                              <AvatarFallback className="text-[8px]">
-                                {avatar}
-                              </AvatarFallback>
-                            </Avatar>
-                          ))}
-                        </div>
-                        <span>{msg.thread.count} replies</span>
-                        <span className="text-gray-400">
-                          Last reply {msg.thread.lastReply}
-                        </span>
-                        <MessageSquare size={12} />
-                      </button>
-                    )}
-
-                    {/* Reactions */}
-                    {msg.reactions && msg.reactions.length > 0 && (
-                      <div
-                        className={`flex gap-1 mt-1 flex-wrap ${
-                          msg.isCurrentUser ? "justify-end" : ""
-                        }`}
-                      >
-                        {msg.reactions.map((reaction, index) => (
-                          <button
-                            key={index}
-                            onClick={() =>
-                              handleAddReaction(msg.id, reaction.emoji)
-                            }
-                            className={`flex items-center gap-1 px-1.5 py-0.5 rounded border transition-colors ${
-                              reaction.users.includes("You")
-                                ? "bg-[#5865f2]/20 border-[#5865f2] hover:bg-[#5865f2]/30"
-                                : "bg-[#2b2d31] border-[#3f4147] hover:bg-[#35363c]"
-                            }`}
-                            title={reaction.users.join(", ")}
-                          >
-                            <span className="text-xs">{reaction.emoji}</span>
-                            <span
-                              className={`text-[10px] ${
-                                reaction.users.includes("You")
-                                  ? "text-[#5865f2]"
-                                  : "text-gray-400"
+                          {/* Author and timestamp - only show if not grouped */}
+                          {(!isGrouped || msg.replyTo) && (
+                            <div
+                              className={`flex items-baseline gap-2 flex-wrap ${
+                                msg.isCurrentUser ? "flex-row-reverse" : ""
                               }`}
                             >
-                              {reaction.count}
-                            </span>
-                          </button>
-                        ))}
-                        <button
-                          className="flex items-center justify-center w-6 h-6 rounded border border-[#3f4147] hover:bg-[#35363c] transition-colors"
-                          onClick={() => handleAddReaction(msg.id, "👍")}
-                          title="Add reaction"
-                        >
-                          <Smile size={12} className="text-gray-400" />
-                        </button>
+                              <span
+                                className={`text-sm font-medium ${
+                                  msg.isCurrentUser
+                                    ? "text-[#5865f2]"
+                                    : "text-white"
+                                } hover:underline cursor-pointer`}
+                              >
+                                {msg.author}
+                              </span>
+                              <span className="text-gray-400 text-[11px]">
+                                {msg.timestamp}
+                              </span>
+                              {msg.isPinned && (
+                                <div className="flex items-center gap-1 text-yellow-500">
+                                  <Pin size={10} />
+                                  <span className="text-[10px]">Pinned</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Message content */}
+                          <div
+                            className={`text-gray-300 text-[13px] sm:text-sm leading-relaxed break-words ${
+                              !isGrouped || msg.replyTo ? "mt-0.5" : ""
+                            } ${
+                              msg.isCurrentUser
+                                ? "bg-[#5865f2] px-3 py-2 rounded-2xl rounded-br-sm max-w-[85%] sm:max-w-md"
+                                : ""
+                            }`}
+                          >
+                            {parseTaskMentions(msg.content)}
+                            {msg.isEdited && (
+                              <span className="text-[10px] text-gray-400 ml-1">
+                                (edited)
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Task card */}
+                          {msg.task && (
+                            <button
+                              onClick={() => onTaskClick(msg.task!)}
+                              className={`mt-2 p-3 bg-[#2b2d31] rounded-lg border-l-4 border-blue-500 hover:bg-[#35363c] transition-colors text-left w-full max-w-[90%] sm:max-w-md ${
+                                msg.isCurrentUser ? "ml-auto" : ""
+                              }`}
+                            >
+                              <div className="flex items-start gap-1.5 mb-1 flex-wrap">
+                                <Badge
+                                  variant="outline"
+                                  className="text-[10px] px-1.5 py-0"
+                                >
+                                  {msg.task.id}
+                                </Badge>
+                                <Badge
+                                  variant="outline"
+                                  className={`text-[10px] px-1.5 py-0 ${
+                                    msg.task.priority === "urgent"
+                                      ? "border-red-500 text-red-500"
+                                      : msg.task.priority === "high"
+                                      ? "border-orange-500 text-orange-500"
+                                      : msg.task.priority === "medium"
+                                      ? "border-yellow-500 text-yellow-500"
+                                      : "border-gray-500 text-gray-500"
+                                  }`}
+                                >
+                                  {msg.task.priority}
+                                </Badge>
+                                <Badge
+                                  variant="outline"
+                                  className="text-[10px] px-1.5 py-0"
+                                >
+                                  {msg.task.status}
+                                </Badge>
+                              </div>
+                              <div className="text-white text-sm mb-0.5">
+                                {msg.task.title}
+                              </div>
+                              <div className="text-gray-400 text-xs line-clamp-2">
+                                {msg.task.description}
+                              </div>
+                              <div className="flex gap-1 mt-1.5 flex-wrap">
+                                {msg.task.labels.map((label) => (
+                                  <Badge
+                                    key={label}
+                                    variant="secondary"
+                                    className="text-[10px] px-1.5 py-0"
+                                  >
+                                    {label}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </button>
+                          )}
+
+                          {/* Thread info */}
+                          {msg.thread && (
+                            <button className="mt-2 flex items-center gap-1.5 text-[11px] text-[#5865f2] hover:text-[#4752c4] transition-colors">
+                              <div className="flex -space-x-2">
+                                {msg.thread.participants.map((avatar, i) => (
+                                  <Avatar
+                                    key={i}
+                                    className="h-4 w-4 border border-[#313338]"
+                                  >
+                                    <AvatarFallback className="text-[8px]">
+                                      {avatar}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                ))}
+                              </div>
+                              <span>{msg.thread.count} replies</span>
+                              <span className="text-gray-400">
+                                Last reply {msg.thread.lastReply}
+                              </span>
+                              <MessageSquare size={12} />
+                            </button>
+                          )}
+
+                          {/* Reactions */}
+                          {msg.reactions && msg.reactions.length > 0 && (
+                            <div
+                              className={`flex gap-1 mt-2 flex-wrap ${
+                                msg.isCurrentUser ? "justify-end" : ""
+                              }`}
+                            >
+                              {msg.reactions.map((reaction, index) => (
+                                <button
+                                  key={index}
+                                  onClick={() =>
+                                    handleAddReaction(msg.id, reaction.emoji)
+                                  }
+                                  className={`flex items-center gap-1 px-2 py-1 rounded-full border transition-colors ${
+                                    reaction.users.includes("You")
+                                      ? "bg-[#5865f2]/20 border-[#5865f2] hover:bg-[#5865f2]/30"
+                                      : "bg-[#2b2d31] border-[#3f4147] hover:bg-[#35363c]"
+                                  }`}
+                                  title={reaction.users.join(", ")}
+                                >
+                                  <span className="text-sm">
+                                    {reaction.emoji}
+                                  </span>
+                                  <span
+                                    className={`text-xs font-medium ${
+                                      reaction.users.includes("You")
+                                        ? "text-[#5865f2]"
+                                        : "text-gray-400"
+                                    }`}
+                                  >
+                                    {reaction.count}
+                                  </span>
+                                </button>
+                              ))}
+                              <button
+                                className="flex items-center justify-center w-7 h-7 rounded-full border border-[#3f4147] hover:bg-[#35363c] transition-colors"
+                                onClick={() => handleAddReaction(msg.id, "👍")}
+                                title="Add reaction"
+                              >
+                                <Smile size={12} className="text-gray-400" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        )}
-      </ScrollArea>
+        </ScrollArea>
+      </div>
 
       {/* Message input */}
-      <div className="px-3 py-2 bg-[#313338] border-t border-[#1e1f22]">
-        {/* Reply preview */}
+      <div className="px-2 sm:px-4 py-3 bg-[#313338] border-t border-[#1e1f22]">
+        {/* Reply preview - Discord style */}
         {replyingTo && (
-          <div className="mb-2 p-1.5 bg-[#2b2d31] rounded-t-md border-l-2 border-[#5865f2] flex items-start justify-between">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5 mb-0.5">
-                <Reply size={10} className="text-gray-400" />
-                <span className="text-gray-400 text-[10px]">
-                  Replying to {replyingTo.author}
-                </span>
-              </div>
-              <div className="text-gray-300 text-xs truncate">
-                {replyingTo.content}
+          <div className="mb-2 mx-1 p-2 bg-[#2b2d31] rounded-lg flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              <div className="w-1 h-10 bg-[#5865f2] rounded-full shrink-0" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="text-[#5865f2] text-xs font-medium">
+                    Replying to {replyingTo.author}
+                  </span>
+                </div>
+                <div className="text-gray-400 text-xs truncate">
+                  {replyingTo.content}
+                </div>
               </div>
             </div>
             <Button
               variant="ghost"
               size="sm"
-              className="text-gray-400 hover:text-white p-1 h-auto shrink-0"
-              // onClick={cancelReply}
+              className="text-gray-400 hover:text-white hover:bg-[#404249] p-1.5 h-auto shrink-0 rounded-md"
+              onClick={() => setReplyingTo(null)}
             >
               <X size={14} />
             </Button>
@@ -1625,8 +1685,8 @@ export function EnhancedChatArea({
           </div>
         </div>
 
-        {/* Quick tips */}
-        <div className="mt-1 text-[10px] text-gray-500 flex items-center gap-2">
+        {/* Quick tips - hide on mobile */}
+        <div className="mt-1.5 text-[10px] text-gray-500 hidden sm:flex items-center gap-2 px-1">
           <span>Press Enter to send, Shift+Enter for new line</span>
           <span>•</span>
           <span>@ mention users</span>

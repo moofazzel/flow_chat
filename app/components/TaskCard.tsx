@@ -199,16 +199,23 @@ export function TaskCard({
       )}
 
       <motion.div
-        onClick={onClick}
+        onClick={(e) => {
+          // Don't trigger onClick if dragging
+          if (isDragging) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+          }
+          onClick();
+        }}
         onContextMenu={handleContextMenu}
         data-task-card="true"
         whileHover={
           !isDragging
             ? {
-                scale: 1.02,
-                y: -3,
+                scale: 1.01,
                 boxShadow:
-                  "0 12px 24px -8px rgba(0, 0, 0, 0.15), 0 6px 12px -6px rgba(0, 0, 0, 0.1)",
+                  "0 8px 16px -4px rgba(0, 0, 0, 0.2)",
                 transition: {
                   type: "spring",
                   stiffness: 400,
@@ -218,31 +225,15 @@ export function TaskCard({
               }
             : undefined
         }
-        whileTap={
-          !isDragging
-            ? {
-                scale: 0.98,
-                transition: {
-                  type: "spring",
-                  stiffness: 500,
-                  damping: 30,
-                },
-              }
-            : undefined
-        }
-        className={`bg-[#1e1f22] rounded-lg p-3 shadow-sm transition-shadow cursor-pointer border border-[#404249] border-l-4 ${priorityBorderColor} hover:border-[#5865f2] group relative ${
-          isDragging ? "cursor-grabbing" : "cursor-grab"
+        className={`bg-[#1e1f22] rounded-lg p-3 shadow-sm transition-shadow border border-[#404249] border-l-4 ${priorityBorderColor} hover:border-[#5865f2] group relative select-none ${
+          isDragging ? "cursor-grabbing shadow-2xl ring-2 ring-[#5865f2]" : ""
         }`}
-        style={{
-          pointerEvents: isDragging ? "none" : "auto",
-        }}
       >
-        {/* Header with ID and Priority */}
+        {/* Header with Priority Badge */}
         <div className="flex items-start gap-2 mb-2">
-          <span className="text-xs text-gray-500 font-medium">{task.id}</span>
           <Badge
             variant="outline"
-            className={`text-xs ml-auto ${
+            className={`text-xs ${
               task.priority === "urgent"
                 ? "border-red-500 text-red-400 bg-red-500/10"
                 : task.priority === "high"
@@ -257,7 +248,12 @@ export function TaskCard({
         </div>
 
         {/* Title */}
-        <h4 className="text-gray-200 mb-2 line-clamp-2">{task.title}</h4>
+        <h4 className="text-gray-200 font-medium mb-2 line-clamp-2">{task.title}</h4>
+
+        {/* Description preview */}
+        {task.description && (
+          <p className="text-gray-400 text-sm mb-2 line-clamp-2">{task.description}</p>
+        )}
 
         {/* Due Date with Status */}
         {dueDateStatus && (

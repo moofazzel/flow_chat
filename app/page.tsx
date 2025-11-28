@@ -1,5 +1,6 @@
 "use client";
 
+import { useBoard } from "@/hooks/useBoard";
 import { useServerInvites } from "@/hooks/useServerInvites";
 import { getServerChannels } from "@/lib/serverService";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
@@ -21,7 +22,10 @@ import { AnimatePresence } from "framer-motion";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AuthPage } from "./components/AuthPage";
-import { BoardsContainer } from "./components/BoardsContainer";
+import {
+  BoardsContainer,
+  type BoardOperations,
+} from "./components/BoardsContainer";
 import { DirectMessageCenter } from "./components/DirectMessageCenter";
 import { EnhancedChatArea, NewTaskData } from "./components/EnhancedChatArea";
 import { FloatingChat } from "./components/FloatingChat";
@@ -208,6 +212,75 @@ export default function Home() {
     clearInvites,
     removeInvite,
   } = useServerInvites(user?.id || null);
+
+  // Get board-related operations for Supabase integration (comments, subtasks, etc.)
+  // Note: Card updates go through boardOperations from BoardsContainer to ensure UI sync
+  const {
+    // Comments
+    getCardComments,
+    addCardComment,
+    deleteCardComment,
+    // Subtasks
+    getCardSubtasks,
+    addCardSubtask,
+    toggleCardSubtask,
+    deleteCardSubtask,
+    // Attachments
+    getCardAttachments,
+    uploadCardAttachment,
+    deleteCardAttachment,
+    // Members
+    getBoardMembers,
+    addBoardMember,
+    // Labels
+    getBoardLabels,
+    // User
+    getCurrentUser: getBoardCurrentUser,
+    // Search/Server Members
+    searchUsers,
+    getServerMembers,
+  } = useBoard(undefined, currentServerId);
+
+  // Board operations from BoardsContainer (for card updates to sync with board UI)
+  const [boardOperations, setBoardOperations] =
+    useState<BoardOperations | null>(null);
+
+  // State for Supabase board data
+  const [currentBoardMembers, setCurrentBoardMembers] = useState<
+    Awaited<ReturnType<typeof getBoardMembers>>
+  >([]);
+  const [currentBoardLabels, setCurrentBoardLabels] = useState<
+    Awaited<ReturnType<typeof getBoardLabels>>
+  >([]);
+  const [currentUser, setCurrentUser] = useState<{
+    id: string;
+    username: string;
+    avatar_url: string | null;
+  } | null>(null);
+
+  // Fetch current user for Supabase operations
+  useEffect(() => {
+    if (user) {
+      getBoardCurrentUser().then((u) => setCurrentUser(u));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  // Fetch board members and labels when selectedTask changes
+  useEffect(() => {
+    const fetchBoardData = async () => {
+      if (selectedTask?.boardId) {
+        const [members, labels] = await Promise.all([
+          getBoardMembers(selectedTask.boardId),
+          getBoardLabels(selectedTask.boardId),
+        ]);
+        setCurrentBoardMembers(members);
+        setCurrentBoardLabels(labels);
+      }
+    };
+    fetchBoardData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTask?.boardId]);
 
   // Tasks state (initialize from storage)
   const [tasks, setTasks] = useState<Task[]>(loadInitialTasks);
@@ -660,15 +733,22 @@ export default function Home() {
 
   // Handle individual task updates from modal
   const handleUpdateTask = (updatedTask: Task) => {
+    // Update in tasks array
     setTasks((prevTasks) =>
       prevTasks.map((task) => (task.id === updatedTask.id ? updatedTask : task))
+    );
+    // Also update selectedTask if it's the same task (so modal shows updated data)
+    setSelectedTask((prev) =>
+      prev?.id === updatedTask.id ? updatedTask : prev
     );
   };
 
   // Handle task deletion
-  const handleDeleteTask = (taskId: string) => {
-    setTasks((prevTasks) => prevTasks.filter((task) => task.id !== taskId));
-    toast.success("Task deleted successfully");
+  const handleDeleteTask = async (taskId: string) => {
+    if (boardOperations?.deleteCard) {
+      await boardOperations.deleteCard(taskId);
+    }
+    setSelectedTask(null); // Close modal if deleted task was selected
   };
 
   // Handle task duplication
@@ -785,6 +865,7 @@ export default function Home() {
             onDeleteTask={handleDeleteTask}
             onDuplicateTask={handleDuplicateTask}
             onArchiveTask={handleArchiveTask}
+            onBoardOperationsReady={setBoardOperations}
           />
         )}
       </div>
@@ -808,9 +889,42 @@ export default function Home() {
           onDuplicateTask={handleDuplicateTask}
           onArchiveTask={handleArchiveTask}
           boardLabels={
-            boards.find((b) => b.id === selectedTask.boardId)?.labels || []
+            currentBoardLabels.length > 0
+              ? currentBoardLabels.map((l) => ({
+                  id: l.id,
+                  name: l.name,
+                  color: l.color,
+                  textColor: l.text_color,
+                  boardId: l.board_id,
+                }))
+              : boards.find((b) => b.id === selectedTask.boardId)?.labels || []
           }
           onManageLabels={() => setShowLabelManagerForTask(true)}
+          // Supabase integration props
+          boardMembers={currentBoardMembers}
+          currentUser={currentUser}
+          onUpdateCard={async (cardId, updates) => {
+            // Use board operations from BoardsContainer to ensure UI sync
+            if (boardOperations) {
+              return await boardOperations.updateCard(cardId, updates);
+            }
+            return false;
+          }}
+          onGetComments={getCardComments}
+          onAddComment={addCardComment}
+          onDeleteComment={deleteCardComment}
+          onGetSubtasks={getCardSubtasks}
+          onAddSubtask={addCardSubtask}
+          onToggleSubtask={toggleCardSubtask}
+          onDeleteSubtask={deleteCardSubtask}
+          onGetAttachments={getCardAttachments}
+          onUploadAttachment={uploadCardAttachment}
+          onDeleteAttachment={deleteCardAttachment}
+          // Server/workspace member props
+          serverId={currentServerId}
+          onSearchUsers={searchUsers}
+          onGetServerMembers={getServerMembers}
+          onAddBoardMember={addBoardMember}
         />
       )}
 

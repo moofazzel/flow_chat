@@ -1,5 +1,5 @@
 import { createClient } from "@/utils/supabase/client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 export interface MessageAttachment {
@@ -56,12 +56,14 @@ export interface ChatMessage {
   reply_to?: ChatMessage;
 }
 
+// Create supabase client outside the hook to ensure stability
+const supabase = createClient();
+
 export const useChat = (channelId: string) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
-  const supabase = createClient();
-  const typingTimeoutRef = useState<Record<string, NodeJS.Timeout>>({})[0];
+  const typingTimeoutRef = useRef<Record<string, NodeJS.Timeout>>({});
 
   useEffect(() => {
     if (!channelId) return;
@@ -69,14 +71,13 @@ export const useChat = (channelId: string) => {
     const fetchMessages = async () => {
       setIsLoading(true);
 
-      // Fetch messages with all related data
+      // Fetch messages with author data
       const { data, error } = await supabase
         .from("messages")
         .select(
           `
           *,
-          author:users!author_id(username, avatar_url, full_name),
-          reply_to:messages!reply_to_id(id, content, author:users!author_id(username))
+          author:users!author_id(username, avatar_url, full_name)
         `
         )
         .eq("channel_id", channelId)
@@ -94,6 +95,36 @@ export const useChat = (channelId: string) => {
         setIsLoading(false);
         return;
       }
+
+      // Fetch reply_to messages separately to avoid nested join issues
+      const replyIds = data
+        .filter((msg) => msg.reply_to_id)
+        .map((msg) => msg.reply_to_id);
+
+      let replyMessagesMap: Record<
+        string,
+        { id: string; content: string; author: { username: string } | null }
+      > = {};
+
+      if (replyIds.length > 0) {
+        const { data: replyMessages } = await supabase
+          .from("messages")
+          .select(`id, content, author:users!author_id(username)`)
+          .in("id", replyIds);
+
+        if (replyMessages) {
+          replyMessagesMap = replyMessages.reduce((acc, msg) => {
+            acc[msg.id] = msg;
+            return acc;
+          }, {} as Record<string, { id: string; content: string; author: { username: string } | null }>);
+        }
+      }
+
+      // Attach reply_to data to messages
+      const dataWithReplies = data.map((msg) => ({
+        ...msg,
+        reply_to: msg.reply_to_id ? replyMessagesMap[msg.reply_to_id] : null,
+      }));
 
       // Fetch attachments for all messages
       const messageIds = data.map((msg) => msg.id);
@@ -149,7 +180,7 @@ export const useChat = (channelId: string) => {
       );
 
       // Combine all data
-      const messagesWithRelations = data.map((msg) => ({
+      const messagesWithRelations = dataWithReplies.map((msg) => ({
         ...msg,
         attachments:
           attachmentsData?.filter((a) => a.message_id === msg.id) || [],
@@ -171,14 +202,24 @@ export const useChat = (channelId: string) => {
         .select(
           `
           *,
-          author:users!author_id(username, avatar_url, full_name),
-          reply_to:messages!reply_to_id(id, content, author:users!author_id(username))
+          author:users!author_id(username, avatar_url, full_name)
         `
         )
         .eq("id", messageId)
         .single();
 
       if (!msgData) return null;
+
+      // Fetch reply_to message separately if exists
+      let replyToData = null;
+      if (msgData.reply_to_id) {
+        const { data: replyMsg } = await supabase
+          .from("messages")
+          .select(`id, content, author:users!author_id(username)`)
+          .eq("id", msgData.reply_to_id)
+          .single();
+        replyToData = replyMsg;
+      }
 
       // Fetch related data
       const { data: attachmentsData } = await supabase
@@ -223,6 +264,7 @@ export const useChat = (channelId: string) => {
 
       return {
         ...msgData,
+        reply_to: replyToData,
         attachments: attachmentsData || [],
         reactions,
         mentions: mentionsData || [],
@@ -341,20 +383,20 @@ export const useChat = (channelId: string) => {
             });
 
             // Clear existing timeout for this user
-            if (typingTimeoutRef[user]) {
-              clearTimeout(typingTimeoutRef[user]);
+            if (typingTimeoutRef.current[user]) {
+              clearTimeout(typingTimeoutRef.current[user]);
             }
 
             // Set new timeout to remove user after 3 seconds of inactivity
-            typingTimeoutRef[user] = setTimeout(() => {
+            typingTimeoutRef.current[user] = setTimeout(() => {
               setTypingUsers((prev) => prev.filter((u) => u !== user));
-              delete typingTimeoutRef[user];
+              delete typingTimeoutRef.current[user];
             }, 3000);
           } else {
             setTypingUsers((prev) => prev.filter((u) => u !== user));
-            if (typingTimeoutRef[user]) {
-              clearTimeout(typingTimeoutRef[user]);
-              delete typingTimeoutRef[user];
+            if (typingTimeoutRef.current[user]) {
+              clearTimeout(typingTimeoutRef.current[user]);
+              delete typingTimeoutRef.current[user];
             }
           }
         }
@@ -363,10 +405,10 @@ export const useChat = (channelId: string) => {
 
     return () => {
       // Clear all typing timeouts
-      Object.values(typingTimeoutRef).forEach(clearTimeout);
+      Object.values(typingTimeoutRef.current).forEach(clearTimeout);
       supabase.removeChannel(channel);
     };
-  }, [channelId, typingTimeoutRef, supabase]);
+  }, [channelId]);
 
   const sendMessage = async (
     content: string,

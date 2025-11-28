@@ -18,6 +18,13 @@ export interface BoardColumn {
   bgColor?: string;
 }
 
+// Board operations type for exposing to parent
+export interface BoardOperations {
+  updateCard: (cardId: string, updates: Partial<Card>) => Promise<boolean>;
+  deleteCard: (cardId: string) => Promise<void>;
+  refreshBoards: () => Promise<void>;
+}
+
 interface BoardsContainerProps {
   currentServerId?: string | null;
   tasks: Task[];
@@ -44,16 +51,18 @@ interface BoardsContainerProps {
   onDeleteTask?: (taskId: string) => void;
   onDuplicateTask?: (task: Task) => void;
   onArchiveTask?: (taskId: string) => void;
+  // Callback to expose board operations to parent
+  onBoardOperationsReady?: (ops: BoardOperations) => void;
 }
 
 // 🆕 Default boards (used if no saved boards found)
 
-import { useBoard } from "@/hooks/useBoard";
+import { useBoard, type Card } from "@/hooks/useBoard";
 // ... existing imports ...
 
 export function BoardsContainer({
   currentServerId,
-  tasks,
+  tasks: _tasks,
   onTaskClick,
   onToggleChat,
   isChatOpen,
@@ -64,10 +73,11 @@ export function BoardsContainer({
   onDeleteTask,
   onDuplicateTask,
   onArchiveTask,
+  onBoardOperationsReady,
 }: BoardsContainerProps) {
   const {
     boards,
-    currentBoard,
+    currentBoard: _currentBoard,
     createBoard,
     updateBoard,
     deleteBoard,
@@ -75,24 +85,66 @@ export function BoardsContainer({
     updateList,
     deleteList,
     createCard,
+    updateCardPosition,
+    deleteCard,
+    updateCard,
+    refreshBoards,
     // isLoading, // Unused for now
   } = useBoard(undefined, currentServerId);
   const [showAddBoardModal, setShowAddBoardModal] = useState(false);
 
-  // Map Supabase boards to BoardData format
-  const formattedBoards: BoardData[] = boards.map((board) => ({
-    id: board.id,
-    name: board.title,
-    description: "", // Not in DB yet
-    color: board.background,
-    columns:
-      board.lists?.map((list) => ({
-        id: list.id,
-        title: list.title,
-        color: "bg-gray-100", // Default color for now
-      })) || [],
-    labels: [], // Not in DB yet
-  }));
+  // Expose board operations to parent component
+  useEffect(() => {
+    if (onBoardOperationsReady) {
+      onBoardOperationsReady({ updateCard, deleteCard, refreshBoards });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onBoardOperationsReady]);
+
+  // Helper to convert Supabase cards to Task format
+  const cardToTask = (card: Card, listId: string, boardId: string): Task => ({
+    id: card.id,
+    title: card.title,
+    description: card.description || "",
+    status: listId, // Use list_id as status
+    boardId: boardId,
+    priority: card.priority || "medium",
+    assignee: card.assignees?.[0],
+    assignees: card.assignees || [],
+    reporter: "",
+    labels: card.labels || [],
+    dueDate: card.due_date || undefined,
+    createdAt: new Date().toISOString(),
+    comments: [],
+  });
+
+  // Map Supabase boards to BoardData format with tasks
+  const formattedBoards: (BoardData & { tasks: Task[] })[] = boards.map(
+    (board) => {
+      // Collect all cards from all lists as tasks
+      const boardTasks: Task[] = [];
+      board.lists?.forEach((list) => {
+        list.cards?.forEach((card) => {
+          boardTasks.push(cardToTask(card, list.id, board.id));
+        });
+      });
+
+      return {
+        id: board.id,
+        name: board.title,
+        description: "", // Not in DB yet
+        color: board.background,
+        columns:
+          board.lists?.map((list) => ({
+            id: list.id,
+            title: list.title,
+            color: "bg-gray-100", // Default color for now
+          })) || [],
+        labels: [], // Not in DB yet
+        tasks: boardTasks,
+      };
+    }
+  );
 
   const [activeBoard, setActiveBoard] = useState<string>(() => {
     // Load saved active board from localStorage
@@ -109,7 +161,7 @@ export function BoardsContainer({
       setActiveBoard(formattedBoards[0].id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formattedBoards, activeBoard]);
+  }, [formattedBoards.length]);
 
   const pageContainerRef = useRef<HTMLDivElement>(null);
 
@@ -131,10 +183,10 @@ export function BoardsContainer({
     setActiveBoard(boardId);
   };
 
-  // Filter tasks by board (for demo, all boards share same tasks, but you can customize this)
-  const getBoardTasks = (boardId: string) => {
-    // For now, all boards show all tasks. You can filter by board-specific logic later
-    return tasks;
+  // Get tasks for a specific board from its cards
+  const getBoardTasks = (boardId: string): Task[] => {
+    const board = formattedBoards.find((b) => b.id === boardId);
+    return board?.tasks || [];
   };
 
   // Handle board deletion
@@ -316,7 +368,21 @@ export function BoardsContainer({
                   onTaskClick={onTaskClick}
                   onToggleChat={onToggleChat}
                   isChatOpen={isChatOpen}
-                  onTaskStatusChange={onTaskStatusChange}
+                  onTaskStatusChange={async (taskId, newStatus, oldStatus) => {
+                    // Update card position in Supabase (newStatus is the list ID)
+                    if (newStatus !== oldStatus) {
+                      // Find the target list to calculate new position
+                      const targetBoard = boards.find((b) => b.id === board.id);
+                      const targetList = targetBoard?.lists?.find(
+                        (l) => l.id === newStatus
+                      );
+                      const newPosition = targetList?.cards?.length || 0;
+
+                      await updateCardPosition(taskId, newStatus, newPosition);
+                    }
+                    // Also call parent handler if provided
+                    onTaskStatusChange?.(taskId, newStatus, oldStatus);
+                  }}
                   onTaskAssignment={onTaskAssignment}
                   onAddTask={async (taskData) => {
                     // Create card in Supabase
@@ -329,7 +395,10 @@ export function BoardsContainer({
                     onAddTask?.(taskData);
                   }}
                   onTasksUpdate={onTasksUpdate}
-                  onDeleteTask={onDeleteTask}
+                  onDeleteTask={async (taskId) => {
+                    await deleteCard(taskId);
+                    onDeleteTask?.(taskId);
+                  }}
                   onDuplicateTask={onDuplicateTask}
                   onArchiveTask={onArchiveTask}
                   columns={board.columns}

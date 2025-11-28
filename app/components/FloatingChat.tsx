@@ -61,7 +61,7 @@ export function FloatingChat({
         ease: [0.16, 1, 0.3, 1], // iOS spring easing
         opacity: { duration: 0.3 },
       }}
-      className="fixed right-4 top-4 bottom-4 w-[400px] bg-[#313338] rounded-lg shadow-2xl flex flex-col z-50 border border-[#1e1f22]"
+      className="fixed right-4 top-4 bottom-4 w-[400px] bg-[#313338] rounded-lg shadow-2xl flex flex-col z-[999] border border-[#1e1f22]"
     >
       {/* Header */}
       <motion.div

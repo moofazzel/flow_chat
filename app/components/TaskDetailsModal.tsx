@@ -6,6 +6,12 @@ import type {
   CardComment,
   CardSubtask,
 } from "@/hooks/useBoard";
+import {
+  formatDateForDisplay,
+  getPriorityDisplayName,
+  sendTaskActivity,
+  TaskActivityType,
+} from "@/lib/taskActivityService";
 import { copyToClipboard } from "@/utils/clipboard";
 import {
   Archive,
@@ -64,6 +70,9 @@ interface TaskDetailsModalProps {
   onArchiveTask?: (taskId: string) => void;
   boardLabels?: Label[];
   onManageLabels?: () => void;
+  // Activity tracking props
+  channelId?: string;
+  boardName?: string;
   // New props for Supabase integration
   boardMembers?: BoardMember[];
   currentUser?: {
@@ -117,6 +126,8 @@ export function TaskDetailsModal({
   onDeleteTask,
   boardLabels,
   onManageLabels,
+  channelId,
+  boardName,
   boardMembers = [],
   currentUser,
   serverId,
@@ -265,6 +276,31 @@ export function TaskDetailsModal({
       .toUpperCase();
   };
 
+  // Helper to send activity to channel
+  const logActivity = async (
+    type: TaskActivityType,
+    extraData?: {
+      oldValue?: string;
+      newValue?: string;
+      memberName?: string;
+      labelName?: string;
+      subtaskTitle?: string;
+      attachmentName?: string;
+    }
+  ) => {
+    if (!channelId || !currentUser) return;
+
+    await sendTaskActivity(type, {
+      taskId: task.id,
+      taskTitle: localTask.title,
+      actorName: currentUser.username,
+      actorId: currentUser.id,
+      channelId,
+      boardName,
+      ...extraData,
+    });
+  };
+
   const updateTask = async (updates: Partial<Task>) => {
     const updatedTask = { ...localTask, ...updates };
     setLocalTask(updatedTask);
@@ -278,14 +314,25 @@ export function TaskDetailsModal({
   };
 
   const handleSaveTitle = async () => {
-    if (editedTitle.trim()) {
+    if (editedTitle.trim() && editedTitle.trim() !== localTask.title) {
+      const oldTitle = localTask.title;
       await updateTask({ title: editedTitle.trim() });
+      await logActivity("task_title_changed", {
+        oldValue: oldTitle,
+        newValue: editedTitle.trim(),
+      });
+      setIsEditingTitle(false);
+    } else {
       setIsEditingTitle(false);
     }
   };
 
   const handleSaveDescription = async () => {
+    const changed = editedDescription.trim() !== localTask.description;
     await updateTask({ description: editedDescription.trim() });
+    if (changed) {
+      await logActivity("task_description_changed");
+    }
     setIsEditingDescription(false);
   };
 
@@ -337,10 +384,13 @@ export function TaskDetailsModal({
   const handleAddSubtask = async () => {
     if (!newSubtask.trim()) return;
 
+    const subtaskTitle = newSubtask.trim();
+
     if (onAddSubtask) {
-      const subtask = await onAddSubtask(task.id, newSubtask.trim());
+      const subtask = await onAddSubtask(task.id, subtaskTitle);
       if (subtask) {
         setSubtasks((prev) => [...prev, subtask]);
+        await logActivity("subtask_added", { subtaskTitle });
         setNewSubtask("");
         setIsAddingSubtask(false);
       }
@@ -349,12 +399,13 @@ export function TaskDetailsModal({
       const subtask: CardSubtask = {
         id: `st-${Date.now()}`,
         card_id: task.id,
-        title: newSubtask.trim(),
+        title: subtaskTitle,
         completed: false,
         position: subtasks.length,
         created_at: new Date().toISOString(),
       };
       setSubtasks((prev) => [...prev, subtask]);
+      await logActivity("subtask_added", { subtaskTitle });
       setNewSubtask("");
       setIsAddingSubtask(false);
       toast.success("Subtask added");
@@ -374,6 +425,14 @@ export function TaskDetailsModal({
       )
     );
 
+    // Log activity
+    await logActivity(
+      newCompleted ? "subtask_completed" : "subtask_uncompleted",
+      {
+        subtaskTitle: subtask.title,
+      }
+    );
+
     if (onToggleSubtask) {
       const success = await onToggleSubtask(subtaskId, newCompleted);
       if (!success) {
@@ -388,34 +447,66 @@ export function TaskDetailsModal({
   };
 
   const handleDeleteSubtask = async (subtaskId: string) => {
+    const subtask = subtasks.find((st) => st.id === subtaskId);
+
     if (onDeleteSubtask) {
       const success = await onDeleteSubtask(subtaskId);
       if (success) {
         setSubtasks((prev) => prev.filter((st) => st.id !== subtaskId));
+        if (subtask) {
+          await logActivity("subtask_deleted", { subtaskTitle: subtask.title });
+        }
       }
     } else {
       setSubtasks((prev) => prev.filter((st) => st.id !== subtaskId));
+      if (subtask) {
+        await logActivity("subtask_deleted", { subtaskTitle: subtask.title });
+      }
       toast.success("Subtask deleted");
     }
   };
 
   const handleAddLabel = async (labelId: string) => {
     if (!localTask.labels.includes(labelId)) {
+      const label = boardLabels?.find((l) => l.id === labelId);
       await updateTask({ labels: [...localTask.labels, labelId] });
+      if (label) {
+        await logActivity("task_label_added", { labelName: label.name });
+      }
     }
     setShowLabelsModal(false);
   };
 
   const handleRemoveLabel = async (labelId: string) => {
+    const label = boardLabels?.find((l) => l.id === labelId);
     await updateTask({ labels: localTask.labels.filter((l) => l !== labelId) });
+    if (label) {
+      await logActivity("task_label_removed", { labelName: label.name });
+    }
   };
 
   const handleSetDueDate = async (date: Date | undefined) => {
+    const oldDueDate = localTask.dueDate;
+
     if (date) {
       const formattedDate = date.toISOString().split("T")[0];
       await updateTask({ dueDate: formattedDate });
+
+      if (oldDueDate) {
+        await logActivity("task_due_date_changed", {
+          oldValue: formatDateForDisplay(oldDueDate),
+          newValue: formatDateForDisplay(formattedDate),
+        });
+      } else {
+        await logActivity("task_due_date_set", {
+          newValue: formatDateForDisplay(formattedDate),
+        });
+      }
     } else {
       await updateTask({ dueDate: undefined });
+      if (oldDueDate) {
+        await logActivity("task_due_date_removed");
+      }
     }
     setShowDatePicker(false);
   };
@@ -429,6 +520,7 @@ export function TaskDetailsModal({
         const attachment = await onUploadAttachment(task.id, file);
         if (attachment) {
           setAttachments((prev) => [...prev, attachment]);
+          await logActivity("attachment_added", { attachmentName: file.name });
         }
       } else {
         // Fallback to local state
@@ -443,6 +535,7 @@ export function TaskDetailsModal({
           created_at: new Date().toISOString(),
         };
         setAttachments((prev) => [...prev, attachment]);
+        await logActivity("attachment_added", { attachmentName: file.name });
         toast.success("Attachment added");
       }
     }
@@ -459,6 +552,7 @@ export function TaskDetailsModal({
         const attachment = await onUploadAttachment(task.id, file);
         if (attachment) {
           setAttachments((prev) => [...prev, attachment]);
+          await logActivity("attachment_added", { attachmentName: file.name });
         }
       } else {
         // Fallback to local state
@@ -473,6 +567,7 @@ export function TaskDetailsModal({
           created_at: new Date().toISOString(),
         };
         setAttachments((prev) => [...prev, attachment]);
+        await logActivity("attachment_added", { attachmentName: file.name });
         toast.success("Attachment added");
       }
     }
@@ -487,6 +582,7 @@ export function TaskDetailsModal({
     // Find the attachment in Supabase data or use provided URL
     const attachment = attachments.find((att) => att.id === attachmentId);
     const urlToDelete = attachment?.file_url || fileUrl || "";
+    const attachmentName = attachment?.filename || "attachment";
 
     if (onDeleteAttachment && urlToDelete) {
       const success = await onDeleteAttachment(attachmentId, urlToDelete);
@@ -499,6 +595,7 @@ export function TaskDetailsModal({
             (att) => att.id !== attachmentId
           ),
         }));
+        await logActivity("attachment_deleted", { attachmentName });
       }
     } else {
       // Fallback for local-only attachments
@@ -507,6 +604,7 @@ export function TaskDetailsModal({
         ...prev,
         attachments: prev.attachments?.filter((att) => att.id !== attachmentId),
       }));
+      await logActivity("attachment_deleted", { attachmentName });
       toast.success("Attachment deleted");
     }
   };
@@ -514,6 +612,9 @@ export function TaskDetailsModal({
   const handleMarkComplete = async () => {
     // Update status to done
     await updateTask({ status: "column-1-3" }); // Done column
+
+    // Log activity
+    await logActivity("task_completed");
 
     // Show celebration animation
     setShowCompleteAnimation(true);
@@ -583,6 +684,7 @@ export function TaskDetailsModal({
           assignees: newAssignees,
           assignee: newAssignees[0] || undefined, // Keep backward compatibility
         });
+        await logActivity("task_unassigned", { memberName });
         toast.success(`Removed ${memberName}`);
       } else {
         // Add member
@@ -591,6 +693,7 @@ export function TaskDetailsModal({
           assignees: newAssignees,
           assignee: memberName, // Keep backward compatibility
         });
+        await logActivity("task_assigned", { memberName });
         toast.success(`Assigned to ${memberName}`);
       }
     }
@@ -668,7 +771,16 @@ export function TaskDetailsModal({
             <div className="flex items-center gap-3 flex-1">
               <QuickPriorityPicker
                 currentPriority={localTask.priority}
-                onPriorityChange={(priority) => updateTask({ priority })}
+                onPriorityChange={async (priority) => {
+                  const oldPriority = localTask.priority;
+                  await updateTask({ priority });
+                  if (oldPriority !== priority) {
+                    await logActivity("task_priority_changed", {
+                      oldValue: getPriorityDisplayName(oldPriority),
+                      newValue: getPriorityDisplayName(priority),
+                    });
+                  }
+                }}
               />
               {localTask.dueDate && (
                 <Badge
@@ -1607,7 +1719,10 @@ export function TaskDetailsModal({
                     <Button
                       variant="ghost"
                       className="w-full justify-start text-sm h-9 bg-[#2b2d31] text-gray-300 hover:bg-[#404249] hover:text-white"
-                      onClick={() => updateTask({ status: "column-1-1" })}
+                      onClick={async () => {
+                        await updateTask({ status: "column-1-1" });
+                        await logActivity("task_reopened");
+                      }}
                     >
                       <XCircle size={14} className="mr-2" />
                       Mark incomplete

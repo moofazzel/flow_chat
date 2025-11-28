@@ -3,6 +3,7 @@
 import { useBoard } from "@/hooks/useBoard";
 import { useServerInvites } from "@/hooks/useServerInvites";
 import { getServerChannels } from "@/lib/serverService";
+import { sendTaskActivity } from "@/lib/taskActivityService";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { setUser } from "@/store/slices/authSlice";
 import {
@@ -614,7 +615,7 @@ export default function Home() {
   };
 
   // Handle task status updates (for drag & drop)
-  const handleTaskStatusChange = (
+  const handleTaskStatusChange = async (
     taskId: string,
     newStatus: Task["status"],
     oldStatus: Task["status"]
@@ -628,22 +629,86 @@ export default function Home() {
     // Find the task to get details for the notification
     const task = tasks.find((t) => t.id === taskId);
     if (task) {
+      // Get column names for activity
+      const board = boards.find((b) => b.id === task.boardId);
+      const oldColumnName =
+        board?.columns?.find((c) => c.id === oldStatus)?.title || oldStatus;
+      const newColumnName =
+        board?.columns?.find((c) => c.id === newStatus)?.title || newStatus;
+
       // Generate smart notification message
       let emoji = "";
       let message = "";
 
-      if (newStatus === "done") {
+      if (
+        newStatus === "done" ||
+        newColumnName.toLowerCase().includes("done")
+      ) {
         emoji = "🎉";
         message = `${task.assignee || "Someone"} completed #${taskId}`;
+
+        // Send task completed activity to channel
+        if (selectedChannelId && currentUser) {
+          await sendTaskActivity("task_completed", {
+            taskId,
+            taskTitle: task.title,
+            actorName: currentUser.username,
+            actorId: currentUser.id,
+            channelId: selectedChannelId,
+            boardName: board?.name,
+          });
+        }
       } else if (newStatus === "in-progress" && oldStatus === "todo") {
         emoji = "🚀";
         message = `${task.assignee || "Someone"} started working on #${taskId}`;
+
+        // Send status change activity
+        if (selectedChannelId && currentUser) {
+          await sendTaskActivity("task_status_changed", {
+            taskId,
+            taskTitle: task.title,
+            actorName: currentUser.username,
+            actorId: currentUser.id,
+            channelId: selectedChannelId,
+            boardName: board?.name,
+            oldValue: oldColumnName,
+            newValue: newColumnName,
+          });
+        }
       } else if (newStatus === "review") {
         emoji = "👀";
         message = `#${taskId} moved to Review`;
+
+        // Send status change activity
+        if (selectedChannelId && currentUser) {
+          await sendTaskActivity("task_status_changed", {
+            taskId,
+            taskTitle: task.title,
+            actorName: currentUser.username,
+            actorId: currentUser.id,
+            channelId: selectedChannelId,
+            boardName: board?.name,
+            oldValue: oldColumnName,
+            newValue: newColumnName,
+          });
+        }
       } else {
         emoji = "📋";
-        message = `#${taskId} moved from ${oldStatus} to ${newStatus}`;
+        message = `#${taskId} moved from ${oldColumnName} to ${newColumnName}`;
+
+        // Send status change activity
+        if (selectedChannelId && currentUser) {
+          await sendTaskActivity("task_status_changed", {
+            taskId,
+            taskTitle: task.title,
+            actorName: currentUser.username,
+            actorId: currentUser.id,
+            channelId: selectedChannelId,
+            boardName: board?.name,
+            oldValue: oldColumnName,
+            newValue: newColumnName,
+          });
+        }
       }
 
       // Show toast notification
@@ -888,6 +953,9 @@ export default function Home() {
           onDeleteTask={handleDeleteTask}
           onDuplicateTask={handleDuplicateTask}
           onArchiveTask={handleArchiveTask}
+          // Activity tracking props
+          channelId={selectedChannelId}
+          boardName={boards.find((b) => b.id === selectedTask.boardId)?.name}
           boardLabels={
             currentBoardLabels.length > 0
               ? currentBoardLabels.map((l) => ({

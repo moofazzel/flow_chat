@@ -34,6 +34,14 @@ export interface MessageTaskLink {
   created_at: string;
 }
 
+export interface MessageEmbed {
+  type: "task" | "link";
+  task_id?: string;
+  url?: string;
+  title?: string;
+  description?: string;
+}
+
 export interface ChatMessage {
   id: string;
   channel_id: string;
@@ -44,6 +52,7 @@ export interface ChatMessage {
   is_pinned?: boolean;
   reply_to_id?: string;
   edited_at?: string;
+  embeds?: MessageEmbed[];
   author?: {
     username: string;
     avatar_url: string;

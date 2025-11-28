@@ -50,6 +50,7 @@ import { toast } from "sonner";
 import type { Task } from "../page";
 import { CreateTaskModal } from "./CreateTaskModal";
 import { QuickTaskCreate } from "./QuickTaskCreate";
+import { InlineTaskActivityCard, parseActivityType } from "./TaskActivityCard";
 import { InlineTaskMention } from "./TaskMentionPreview";
 import { TeamMembersPanel } from "./TeamMembersPanel";
 import { Avatar, AvatarFallback } from "./ui/avatar";
@@ -102,6 +103,14 @@ interface Attachment {
   url?: string;
 }
 
+interface MessageEmbed {
+  type: "task" | "link";
+  task_id?: string;
+  url?: string;
+  title?: string;
+  description?: string;
+}
+
 interface Message {
   id: string;
   author: string;
@@ -123,6 +132,7 @@ interface Message {
   mentions?: string[];
   links?: string[];
   task_links?: TaskLink[];
+  embeds?: MessageEmbed[];
 }
 
 interface TaskLink {
@@ -448,6 +458,7 @@ export function EnhancedChatArea({
       task: linkedTask,
       isPinned: msg.is_pinned,
       isEdited: msg.is_edited,
+      embeds: msg.embeds,
       replyTo:
         msg.reply_to && msg.reply_to.id
           ? {
@@ -746,15 +757,17 @@ export function EnhancedChatArea({
     setShowMoreMenu(null);
   };
 
-  // Parse task mentions in message content (e.g., CHAT-123, TASK-456)
+  // Parse task mentions in message content (e.g., CHAT-123, #CHAT-123, or #taskid)
   const parseTaskMentions = (
     content: string
   ): (string | React.ReactElement)[] | string => {
-    // Regex to match task IDs like CHAT-123, TASK-456, PROJ-789, etc.
-    const taskIdRegex = /\b([A-Z]+-\d+)\b/g;
+    // Regex to match:
+    // 1. Task IDs like CHAT-123, TASK-456, PROJ-789
+    // 2. Hash mentions like #CHAT-123 or #some-uuid-here
+    const taskIdRegex = /(?:#)?([A-Z]+-\d+|[a-f0-9-]{36})\b/g;
     const parts: (string | React.ReactElement)[] = [];
     let lastIndex = 0;
-    let match;
+    let match: RegExpExecArray | null;
 
     while ((match = taskIdRegex.exec(content)) !== null) {
       // Add text before the match
@@ -762,22 +775,23 @@ export function EnhancedChatArea({
         parts.push(content.substring(lastIndex, match.index));
       }
 
-      // Find the task
+      // Find the task by ID (with or without #)
       const taskId = match[1];
-      const task = tasks.find((t) => t.id === taskId);
+      const fullMatch = match[0];
+      const task = tasks.find((t) => t.id === taskId || t.id === fullMatch);
 
       if (task) {
         // Add inline task mention component
         parts.push(
           <InlineTaskMention
             key={`${taskId}-${match.index}`}
-            taskId={taskId}
+            taskId={task.id}
             onClick={() => onTaskClick(task)}
           />
         );
       } else {
         // If task not found, just add the text
-        parts.push(taskId);
+        parts.push(match[0]);
       }
 
       lastIndex = match.index + match[0].length;
@@ -1376,6 +1390,16 @@ export function EnhancedChatArea({
                                 </span>
                               )}
                             </div>
+                          )}
+
+                          {/* Task Activity Card - for activity messages */}
+                          {!msg.task && parseActivityType(msg.content) && (
+                            <InlineTaskActivityCard
+                              content={msg.content}
+                              tasks={tasks}
+                              embeds={msg.embeds}
+                              onTaskClick={onTaskClick}
+                            />
                           )}
 
                           {/* Task card */}

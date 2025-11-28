@@ -1,5 +1,6 @@
 "use client";
 
+import { useAppSelector } from "@/store/hooks";
 import {
   Calendar,
   CheckCircle2,
@@ -12,12 +13,11 @@ import type { Task } from "../page";
 import { Badge } from "./ui/badge";
 
 interface TaskActivityCardProps {
-  taskId: string;
   taskTitle: string;
   activityType: string;
   boardName?: string;
   task?: Task;
-  onTaskClick?: (taskId: string) => void;
+  onTaskClick?: (task: Task) => void;
 }
 
 // Parse activity type from message content
@@ -88,13 +88,21 @@ const statusColors: Record<string, string> = {
 };
 
 export function TaskActivityCard({
-  taskId,
   taskTitle,
   activityType,
   boardName,
   task,
   onTaskClick,
 }: TaskActivityCardProps) {
+  // Get all tasks from Redux store to find the latest version
+  const tasksFromStore = useAppSelector((state) => state.task.tasks);
+
+  // Use the task from Redux store if available (it will have the latest updates)
+  // Fall back to the prop task if not found in store
+  const latestTask = task?.id
+    ? tasksFromStore.find((t) => t.id === task.id) || task
+    : task;
+
   const getActivityIcon = () => {
     switch (activityType) {
       case "task_created":
@@ -139,7 +147,7 @@ export function TaskActivityCard({
 
   return (
     <button
-      onClick={() => onTaskClick?.(taskId)}
+      onClick={() => latestTask && onTaskClick?.(latestTask)}
       className={`mt-2 w-full max-w-md bg-[#2b2d31] rounded-lg border-l-4 ${getActivityColor()} hover:bg-[#35363c] transition-all duration-200 text-left group overflow-hidden`}
     >
       {/* Card Header */}
@@ -163,43 +171,77 @@ export function TaskActivityCard({
           </div>
 
           {/* Task Details */}
-          {task && (
-            <div className="flex items-center gap-2 flex-wrap mb-1.5">
-              <Badge
-                variant="outline"
-                className={`text-[10px] px-1.5 py-0 h-5 ${
-                  priorityColors[task.priority] || priorityColors.medium
-                }`}
-              >
-                {task.priority}
-              </Badge>
-              <div className="flex items-center gap-1">
-                <div
-                  className={`w-2 h-2 rounded-full ${
-                    statusColors[task.status] || "bg-gray-500"
+          {latestTask && (
+            <div className="space-y-1.5 mb-1.5">
+              {/* First row: Priority and Status */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <Badge
+                  variant="outline"
+                  className={`text-[10px] px-1.5 py-0 h-5 ${
+                    priorityColors[latestTask.priority] || priorityColors.medium
                   }`}
-                />
-                <span className="text-[10px] text-gray-400 capitalize">
-                  {task.status.replace("-", " ")}
-                </span>
-              </div>
-              {task.assignee && (
+                >
+                  {latestTask.priority}
+                </Badge>
                 <div className="flex items-center gap-1">
-                  <User size={10} className="text-gray-500" />
-                  <span className="text-[10px] text-gray-400">
-                    {task.assignee}
+                  <div
+                    className={`w-2 h-2 rounded-full ${
+                      statusColors[latestTask.status] || "bg-gray-500"
+                    }`}
+                  />
+                  <span className="text-[10px] text-gray-400 capitalize">
+                    {latestTask.statusName ||
+                      latestTask.status.replace("-", " ")}
                   </span>
                 </div>
-              )}
-              {task.dueDate && (
-                <div className="flex items-center gap-1">
-                  <Calendar size={10} className="text-gray-500" />
-                  <span className="text-[10px] text-gray-400">
-                    {new Date(task.dueDate).toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                    })}
-                  </span>
+              </div>
+
+              {/* Second row: Assignees, Labels, Due Date */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Assignees */}
+                {latestTask.assignees && latestTask.assignees.length > 0 && (
+                  <div className="flex items-center gap-1">
+                    <User size={10} className="text-gray-500" />
+                    <span className="text-[10px] text-gray-400">
+                      {latestTask.assignees.length > 1
+                        ? `${latestTask.assignees.length} assignees`
+                        : latestTask.assignees[0]}
+                    </span>
+                  </div>
+                )}
+
+                {/* Labels */}
+                {latestTask.labels && latestTask.labels.length > 0 && (
+                  <div className="flex items-center gap-1">
+                    <Tag size={10} className="text-gray-500" />
+                    <span className="text-[10px] text-gray-400">
+                      {latestTask.labels.length}{" "}
+                      {latestTask.labels.length === 1 ? "label" : "labels"}
+                    </span>
+                  </div>
+                )}
+
+                {/* Due Date */}
+                {latestTask.dueDate && (
+                  <div className="flex items-center gap-1">
+                    <Calendar size={10} className="text-gray-500" />
+                    <span className="text-[10px] text-gray-400">
+                      {new Date(latestTask.dueDate).toLocaleDateString(
+                        "en-US",
+                        {
+                          month: "short",
+                          day: "numeric",
+                        }
+                      )}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Description preview */}
+              {latestTask.description && (
+                <div className="text-[10px] text-gray-500 line-clamp-2">
+                  {latestTask.description}
                 </div>
               )}
             </div>
@@ -239,7 +281,16 @@ export function InlineTaskActivityCard({
   tasks: Task[];
   embeds?: MessageEmbed[];
   onTaskClick: (task: Task) => void;
-}) {
+}): React.ReactNode {
+  // Get tasks from Redux store for the latest updates
+  const tasksFromStore = useAppSelector((state) => state.task.tasks);
+
+  // Combine tasks from props and store (store tasks will have latest updates)
+  const allTasks = [
+    ...tasksFromStore,
+    ...tasks.filter((t) => !tasksFromStore.find((st) => st.id === t.id)),
+  ];
+
   const activity = parseActivityType(content);
   if (!activity) return null;
 
@@ -248,17 +299,39 @@ export function InlineTaskActivityCard({
 
   // First try to find task from embed (most reliable)
   const taskEmbed = embeds?.find((e) => e.type === "task" && e.task_id);
+
   let task: Task | undefined;
 
   if (taskEmbed?.task_id) {
-    task = tasks.find((t) => t.id === taskEmbed.task_id);
+    // Try to find by database ID first (UUID)
+    task = allTasks.find((t) => t.id === taskEmbed.task_id);
+
+    // Also try to match by dbId if the task has that property
+    if (!task) {
+      task = allTasks.find(
+        (t) => (t as Task & { dbId?: string }).dbId === taskEmbed.task_id
+      );
+    }
   }
 
   // Fall back to title match if no embed or task not found
+  // This handles cases where task_id in embed doesn't match frontend task IDs
+  if (!task && taskEmbed?.title) {
+    task = allTasks.find((t) => t.title === taskEmbed.title);
+  }
+
+  // Further fallback: match by taskTitle extracted from message content
   if (!task) {
-    task = tasks.find(
-      (t) => t.title === taskTitle || content.includes(t.title)
+    task = allTasks.find(
+      (t) =>
+        t.title === taskTitle ||
+        t.title.toLowerCase() === taskTitle.toLowerCase()
     );
+  }
+
+  // Last resort: check if message content includes the task title
+  if (!task) {
+    task = allTasks.find((t) => content.includes(t.title));
   }
 
   if (!task) {
@@ -278,11 +351,10 @@ export function InlineTaskActivityCard({
 
   return (
     <TaskActivityCard
-      taskId={task.id}
       taskTitle={task.title}
       activityType={activity.type}
       task={task}
-      onTaskClick={() => onTaskClick(task)}
+      onTaskClick={onTaskClick}
     />
   );
 }

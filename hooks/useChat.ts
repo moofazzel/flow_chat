@@ -296,11 +296,27 @@ export const useChat = (channelId: string) => {
           filter: `channel_id=eq.${channelId}`,
         },
         async (payload) => {
-          // Fetch the complete message with all relations
-          const newMessage = await fetchMessageWithRelations(payload.new.id);
-          if (newMessage) {
-            setMessages((prev) => [...prev, newMessage]);
-          }
+          // Check if message already exists (from optimistic update)
+          const messageId = payload.new.id;
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === messageId)) {
+              // Message already exists, skip adding
+              return prev;
+            }
+            // Message doesn't exist yet, fetch and add it
+            fetchMessageWithRelations(messageId).then((newMessage) => {
+              if (newMessage) {
+                setMessages((current) => {
+                  // Double-check it still doesn't exist
+                  if (current.some((m) => m.id === messageId)) {
+                    return current;
+                  }
+                  return [...current, newMessage];
+                });
+              }
+            });
+            return prev;
+          });
         }
       )
       .on(

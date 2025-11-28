@@ -2,6 +2,7 @@
 
 import { useBoard } from "@/hooks/useBoard";
 import { useServerInvites } from "@/hooks/useServerInvites";
+import { createCard } from "@/lib/cardService";
 import { getServerChannels } from "@/lib/serverService";
 import { sendTaskActivity } from "@/lib/taskActivityService";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
@@ -20,7 +21,7 @@ import { getCurrentUser } from "@/utils/auth";
 import type { BoardData } from "@/utils/storage";
 import { storage } from "@/utils/storage";
 import { AnimatePresence } from "framer-motion";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AuthPage } from "./components/AuthPage";
 import {
@@ -51,6 +52,7 @@ export interface Task {
   title: string;
   description: string;
   status: string; // Changed to flexible string to support any column ID
+  statusName?: string; // NEW: Human readable status name (list title)
   boardId: string; // NEW: Which board this task belongs to
   priority: "low" | "medium" | "high" | "urgent";
   assignee?: string; // Deprecated: kept for backward compatibility
@@ -63,7 +65,7 @@ export interface Task {
   subtasks?: SubTask[];
   attachments?: Attachment[];
   sourceMessageId?: string;
-  issueType?: string;
+  issueType?: "story" | "task" | "bug" | "epic" | "subtask";
 }
 
 export interface SubTask {
@@ -78,6 +80,10 @@ export interface Attachment {
   size: string;
   type: "image" | "file" | "video";
   url?: string;
+  file_url?: string; // For compatibility
+  filename?: string; // For compatibility
+  file_size?: number; // For compatibility
+  file_type?: string; // For compatibility
 }
 
 export interface Comment {
@@ -149,16 +155,6 @@ const loadInitialBoards = () => {
   }
 };
 
-const loadInitialTasks = () => {
-  if (!isBrowser) return [];
-  try {
-    const saved = storage.tasks.load();
-    return saved || [];
-  } catch {
-    return [];
-  }
-};
-
 const loadInitialMessages = () =>
   readJSON<ChatMessage[]>(STORAGE_KEYS.messages, []);
 
@@ -217,17 +213,11 @@ export default function Home() {
   // Get board-related operations for Supabase integration (comments, subtasks, etc.)
   // Note: Card updates go through boardOperations from BoardsContainer to ensure UI sync
   const {
+    // Boards data (for deriving tasks with database IDs)
+    boards: supabaseBoards,
     // Comments
-    getCardComments,
-    addCardComment,
-    deleteCardComment,
     // Subtasks
-    getCardSubtasks,
-    addCardSubtask,
-    toggleCardSubtask,
-    deleteCardSubtask,
     // Attachments
-    getCardAttachments,
     uploadCardAttachment,
     deleteCardAttachment,
     // Members
@@ -283,19 +273,36 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTask?.boardId]);
 
-  // Tasks state (initialize from storage)
-  const [tasks, setTasks] = useState<Task[]>(loadInitialTasks);
+  // Derive tasks from Supabase boards (memoized for performance)
+  const tasks = useMemo(() => {
+    return supabaseBoards.flatMap((board) => {
+      console.log("🚀 ~ board:", board);
+      return (board.lists || []).flatMap((list) =>
+        (list.cards || []).map((card) => ({
+          id: card.id, // Database UUID
+          title: card.title,
+          description: card.description || "",
+          status: list.id,
+          statusName: list.title, // Add status name
+          boardId: board.id,
+          priority: card.priority || "medium",
+          assignee: card.assignees?.[0],
+          assignees: card.assignees || [],
+          reporter: "",
+          labels: card.labels || [],
+          dueDate: card.due_date || undefined,
+          createdAt: new Date().toISOString(),
+          comments: [],
+        }))
+      );
+    });
+  }, [supabaseBoards]);
+
+  console.log("🚀 ~ Supabase tasks:", tasks);
 
   // Boards and labels state (initialize from storage to avoid setState in mount effect)
   const [boards, setBoards] = useState<BoardData[]>(loadInitialBoards);
   const [showLabelManagerForTask, setShowLabelManagerForTask] = useState(false);
-
-  // Auto-save tasks whenever they change
-  useEffect(() => {
-    if (!user || tasks.length === 0) return;
-    storage.tasks.save(tasks);
-    console.log(`Auto-saved ${tasks.length} tasks`);
-  }, [tasks, user]);
 
   // Auto-save boards whenever they change
   useEffect(() => {
@@ -364,65 +371,8 @@ export default function Home() {
           console.log("Created welcome board");
         });
 
-        // 4. Create sample tasks
-        const sampleTasks: Task[] = [
-          {
-            id: "TASK-1",
-            title: "👋 Welcome to Flow Chat!",
-            description:
-              "Click on this task to see how task management works. You can:\\n\\n• Edit task details\\n• Add comments\\n• Change status by dragging\\n• Set priority and labels\\n• Assign to team members\\n\\nTry dragging this task to 'In Progress'!",
-            status: "todo",
-            boardId: "board-welcome",
-            priority: "medium",
-            reporter: "System",
-            labels: ["welcome"],
-            createdAt: new Date().toISOString().split("T")[0],
-            comments: [],
-          },
-          {
-            id: "TASK-2",
-            title: "🎯 Create tasks from chat messages",
-            description:
-              "One of Flow Chat's best features!\\n\\n1. Go to the Chat view\\n2. Hover over any message\\n3. Click the ⋯ menu\\n4. Select 'Create Task from Message'\\n\\nTasks created from chat are automatically linked to the original message!",
-            status: "todo",
-            boardId: "board-welcome",
-            priority: "high",
-            reporter: "System",
-            labels: ["tutorial"],
-            createdAt: new Date().toISOString().split("T")[0],
-            comments: [],
-          },
-          {
-            id: "TASK-3",
-            title: "✨ Try the board features",
-            description:
-              "Explore these board features:\\n\\n• Drag & drop tasks between columns\\n• Click '+' to create new boards\\n• Use labels to organize tasks\\n• Set priorities (Low, Medium, High, Urgent)\\n• Add detailed descriptions\\n• Collaborate with comments",
-            status: "in-progress",
-            boardId: "board-welcome",
-            priority: "medium",
-            reporter: "System",
-            labels: ["tutorial"],
-            createdAt: new Date().toISOString().split("T")[0],
-            comments: [
-              {
-                id: "comment-1",
-                author: "System",
-                avatar: "SY",
-                content:
-                  "This is what a comment looks like! Use comments to discuss tasks with your team.",
-                timestamp: new Date().toLocaleTimeString("en-US", {
-                  hour: "numeric",
-                  minute: "2-digit",
-                }),
-              },
-            ],
-          },
-        ];
-
-        queueMicrotask(() => {
-          setTasks(sampleTasks);
-          console.log("Created sample tasks");
-        });
+        // Sample tasks removed - using Supabase boards only
+        console.log("Sample boards created - tasks will come from Supabase");
 
         // 5. Show welcome message
         setTimeout(() => {
@@ -580,38 +530,73 @@ export default function Home() {
     dispatch(setCurrentView("dm"));
   };
 
-  const handleCreateTask = (taskData: NewTaskData) => {
-    // Generate new task ID
-    const newTaskId = `CHAT-${Math.floor(Math.random() * 1000)}`;
+  const handleCreateTask = async (taskData: NewTaskData) => {
+    // Find the first board or use a default
+    const targetBoard = supabaseBoards[0];
+    if (!targetBoard) {
+      toast.error("No board available. Please create a board first.");
+      return;
+    }
 
-    const newTask: Task = {
-      id: newTaskId,
-      title: taskData.title,
-      description: taskData.description,
-      status: taskData.status,
-      boardId: "board1", // NEW: Add boardId
-      priority: taskData.priority,
-      assignee: taskData.assignee,
-      reporter: "You",
-      labels: taskData.labels,
-      createdAt: new Date().toISOString().split("T")[0],
-      comments: [],
-      sourceMessageId: taskData.sourceMessageId,
-    };
+    // Find the appropriate list based on status
+    const targetList =
+      targetBoard.lists?.find(
+        (list) => list.title.toLowerCase() === taskData.status.toLowerCase()
+      ) || targetBoard.lists?.[0];
 
-    // Add task to global state
-    setTasks((prevTasks) => [...prevTasks, newTask]);
+    if (!targetList) {
+      toast.error("No list available in the board.");
+      return;
+    }
 
-    // Show success notification
-    toast.success("Task created!", {
-      description: `#${newTaskId}: ${taskData.title}`,
-      duration: 3000,
-    });
+    try {
+      // Create card in Supabase using createCard
+      const result = await createCard(targetList.id, {
+        title: taskData.title,
+        description: taskData.description,
+        priority: taskData.priority,
+        assignees: taskData.assignee ? [taskData.assignee] : [],
+        sourceMessageId: taskData.sourceMessageId,
+      });
 
-    console.log("Task created:", newTask);
+      if (result.success && result.card) {
+        // Map priority from CardData to Task priority format
+        const priority =
+          result.card.priority === "lowest"
+            ? "low"
+            : result.card.priority === "highest"
+            ? "urgent"
+            : (result.card.priority as "low" | "medium" | "high" | "urgent");
 
-    // Return the new task so chat can post about it
-    return newTask;
+        // Convert to Task format for return
+        const newTask: Task = {
+          id: result.card.id,
+          title: result.card.title,
+          description: result.card.description || "",
+          status: targetList.id,
+          boardId: targetBoard.id,
+          priority,
+          assignee: result.card.assignees?.[0],
+          assignees: result.card.assignees || [],
+          reporter: "You",
+          labels: result.card.labels?.map((l) => l.id) || [],
+          createdAt: new Date().toISOString(),
+          comments: [],
+          sourceMessageId: taskData.sourceMessageId,
+        };
+
+        toast.success("Task created!", {
+          description: `${taskData.title}`,
+          duration: 3000,
+        });
+
+        console.log("Task created:", newTask);
+        return newTask;
+      }
+    } catch (error) {
+      console.error("Error creating task:", error);
+      toast.error("Failed to create task");
+    }
   };
 
   // Handle task status updates (for drag & drop)
@@ -620,11 +605,8 @@ export default function Home() {
     newStatus: Task["status"],
     oldStatus: Task["status"]
   ) => {
-    setTasks((prevTasks) =>
-      prevTasks.map((task) =>
-        task.id === taskId ? { ...task, status: newStatus } : task
-      )
-    );
+    // Task updates are handled by Supabase via boardOperations
+    // This function mainly handles notifications
 
     // Find the task to get details for the notification
     const task = tasks.find((t) => t.id === taskId);
@@ -725,11 +707,8 @@ export default function Home() {
     newAssignee: string | undefined,
     oldAssignee: string | undefined
   ) => {
-    setTasks((prevTasks) =>
-      prevTasks.map((task) =>
-        task.id === taskId ? { ...task, assignee: newAssignee } : task
-      )
-    );
+    // Task updates are handled by Supabase via boardOperations
+    // This function mainly handles notifications
 
     const task = tasks.find((t) => t.id === taskId);
     if (task) {
@@ -743,7 +722,7 @@ export default function Home() {
   };
 
   // Handle adding a new task from board
-  const handleAddTask = (taskData: {
+  const handleAddTask = async (taskData: {
     title: string;
     description: string;
     columnId: string;
@@ -752,57 +731,63 @@ export default function Home() {
     assignee?: string;
     labels?: string[];
   }) => {
-    // Generate sequential task ID
-    const existingTaskNumbers = tasks
-      .map((t) => {
-        const match = t.id.match(/^(?:PROJ|TASK|CHAT)-(\\d+)$/);
-        return match ? parseInt(match[1], 10) : 0;
-      })
-      .filter((n) => n > 0);
+    try {
+      // Create card in Supabase
+      const result = await createCard(taskData.columnId, {
+        title: taskData.title,
+        description: taskData.description,
+        priority: taskData.priority || "medium",
+        assignees: taskData.assignee ? [taskData.assignee] : [],
+      });
 
-    const nextNumber =
-      existingTaskNumbers.length > 0
-        ? Math.max(...existingTaskNumbers) + 1
-        : 130; // Start from 130 to continue from PROJ-129
+      if (result.success && result.card) {
+        // Map priority from CardData to Task priority format
+        const priority =
+          result.card.priority === "lowest"
+            ? "low"
+            : result.card.priority === "highest"
+            ? "urgent"
+            : (result.card.priority as "low" | "medium" | "high" | "urgent");
 
-    const newTaskId = `TASK-${nextNumber}`;
+        const newTask: Task = {
+          id: result.card.id,
+          title: result.card.title,
+          description: result.card.description || "",
+          status: taskData.columnId,
+          boardId: taskData.boardId,
+          priority,
+          assignee: result.card.assignees?.[0],
+          assignees: result.card.assignees || [],
+          reporter: "You",
+          labels: result.card.labels?.map((l) => l.id) || [],
+          createdAt: new Date().toISOString(),
+          comments: [],
+        };
 
-    const newTask: Task = {
-      id: newTaskId,
-      title: taskData.title,
-      description: taskData.description,
-      status: taskData.columnId, // Column ID is the status
-      boardId: taskData.boardId,
-      priority: taskData.priority || "medium",
-      assignee: taskData.assignee,
-      reporter: "You",
-      labels: taskData.labels || [],
-      createdAt: new Date().toISOString().split("T")[0],
-      comments: [],
-    };
+        toast.success(`Task created: ${taskData.title}`, {
+          duration: 3000,
+        });
 
-    setTasks((prevTasks) => [...prevTasks, newTask]);
-
-    toast.success(`Task created: ${taskData.title}`, {
-      description: `ID: ${newTaskId}`,
-      duration: 3000,
-    });
-
-    return newTask;
+        return newTask;
+      }
+    } catch (error) {
+      console.error("Error creating task:", error);
+      toast.error("Failed to create task");
+    }
   };
 
   // Handle bulk task updates (for column deletion, etc.)
+  // Note: With Supabase, tasks are automatically synced via useBoard hook
   const handleTasksUpdate = (updatedTasks: Task[]) => {
-    setTasks(updatedTasks);
+    // Tasks are now read-only from Supabase
+    // Any updates should go through boardOperations or card service
+    console.log("Task updates handled by Supabase", updatedTasks.length);
   };
 
   // Handle individual task updates from modal
   const handleUpdateTask = (updatedTask: Task) => {
-    // Update in tasks array
-    setTasks((prevTasks) =>
-      prevTasks.map((task) => (task.id === updatedTask.id ? updatedTask : task))
-    );
-    // Also update selectedTask if it's the same task (so modal shows updated data)
+    // Tasks are automatically synced from Supabase via useBoard hook
+    // Just update the selectedTask to reflect changes in the modal
     setSelectedTask((prev) =>
       prev?.id === updatedTask.id ? updatedTask : prev
     );
@@ -817,22 +802,36 @@ export default function Home() {
   };
 
   // Handle task duplication
-  const handleDuplicateTask = (task: Task) => {
-    const duplicatedTask: Task = {
-      ...task,
-      id: `TASK-${Date.now()}`,
-      title: `${task.title} (Copy)`,
-      createdAt: new Date().toISOString().split("T")[0],
-    };
-    setTasks((prevTasks) => [...prevTasks, duplicatedTask]);
-    toast.success("Task duplicated successfully");
+  const handleDuplicateTask = async (task: Task) => {
+    try {
+      // Create a duplicate card in Supabase
+      const result = await createCard(task.status, {
+        title: `${task.title} (Copy)`,
+        description: task.description,
+        priority: task.priority,
+        assignees: task.assignees || [],
+      });
+
+      if (result.success) {
+        toast.success("Task duplicated successfully");
+      } else {
+        throw new Error(result.error || "Failed to duplicate task");
+      }
+    } catch (error) {
+      console.error("Error duplicating task:", error);
+      toast.error("Failed to duplicate task");
+    }
   };
 
   // Handle task archiving
-  const handleArchiveTask = (taskId: string) => {
-    // For now, just remove the task (you can add archived state later)
-    setTasks((prevTasks) => prevTasks.filter((task) => task.id !== taskId));
-    toast.success("Task archived");
+  const handleArchiveTask = async (taskId: string) => {
+    // Use deleteCard from boardOperations or card service
+    if (boardOperations?.deleteCard) {
+      await boardOperations.deleteCard(taskId);
+      toast.success("Task archived");
+    } else {
+      toast.error("Unable to archive task");
+    }
   };
 
   // Handle channel selection - opens floating chat if in board view
@@ -971,21 +970,6 @@ export default function Home() {
           // Supabase integration props
           boardMembers={currentBoardMembers}
           currentUser={currentUser}
-          onUpdateCard={async (cardId, updates) => {
-            // Use board operations from BoardsContainer to ensure UI sync
-            if (boardOperations) {
-              return await boardOperations.updateCard(cardId, updates);
-            }
-            return false;
-          }}
-          onGetComments={getCardComments}
-          onAddComment={addCardComment}
-          onDeleteComment={deleteCardComment}
-          onGetSubtasks={getCardSubtasks}
-          onAddSubtask={addCardSubtask}
-          onToggleSubtask={toggleCardSubtask}
-          onDeleteSubtask={deleteCardSubtask}
-          onGetAttachments={getCardAttachments}
           onUploadAttachment={uploadCardAttachment}
           onDeleteAttachment={deleteCardAttachment}
           // Server/workspace member props
@@ -1055,14 +1039,8 @@ export default function Home() {
                     : b
                 )
               );
-              // Also remove the label from tasks
-              setTasks((prevTasks) =>
-                prevTasks.map((t) =>
-                  t.boardId === taskBoard.id
-                    ? { ...t, labels: t.labels.filter((l) => l !== labelId) }
-                    : t
-                )
-              );
+              // Tasks are automatically synced from Supabase
+              // Label removal will be reflected when cards are re-fetched
               toast.success(`Label deleted`);
             }
           }}

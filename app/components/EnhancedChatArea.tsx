@@ -75,7 +75,7 @@ export interface NewTaskData {
 interface ChatAreaProps {
   channelId: string;
   onTaskClick: (task: Task) => void;
-  onCreateTask?: (taskData: NewTaskData) => Task;
+  onCreateTask?: (taskData: NewTaskData) => Promise<Task | undefined>;
   onSendMessage: (content: string, taskId?: string) => void;
   tasks: Task[];
   messages: Message[];
@@ -212,6 +212,7 @@ export function EnhancedChatArea({
   onSendMessage,
   tasks,
 }: Omit<ChatAreaProps, "messages">) {
+  console.log("🚀 ~ tasks from enhanced chat", tasks);
   // Remove messages from props
   const {
     messages: chatMessages,
@@ -354,6 +355,24 @@ export function EnhancedChatArea({
       });
     }
   };
+
+  // Scroll to bottom when messages are initially loaded
+  useEffect(() => {
+    if (
+      !isLoading &&
+      chatMessages.length > 0 &&
+      prevMessageCountRef.current === 0
+    ) {
+      // Initial load - scroll to bottom
+      setTimeout(() => scrollToBottom(), 100);
+    }
+  }, [isLoading, chatMessages.length]);
+
+  // Scroll to bottom when channel changes
+  useEffect(() => {
+    prevMessageCountRef.current = 0; // Reset counter on channel change
+    setTimeout(() => scrollToBottom(), 200);
+  }, [channelId]);
 
   // Play notification sound and scroll on new messages
   useEffect(() => {
@@ -1872,9 +1891,11 @@ export function EnhancedChatArea({
           setCreateTaskModalOpen(false);
           setTaskPrefilledData(null);
         }}
-        onCreateTask={(taskData) => {
+        onCreateTask={async (taskData) => {
           if (onCreateTask) {
-            const newTask = onCreateTask(taskData);
+            const newTask = await onCreateTask(taskData);
+
+            if (!newTask) return;
 
             // Post a message about the new task
             const newMessage: Message = {
@@ -1902,9 +1923,9 @@ export function EnhancedChatArea({
       <QuickTaskCreate
         open={quickTaskOpen}
         onOpenChange={setQuickTaskOpen}
-        onCreateTask={(taskData) => {
+        onCreateTask={async (taskData) => {
           if (onCreateTask) {
-            const newTask = onCreateTask({
+            const newTask = await onCreateTask({
               title: taskData.title,
               description: taskData.description,
               status: taskData.status,
@@ -1913,6 +1934,8 @@ export function EnhancedChatArea({
               labels: taskData.labels,
               sourceMessageId: taskData.sourceMessageId,
             });
+
+            if (!newTask) return;
 
             // Post task creation activity to channel
             const activityMessage = `✅ **Task Created:** ${newTask.id} - ${

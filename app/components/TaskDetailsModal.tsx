@@ -4,7 +4,6 @@ import type {
   BoardMember,
   CardAttachment,
   CardComment,
-  CardSubtask,
 } from "@/hooks/useBoard";
 import {
   formatDateForDisplay,
@@ -12,6 +11,16 @@ import {
   sendTaskActivity,
   TaskActivityType,
 } from "@/lib/taskActivityService";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import {
+  addCommentThunk,
+  addSubtaskThunk,
+  deleteCommentThunk,
+  deleteSubtaskThunk,
+  fetchTaskDetails,
+  toggleSubtaskThunk,
+  updateTaskThunk,
+} from "@/store/slices/taskSlice";
 import { copyToClipboard } from "@/utils/clipboard";
 import {
   Archive,
@@ -94,21 +103,6 @@ interface TaskDetailsModalProps {
     role?: "admin" | "member" | "observer"
   ) => Promise<BoardMember | null>;
   // Card operations
-  onUpdateCard?: (cardId: string, updates: Partial<Task>) => Promise<boolean>;
-  // Comments
-  onGetComments?: (cardId: string) => Promise<CardComment[]>;
-  onAddComment?: (
-    cardId: string,
-    content: string
-  ) => Promise<CardComment | null>;
-  onDeleteComment?: (commentId: string) => Promise<boolean>;
-  // Subtasks
-  onGetSubtasks?: (cardId: string) => Promise<CardSubtask[]>;
-  onAddSubtask?: (cardId: string, title: string) => Promise<CardSubtask | null>;
-  onToggleSubtask?: (subtaskId: string, completed: boolean) => Promise<boolean>;
-  onDeleteSubtask?: (subtaskId: string) => Promise<boolean>;
-  // Attachments
-  onGetAttachments?: (cardId: string) => Promise<CardAttachment[]>;
   onUploadAttachment?: (
     cardId: string,
     file: File
@@ -134,23 +128,22 @@ export function TaskDetailsModal({
   onSearchUsers,
   onGetServerMembers,
   onAddBoardMember,
-  onUpdateCard,
-  onGetComments,
-  onAddComment,
-  onDeleteComment,
-  onGetSubtasks,
-  onAddSubtask,
-  onToggleSubtask,
-  onDeleteSubtask,
-  onGetAttachments,
   onUploadAttachment,
   onDeleteAttachment,
 }: TaskDetailsModalProps) {
-  const [localTask, setLocalTask] = useState<Task>(task);
+  const dispatch = useAppDispatch();
+  const { selectedTask: taskFromStore } = useAppSelector((state) => state.task);
+
+  // Use task from store if available (it should be populated by fetchTaskDetails)
+  // Fallback to prop task for initial render or if store is empty
+  const currentTask = taskFromStore?.id === task.id ? taskFromStore : task;
+
   const [isEditingDescription, setIsEditingDescription] = useState(false);
-  const [editedDescription, setEditedDescription] = useState(task.description);
+  const [editedDescription, setEditedDescription] = useState(
+    currentTask.description
+  );
   const [isEditingTitle, setIsEditingTitle] = useState(false);
-  const [editedTitle, setEditedTitle] = useState(task.title);
+  const [editedTitle, setEditedTitle] = useState(currentTask.title);
   const [newComment, setNewComment] = useState("");
   const [newSubtask, setNewSubtask] = useState("");
   const [isAddingSubtask, setIsAddingSubtask] = useState(false);
@@ -172,52 +165,25 @@ export function TaskDetailsModal({
   >([]);
   const [isSearching, setIsSearching] = useState(false);
 
-  // Sync local state when task prop changes
+  // Sync local editing state when task changes
   useEffect(() => {
-    setLocalTask(task);
-    setEditedTitle(task.title);
-    setEditedDescription(task.description);
-  }, [task]);
-
-  // Real data from Supabase
-  const [supabaseComments, setSupabaseComments] = useState<CardComment[]>([]);
-  const [subtasks, setSubtasks] = useState<CardSubtask[]>([]);
-  const [attachments, setAttachments] = useState<CardAttachment[]>([]);
+    setEditedTitle(currentTask.title);
+    setEditedDescription(currentTask.description);
+  }, [currentTask]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
-  // Load real data on mount
+  // Load real data on mount via Redux
   useEffect(() => {
-    const loadData = async () => {
-      // Load comments
-      if (onGetComments) {
-        const fetchedComments = await onGetComments(task.id);
-        setSupabaseComments(fetchedComments);
-      }
-
-      // Load subtasks
-      if (onGetSubtasks) {
-        const fetchedSubtasks = await onGetSubtasks(task.id);
-        setSubtasks(fetchedSubtasks);
-      }
-
-      // Load attachments
-      if (onGetAttachments) {
-        const fetchedAttachments = await onGetAttachments(task.id);
-        setAttachments(fetchedAttachments);
-      }
-
-      // Load server members if serverId is provided
-      if (serverId && onGetServerMembers) {
-        const members = await onGetServerMembers(serverId);
-        setServerMembers(members);
-      }
-    };
-
-    loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [task.id, serverId]);
+    if (task.id) {
+      dispatch(fetchTaskDetails(task.id));
+    }
+    // Load server members if serverId is provided
+    if (serverId && onGetServerMembers) {
+      onGetServerMembers(serverId).then(setServerMembers);
+    }
+  }, [task.id, serverId, dispatch, onGetServerMembers]);
 
   // Search users with debounce
   useEffect(() => {
@@ -259,8 +225,12 @@ export function TaskDetailsModal({
 
   // Helper to add user to board and then assign to card
   const handleAddMemberToBoard = async (userId: string, username: string) => {
-    if (onAddBoardMember && task.boardId) {
-      const newMember = await onAddBoardMember(task.boardId, userId, "member");
+    if (onAddBoardMember && currentTask.boardId) {
+      const newMember = await onAddBoardMember(
+        currentTask.boardId,
+        userId,
+        "member"
+      );
       if (newMember) {
         // Also assign to the current card
         handleAddMember(userId, username);
@@ -291,8 +261,8 @@ export function TaskDetailsModal({
     if (!channelId || !currentUser) return;
 
     await sendTaskActivity(type, {
-      taskId: task.id,
-      taskTitle: localTask.title,
+      taskId: currentTask.id,
+      taskTitle: currentTask.title,
       actorName: currentUser.username,
       actorId: currentUser.id,
       channelId,
@@ -301,22 +271,18 @@ export function TaskDetailsModal({
     });
   };
 
-  const updateTask = async (updates: Partial<Task>) => {
-    const updatedTask = { ...localTask, ...updates };
-    setLocalTask(updatedTask);
+  const handleUpdateTask = async (updates: Partial<Task>) => {
+    // Dispatch update to Redux
+    dispatch(updateTaskThunk({ taskId: currentTask.id, updates }));
 
-    // Update in Supabase if handler provided
-    if (onUpdateCard) {
-      await onUpdateCard(task.id, updates);
-    }
-
-    onUpdateTask?.(updatedTask);
+    // Also call prop if needed (for parent updates not yet fully on Redux)
+    onUpdateTask?.({ ...currentTask, ...updates });
   };
 
   const handleSaveTitle = async () => {
-    if (editedTitle.trim() && editedTitle.trim() !== localTask.title) {
-      const oldTitle = localTask.title;
-      await updateTask({ title: editedTitle.trim() });
+    if (editedTitle.trim() && editedTitle.trim() !== currentTask.title) {
+      const oldTitle = currentTask.title;
+      await handleUpdateTask({ title: editedTitle.trim() });
       await logActivity("task_title_changed", {
         oldValue: oldTitle,
         newValue: editedTitle.trim(),
@@ -328,8 +294,8 @@ export function TaskDetailsModal({
   };
 
   const handleSaveDescription = async () => {
-    const changed = editedDescription.trim() !== localTask.description;
-    await updateTask({ description: editedDescription.trim() });
+    const changed = editedDescription.trim() !== currentTask.description;
+    await handleUpdateTask({ description: editedDescription.trim() });
     if (changed) {
       await logActivity("task_description_changed");
     }
@@ -339,91 +305,36 @@ export function TaskDetailsModal({
   const handleAddComment = async () => {
     if (!newComment.trim()) return;
 
-    if (onAddComment) {
-      const comment = await onAddComment(task.id, newComment.trim());
-      if (comment) {
-        setSupabaseComments((prev) => [...prev, comment]);
-        setNewComment("");
-      }
-    } else {
-      // Fallback to local state
-      const comment = {
-        id: `c-${Date.now()}`,
-        card_id: task.id,
-        author_id: currentUser?.id || "",
-        content: newComment.trim(),
-        is_edited: false,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        author: currentUser
-          ? {
-              id: currentUser.id,
-              username: currentUser.username,
-              avatar_url: currentUser.avatar_url,
-            }
-          : undefined,
-      };
-      setSupabaseComments((prev) => [...prev, comment]);
-      setNewComment("");
-      toast.success("Comment added");
-    }
+    dispatch(
+      addCommentThunk({ taskId: currentTask.id, content: newComment.trim() })
+    );
+    setNewComment("");
+    toast.success("Comment added");
   };
 
   const handleDeleteComment = async (commentId: string) => {
-    if (onDeleteComment) {
-      const success = await onDeleteComment(commentId);
-      if (success) {
-        setSupabaseComments((prev) => prev.filter((c) => c.id !== commentId));
-      }
-    } else {
-      setSupabaseComments((prev) => prev.filter((c) => c.id !== commentId));
-      toast.success("Comment deleted");
-    }
+    dispatch(deleteCommentThunk(commentId));
+    toast.success("Comment deleted");
   };
 
   const handleAddSubtask = async () => {
     if (!newSubtask.trim()) return;
 
     const subtaskTitle = newSubtask.trim();
-
-    if (onAddSubtask) {
-      const subtask = await onAddSubtask(task.id, subtaskTitle);
-      if (subtask) {
-        setSubtasks((prev) => [...prev, subtask]);
-        await logActivity("subtask_added", { subtaskTitle });
-        setNewSubtask("");
-        setIsAddingSubtask(false);
-      }
-    } else {
-      // Fallback to local state
-      const subtask: CardSubtask = {
-        id: `st-${Date.now()}`,
-        card_id: task.id,
-        title: subtaskTitle,
-        completed: false,
-        position: subtasks.length,
-        created_at: new Date().toISOString(),
-      };
-      setSubtasks((prev) => [...prev, subtask]);
-      await logActivity("subtask_added", { subtaskTitle });
-      setNewSubtask("");
-      setIsAddingSubtask(false);
-      toast.success("Subtask added");
-    }
+    dispatch(addSubtaskThunk({ taskId: currentTask.id, title: subtaskTitle }));
+    await logActivity("subtask_added", { subtaskTitle });
+    setNewSubtask("");
+    setIsAddingSubtask(false);
+    toast.success("Subtask added");
   };
 
   const handleToggleSubtask = async (subtaskId: string) => {
-    const subtask = subtasks.find((st) => st.id === subtaskId);
+    const subtask = currentTask.subtasks?.find((st) => st.id === subtaskId);
     if (!subtask) return;
 
     const newCompleted = !subtask.completed;
 
-    // Optimistic update
-    setSubtasks((prev) =>
-      prev.map((st) =>
-        st.id === subtaskId ? { ...st, completed: newCompleted } : st
-      )
-    );
+    dispatch(toggleSubtaskThunk({ subtaskId, completed: newCompleted }));
 
     // Log activity
     await logActivity(
@@ -432,44 +343,21 @@ export function TaskDetailsModal({
         subtaskTitle: subtask.title,
       }
     );
-
-    if (onToggleSubtask) {
-      const success = await onToggleSubtask(subtaskId, newCompleted);
-      if (!success) {
-        // Revert on failure
-        setSubtasks((prev) =>
-          prev.map((st) =>
-            st.id === subtaskId ? { ...st, completed: !newCompleted } : st
-          )
-        );
-      }
-    }
   };
 
   const handleDeleteSubtask = async (subtaskId: string) => {
-    const subtask = subtasks.find((st) => st.id === subtaskId);
-
-    if (onDeleteSubtask) {
-      const success = await onDeleteSubtask(subtaskId);
-      if (success) {
-        setSubtasks((prev) => prev.filter((st) => st.id !== subtaskId));
-        if (subtask) {
-          await logActivity("subtask_deleted", { subtaskTitle: subtask.title });
-        }
-      }
-    } else {
-      setSubtasks((prev) => prev.filter((st) => st.id !== subtaskId));
-      if (subtask) {
-        await logActivity("subtask_deleted", { subtaskTitle: subtask.title });
-      }
-      toast.success("Subtask deleted");
+    const subtask = currentTask.subtasks?.find((st) => st.id === subtaskId);
+    dispatch(deleteSubtaskThunk(subtaskId));
+    if (subtask) {
+      await logActivity("subtask_deleted", { subtaskTitle: subtask.title });
     }
+    toast.success("Subtask deleted");
   };
 
   const handleAddLabel = async (labelId: string) => {
-    if (!localTask.labels.includes(labelId)) {
+    if (!currentTask.labels.includes(labelId)) {
       const label = boardLabels?.find((l) => l.id === labelId);
-      await updateTask({ labels: [...localTask.labels, labelId] });
+      await handleUpdateTask({ labels: [...currentTask.labels, labelId] });
       if (label) {
         await logActivity("task_label_added", { labelName: label.name });
       }
@@ -479,18 +367,20 @@ export function TaskDetailsModal({
 
   const handleRemoveLabel = async (labelId: string) => {
     const label = boardLabels?.find((l) => l.id === labelId);
-    await updateTask({ labels: localTask.labels.filter((l) => l !== labelId) });
+    await handleUpdateTask({
+      labels: currentTask.labels.filter((l) => l !== labelId),
+    });
     if (label) {
       await logActivity("task_label_removed", { labelName: label.name });
     }
   };
 
   const handleSetDueDate = async (date: Date | undefined) => {
-    const oldDueDate = localTask.dueDate;
+    const oldDueDate = currentTask.dueDate;
 
     if (date) {
       const formattedDate = date.toISOString().split("T")[0];
-      await updateTask({ dueDate: formattedDate });
+      await handleUpdateTask({ dueDate: formattedDate });
 
       if (oldDueDate) {
         await logActivity("task_due_date_changed", {
@@ -503,7 +393,7 @@ export function TaskDetailsModal({
         });
       }
     } else {
-      await updateTask({ dueDate: undefined });
+      await handleUpdateTask({ dueDate: undefined });
       if (oldDueDate) {
         await logActivity("task_due_date_removed");
       }
@@ -516,27 +406,23 @@ export function TaskDetailsModal({
     if (!files || files.length === 0) return;
 
     for (const file of Array.from(files)) {
+      // For now, we don't have an attachment thunk that handles file upload directly
+      // because it requires Supabase storage logic which is complex to move entirely to Redux
+      // without extra setup.
+      // We will keep using the prop if available, or just log a warning.
+      // Ideally, we should move upload logic to a service and call it from a thunk.
+
       if (onUploadAttachment) {
-        const attachment = await onUploadAttachment(task.id, file);
+        const attachment = await onUploadAttachment(currentTask.id, file);
         if (attachment) {
-          setAttachments((prev) => [...prev, attachment]);
+          // We should manually add it to the Redux store or re-fetch details
+          // Since we don't have an addAttachment action in Redux yet (only thunk for fetch),
+          // we can just re-fetch the task details to get the new attachment
+          dispatch(fetchTaskDetails(currentTask.id));
           await logActivity("attachment_added", { attachmentName: file.name });
         }
       } else {
-        // Fallback to local state
-        const attachment: CardAttachment = {
-          id: `att-${Date.now()}-${Math.random()}`,
-          card_id: task.id,
-          uploader_id: currentUser?.id || "",
-          filename: file.name,
-          file_url: URL.createObjectURL(file),
-          file_type: file.type.startsWith("image/") ? "image" : "file",
-          file_size: file.size,
-          created_at: new Date().toISOString(),
-        };
-        setAttachments((prev) => [...prev, attachment]);
-        await logActivity("attachment_added", { attachmentName: file.name });
-        toast.success("Attachment added");
+        toast.error("Attachment upload not configured");
       }
     }
 
@@ -549,26 +435,13 @@ export function TaskDetailsModal({
 
     for (const file of Array.from(files)) {
       if (onUploadAttachment) {
-        const attachment = await onUploadAttachment(task.id, file);
+        const attachment = await onUploadAttachment(currentTask.id, file);
         if (attachment) {
-          setAttachments((prev) => [...prev, attachment]);
+          dispatch(fetchTaskDetails(currentTask.id));
           await logActivity("attachment_added", { attachmentName: file.name });
         }
       } else {
-        // Fallback to local state
-        const attachment: CardAttachment = {
-          id: `att-${Date.now()}-${Math.random()}`,
-          card_id: task.id,
-          uploader_id: currentUser?.id || "",
-          filename: file.name,
-          file_url: URL.createObjectURL(file),
-          file_type: file.type,
-          file_size: file.size,
-          created_at: new Date().toISOString(),
-        };
-        setAttachments((prev) => [...prev, attachment]);
-        await logActivity("attachment_added", { attachmentName: file.name });
-        toast.success("Attachment added");
+        toast.error("Attachment upload not configured");
       }
     }
 
@@ -580,38 +453,27 @@ export function TaskDetailsModal({
     fileUrl?: string
   ) => {
     // Find the attachment in Supabase data or use provided URL
-    const attachment = attachments.find((att) => att.id === attachmentId);
+    const attachment = currentTask.attachments?.find(
+      (att) => att.id === attachmentId
+    );
     const urlToDelete = attachment?.file_url || fileUrl || "";
     const attachmentName = attachment?.filename || "attachment";
 
     if (onDeleteAttachment && urlToDelete) {
       const success = await onDeleteAttachment(attachmentId, urlToDelete);
       if (success) {
-        setAttachments((prev) => prev.filter((att) => att.id !== attachmentId));
-        // Also update local task attachments
-        setLocalTask((prev) => ({
-          ...prev,
-          attachments: prev.attachments?.filter(
-            (att) => att.id !== attachmentId
-          ),
-        }));
+        // Re-fetch to update list
+        dispatch(fetchTaskDetails(currentTask.id));
         await logActivity("attachment_deleted", { attachmentName });
       }
     } else {
-      // Fallback for local-only attachments
-      setAttachments((prev) => prev.filter((att) => att.id !== attachmentId));
-      setLocalTask((prev) => ({
-        ...prev,
-        attachments: prev.attachments?.filter((att) => att.id !== attachmentId),
-      }));
-      await logActivity("attachment_deleted", { attachmentName });
-      toast.success("Attachment deleted");
+      toast.error("Attachment deletion not configured");
     }
   };
 
   const handleMarkComplete = async () => {
     // Update status to done
-    await updateTask({ status: "column-1-3" }); // Done column
+    await handleUpdateTask({ status: "column-1-3" }); // Done column
 
     // Log activity
     await logActivity("task_completed");
@@ -633,10 +495,10 @@ export function TaskDetailsModal({
 
   const handleCopyTask = () => {
     const taskData = JSON.stringify({
-      title: localTask.title,
-      description: localTask.description,
-      priority: localTask.priority,
-      labels: localTask.labels,
+      title: currentTask.title,
+      description: currentTask.description,
+      priority: currentTask.priority,
+      labels: currentTask.labels,
     });
     copyToClipboard(taskData);
     toast.success("Task copied to clipboard");
@@ -650,7 +512,7 @@ export function TaskDetailsModal({
   };
 
   const handleDeleteTask = () => {
-    onDeleteTask?.(localTask.id);
+    onDeleteTask?.(currentTask.id);
     toast.success("Task deleted");
     setShowDeleteConfirm(false);
     onClose();
@@ -658,7 +520,7 @@ export function TaskDetailsModal({
 
   const handleCopyLink = async () => {
     const success = await copyToClipboard(
-      `${window.location.origin}/task/${task.id}`
+      `${window.location.origin}/task/${currentTask.id}`
     );
     if (success) {
       toast.success("Link copied to clipboard");
@@ -668,19 +530,18 @@ export function TaskDetailsModal({
   };
 
   const handleAddMember = async (memberId: string, memberName: string) => {
-    if (memberName) {
+    if (memberId && memberName) {
       // Initialize assignees array if it doesn't exist
-      const currentAssignees = localTask.assignees || [];
+      const currentAssignees = currentTask.assignees || [];
 
       // Toggle member - add if not present, remove if already assigned
-      const isAlreadyAssigned = currentAssignees.includes(memberName);
+      // Note: assignees array now stores user IDs (UUIDs) not usernames
+      const isAlreadyAssigned = currentAssignees.includes(memberId);
 
       if (isAlreadyAssigned) {
         // Remove member
-        const newAssignees = currentAssignees.filter(
-          (name) => name !== memberName
-        );
-        await updateTask({
+        const newAssignees = currentAssignees.filter((id) => id !== memberId);
+        await handleUpdateTask({
           assignees: newAssignees,
           assignee: newAssignees[0] || undefined, // Keep backward compatibility
         });
@@ -688,10 +549,10 @@ export function TaskDetailsModal({
         toast.success(`Removed ${memberName}`);
       } else {
         // Add member
-        const newAssignees = [...currentAssignees, memberName];
-        await updateTask({
+        const newAssignees = [...currentAssignees, memberId];
+        await handleUpdateTask({
           assignees: newAssignees,
-          assignee: memberName, // Keep backward compatibility
+          assignee: memberId, // Keep backward compatibility - now stores ID
         });
         await logActivity("task_assigned", { memberName });
         toast.success(`Assigned to ${memberName}`);
@@ -700,7 +561,7 @@ export function TaskDetailsModal({
   };
 
   // Use Supabase subtasks if available, otherwise fall back to local
-  const displaySubtasks = subtasks.length > 0 ? subtasks : localTask.subtasks;
+  const displaySubtasks = currentTask.subtasks || [];
   const completedSubtasks =
     displaySubtasks?.filter((st) => st.completed).length || 0;
   const totalSubtasks = displaySubtasks?.length || 0;
@@ -708,20 +569,9 @@ export function TaskDetailsModal({
     totalSubtasks > 0 ? (completedSubtasks / totalSubtasks) * 100 : 0;
 
   // Use Supabase attachments if available
-  const displayAttachments =
-    attachments.length > 0
-      ? attachments.map((a) => ({
-          id: a.id,
-          name: a.filename,
-          size: a.file_size ? `${Math.round(a.file_size / 1024)} KB` : "",
-          type: a.file_type?.startsWith("image/")
-            ? ("image" as const)
-            : ("file" as const),
-          url: a.file_url,
-        }))
-      : localTask.attachments;
+  const displayAttachments = currentTask.attachments || [];
 
-  const isTaskComplete = localTask.status === "column-1-3";
+  const isTaskComplete = currentTask.status === "column-1-3";
 
   return (
     <>
@@ -770,10 +620,10 @@ export function TaskDetailsModal({
           <div className="px-6 py-4 flex items-center justify-between bg-[#2b2d31] border-b border-[#1e1f22]">
             <div className="flex items-center gap-3 flex-1">
               <QuickPriorityPicker
-                currentPriority={localTask.priority}
+                currentPriority={currentTask.priority}
                 onPriorityChange={async (priority) => {
-                  const oldPriority = localTask.priority;
-                  await updateTask({ priority });
+                  const oldPriority = currentTask.priority;
+                  await handleUpdateTask({ priority });
                   if (oldPriority !== priority) {
                     await logActivity("task_priority_changed", {
                       oldValue: getPriorityDisplayName(oldPriority),
@@ -782,17 +632,17 @@ export function TaskDetailsModal({
                   }
                 }}
               />
-              {localTask.dueDate && (
+              {currentTask.dueDate && (
                 <Badge
                   variant="outline"
                   className={`text-xs gap-1.5 ${
-                    new Date(localTask.dueDate) < new Date()
+                    new Date(currentTask.dueDate) < new Date()
                       ? "border-red-500/50 text-red-400 bg-red-500/10"
                       : "border-[#404249] text-gray-400 bg-[#1e1f22]"
                   }`}
                 >
                   <Clock size={12} />
-                  {new Date(localTask.dueDate).toLocaleDateString("en-US", {
+                  {new Date(currentTask.dueDate).toLocaleDateString("en-US", {
                     month: "short",
                     day: "numeric",
                   })}
@@ -908,7 +758,7 @@ export function TaskDetailsModal({
                       className="text-white text-xl font-semibold cursor-pointer hover:text-[#5865f2] transition-colors group flex items-center gap-2"
                       onClick={() => setIsEditingTitle(true)}
                     >
-                      {localTask.title}
+                      {currentTask.title}
                       <Edit2
                         size={14}
                         className="opacity-0 group-hover:opacity-50"
@@ -918,13 +768,13 @@ export function TaskDetailsModal({
                 </div>
 
                 {/* Labels */}
-                {localTask.labels && localTask.labels.length > 0 && (
+                {currentTask.labels && currentTask.labels.length > 0 && (
                   <div>
                     <label className="text-xs font-medium uppercase tracking-wide text-gray-500 mb-2 block">
                       Labels
                     </label>
                     <div className="flex flex-wrap gap-2">
-                      {localTask.labels.map((labelId) => {
+                      {currentTask.labels.map((labelId) => {
                         const label = boardLabels?.find(
                           (l) => l.id === labelId
                         );
@@ -941,19 +791,26 @@ export function TaskDetailsModal({
                 )}
 
                 {/* Assigned Members */}
-                {localTask.assignees && localTask.assignees.length > 0 && (
+                {currentTask.assignees && currentTask.assignees.length > 0 && (
                   <div>
                     <label className="text-xs font-medium uppercase tracking-wide text-gray-500 mb-2 block">
                       Assignees
                     </label>
                     <div className="flex flex-wrap gap-2">
-                      {localTask.assignees.map((assigneeName) => {
+                      {currentTask.assignees.map((assigneeId) => {
+                        // Now assignees array contains user IDs, so find by ID
                         const member = availableMembers.find(
-                          (m) => m.name === assigneeName
+                          (m) => m.id === assigneeId
                         );
+                        // Fallback: if member not found in board members, try to display the ID or show placeholder
+                        const displayName =
+                          member?.name || assigneeId.slice(0, 8) + "...";
+                        const displayAvatar =
+                          member?.avatar || getInitials(displayName);
+
                         return (
                           <div
-                            key={assigneeName}
+                            key={assigneeId}
                             className="flex items-center gap-2 bg-[#2b2d31] rounded-full pl-1 pr-3 py-1 group hover:bg-[#404249] transition-colors"
                           >
                             <Avatar className="h-6 w-6">
@@ -962,16 +819,16 @@ export function TaskDetailsModal({
                                   member?.color || "bg-gray-500"
                                 } text-white`}
                               >
-                                {member?.avatar || getInitials(assigneeName)}
+                                {displayAvatar}
                               </AvatarFallback>
                             </Avatar>
                             <span className="text-sm text-gray-200">
-                              {assigneeName}
+                              {displayName}
                             </span>
                             <button
                               className="opacity-0 group-hover:opacity-100 transition-opacity"
                               onClick={() =>
-                                handleAddMember(member?.id || "", assigneeName)
+                                handleAddMember(assigneeId, displayName)
                               }
                             >
                               <X
@@ -1011,7 +868,7 @@ export function TaskDetailsModal({
                           size="sm"
                           variant="ghost"
                           onClick={() => {
-                            setEditedDescription(localTask.description);
+                            setEditedDescription(currentTask.description);
                             setIsEditingDescription(false);
                           }}
                           className="text-gray-400 hover:text-white hover:bg-[#404249]"
@@ -1025,11 +882,11 @@ export function TaskDetailsModal({
                       className="bg-[#2b2d31] rounded-lg p-4 min-h-[80px] cursor-pointer hover:bg-[#313338] transition-colors border border-transparent hover:border-[#404249]"
                       onClick={() => setIsEditingDescription(true)}
                     >
-                      {localTask.description ? (
+                      {currentTask.description ? (
                         <div
                           className="text-gray-300 text-sm prose prose-sm prose-invert max-w-none"
                           dangerouslySetInnerHTML={{
-                            __html: localTask.description,
+                            __html: currentTask.description,
                           }}
                         />
                       ) : (
@@ -1287,11 +1144,8 @@ export function TaskDetailsModal({
                           </div>
                         </div>
 
-                        {/* Comments list - prefer Supabase data over local */}
-                        {(supabaseComments.length > 0
-                          ? supabaseComments
-                          : localTask.comments
-                        )?.map((comment) => {
+                        {/* Comments list */}
+                        {currentTask.comments?.map((comment) => {
                           // Handle both CardComment (Supabase) and TaskComment (local) types
                           // For local TaskComment: has 'author' as string
                           // For CardComment: has 'author' as { id, username, avatar_url }
@@ -1308,7 +1162,7 @@ export function TaskDetailsModal({
                             authorName =
                               cardComment.author?.username || "Unknown";
                             timestamp = new Date(
-                              cardComment.created_at
+                              cardComment.created_at || new Date()
                             ).toLocaleString();
                           }
 
@@ -1412,7 +1266,9 @@ export function TaskDetailsModal({
                                   (m) => m.id === user.id
                                 );
                                 const isAssigned =
-                                  localTask.assignees?.includes(user.username);
+                                  currentTask.assignees?.includes(
+                                    user.username
+                                  );
                                 return (
                                   <Button
                                     key={user.id}
@@ -1476,9 +1332,8 @@ export function TaskDetailsModal({
                           </h4>
                           <div className="space-y-1 max-h-40 overflow-y-auto">
                             {availableMembers.map((member) => {
-                              const isAssigned = localTask.assignees?.includes(
-                                member.name
-                              );
+                              const isAssigned =
+                                currentTask.assignees?.includes(member.name);
                               return (
                                 <Button
                                   key={member.id}
@@ -1560,7 +1415,7 @@ export function TaskDetailsModal({
                       </h4>
                       <div className="space-y-1">
                         {boardLabels?.map((label) => {
-                          const isSelected = localTask.labels.includes(
+                          const isSelected = currentTask.labels.includes(
                             label.id
                           );
                           return (
@@ -1639,15 +1494,15 @@ export function TaskDetailsModal({
                       <CalendarComponent
                         mode="single"
                         selected={
-                          localTask.dueDate
-                            ? new Date(localTask.dueDate)
+                          currentTask.dueDate
+                            ? new Date(currentTask.dueDate)
                             : undefined
                         }
                         onSelect={handleSetDueDate}
                         initialFocus
                         className="bg-[#2b2d31]"
                       />
-                      {localTask.dueDate && (
+                      {currentTask.dueDate && (
                         <div className="p-2 border-t border-[#404249]">
                           <Button
                             variant="ghost"
@@ -1720,7 +1575,7 @@ export function TaskDetailsModal({
                       variant="ghost"
                       className="w-full justify-start text-sm h-9 bg-[#2b2d31] text-gray-300 hover:bg-[#404249] hover:text-white"
                       onClick={async () => {
-                        await updateTask({ status: "column-1-1" });
+                        await handleUpdateTask({ status: "column-1-1" });
                         await logActivity("task_reopened");
                       }}
                     >
@@ -1761,8 +1616,8 @@ export function TaskDetailsModal({
           <DialogHeader>
             <DialogTitle className="text-white">Delete task?</DialogTitle>
             <DialogDescription className="text-gray-400">
-              This will permanently delete{localTask.title}. This action cannot
-              be undone.
+              This will permanently delete{currentTask.title}. This action
+              cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2 mt-4">

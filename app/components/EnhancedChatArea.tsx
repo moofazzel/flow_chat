@@ -1835,10 +1835,10 @@ export function EnhancedChatArea({
       </div>
 
       {/* Team Members Panel */}
-      {/* Team Members Panel */}
       <TeamMembersPanel
         isOpen={showTeamMembers}
         onClose={() => setShowTeamMembers(false)}
+        channelId={channelId}
       />
 
       {/* Create Task Modal */}

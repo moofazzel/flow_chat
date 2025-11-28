@@ -20,6 +20,7 @@ import {
 import { getCurrentUser } from "@/utils/auth";
 import type { BoardData } from "@/utils/storage";
 import { storage } from "@/utils/storage";
+import { createClient } from "@/utils/supabase/client";
 import { AnimatePresence } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -836,13 +837,30 @@ export default function Home() {
 
   // Handle channel selection - opens floating chat if in board view
   const handleChannelSelect = useCallback(
-    (channelId: string) => {
+    async (channelId: string) => {
       dispatch(setSelectedChannelId(channelId));
+
+      // Fetch channel name from database
+      let channelName = channelId; // Default to ID
+      try {
+        const supabase = createClient();
+        const { data } = await supabase
+          .from("channels")
+          .select("name")
+          .eq("id", channelId)
+          .single();
+
+        if (data?.name) {
+          channelName = data.name;
+        }
+      } catch (error) {
+        console.error("Error fetching channel name:", error);
+      }
 
       // If we're in board view, open the floating chat
       if (currentView === "board") {
         dispatch(setFloatingChatOpen(true));
-        toast.success(`Opened #${channelId} in floating chat`, {
+        toast.success(`Opened #${channelName} in floating chat`, {
           duration: 2000,
         });
       } else {

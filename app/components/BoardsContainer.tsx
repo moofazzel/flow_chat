@@ -89,9 +89,27 @@ export function BoardsContainer({
     deleteCard,
     updateCard,
     refreshBoards,
+    // Member functions
+    getBoardMembers,
+    addBoardMember,
+    removeBoardMember,
+    updateBoardMemberRole,
+    searchUsers,
+    getServerMembers,
+    getCurrentUser,
     // isLoading, // Unused for now
   } = useBoard(undefined, currentServerId);
   const [showAddBoardModal, setShowAddBoardModal] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | undefined>();
+
+  // Get current user ID on mount
+  useEffect(() => {
+    getCurrentUser().then((user) => {
+      if (user) {
+        setCurrentUserId(user.id);
+      }
+    });
+  }, [getCurrentUser]);
 
   // Expose board operations to parent component
   useEffect(() => {
@@ -465,6 +483,15 @@ export function BoardsContainer({
                       }
                     }
                   }}
+                  // Member management props
+                  currentUserId={currentUserId}
+                  serverId={currentServerId}
+                  onGetBoardMembers={getBoardMembers}
+                  onAddBoardMember={addBoardMember}
+                  onRemoveBoardMember={removeBoardMember}
+                  onUpdateMemberRole={updateBoardMemberRole}
+                  onSearchUsers={searchUsers}
+                  onGetServerMembers={getServerMembers}
                 />
               </motion.div>
             );

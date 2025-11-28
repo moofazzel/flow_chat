@@ -1,7 +1,9 @@
 "use client";
+import { BoardMember } from "@/hooks/useBoard";
 import {
   Activity,
   Archive,
+  ChevronDown,
   Copy,
   Download,
   Eye,
@@ -10,13 +12,21 @@ import {
   Lock,
   MoreHorizontal,
   Palette,
+  Plus,
+  Search,
   Settings,
+  Shield,
   Star,
   Tag,
   Trash2,
+  UserMinus,
   Users,
+  X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
+import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import {
   Dialog,
@@ -61,6 +71,27 @@ interface BoardSettingsMenuProps {
   onDeleteBoard: () => void;
   onDuplicateBoard: () => void;
   onExportBoard?: () => void;
+  // New member management props
+  boardMembers?: BoardMember[];
+  currentUserId?: string;
+  onGetBoardMembers?: (boardId: string) => Promise<BoardMember[]>;
+  onAddBoardMember?: (
+    boardId: string,
+    userId: string,
+    role?: "admin" | "member" | "observer"
+  ) => Promise<BoardMember | null>;
+  onRemoveBoardMember?: (memberId: string) => Promise<boolean>;
+  onUpdateMemberRole?: (
+    memberId: string,
+    role: "admin" | "member" | "observer"
+  ) => Promise<boolean>;
+  onSearchUsers?: (
+    query: string
+  ) => Promise<{ id: string; username: string; avatar_url: string | null }[]>;
+  serverId?: string | null;
+  onGetServerMembers?: (
+    serverId: string
+  ) => Promise<{ id: string; username: string; avatar_url: string | null }[]>;
 }
 
 const SOLID_COLORS = [
@@ -170,6 +201,16 @@ export function BoardSettingsMenu({
   onDeleteBoard,
   onDuplicateBoard,
   onExportBoard,
+  // Member management props
+  boardMembers: propBoardMembers,
+  currentUserId,
+  onGetBoardMembers,
+  onAddBoardMember,
+  onRemoveBoardMember,
+  onUpdateMemberRole,
+  onSearchUsers,
+  serverId,
+  onGetServerMembers,
 }: BoardSettingsMenuProps) {
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
   const [showBackgroundDialog, setShowBackgroundDialog] = useState(false);
@@ -181,6 +222,126 @@ export function BoardSettingsMenu({
   const [editName, setEditName] = useState(boardName);
   const [editDescription, setEditDescription] = useState(boardDescription);
   const [editVisibility, setEditVisibility] = useState(visibility);
+
+  // Member management state
+  const [boardMembers, setBoardMembers] = useState<BoardMember[]>(
+    propBoardMembers || []
+  );
+  const [memberSearchQuery, setMemberSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<
+    { id: string; username: string; avatar_url: string | null }[]
+  >([]);
+  const [serverMembers, setServerMembers] = useState<
+    { id: string; username: string; avatar_url: string | null }[]
+  >([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [isLoadingMembers, setIsLoadingMembers] = useState(false);
+  const [showAddMemberDropdown, setShowAddMemberDropdown] = useState(false);
+
+  // Load board members when members tab is opened
+  useEffect(() => {
+    if (settingsTab === "members" && onGetBoardMembers) {
+      setIsLoadingMembers(true);
+      onGetBoardMembers(boardId)
+        .then((members) => {
+          setBoardMembers(members);
+        })
+        .finally(() => {
+          setIsLoadingMembers(false);
+        });
+    }
+  }, [settingsTab, boardId, onGetBoardMembers]);
+
+  // Load server members if serverId is provided
+  useEffect(() => {
+    if (settingsTab === "members" && serverId && onGetServerMembers) {
+      onGetServerMembers(serverId).then((members) => {
+        setServerMembers(members);
+      });
+    }
+  }, [settingsTab, serverId, onGetServerMembers]);
+
+  // Search users with debounce
+  useEffect(() => {
+    const searchTimeout = setTimeout(async () => {
+      if (memberSearchQuery.trim() && onSearchUsers) {
+        setIsSearching(true);
+        const results = await onSearchUsers(memberSearchQuery);
+        setSearchResults(results);
+        setIsSearching(false);
+      } else {
+        setSearchResults([]);
+      }
+    }, 300);
+
+    return () => clearTimeout(searchTimeout);
+  }, [memberSearchQuery, onSearchUsers]);
+
+  const handleAddMember = async (
+    userId: string,
+    role: "admin" | "member" | "observer" = "member"
+  ) => {
+    if (onAddBoardMember) {
+      const newMember = await onAddBoardMember(boardId, userId, role);
+      if (newMember) {
+        setBoardMembers((prev) => [...prev, newMember]);
+        setMemberSearchQuery("");
+        setShowAddMemberDropdown(false);
+        toast.success("Member added successfully");
+      }
+    }
+  };
+
+  const handleRemoveMember = async (memberId: string) => {
+    if (onRemoveBoardMember) {
+      const success = await onRemoveBoardMember(memberId);
+      if (success) {
+        setBoardMembers((prev) => prev.filter((m) => m.id !== memberId));
+        toast.success("Member removed");
+      }
+    }
+  };
+
+  const handleUpdateMemberRole = async (
+    memberId: string,
+    newRole: "admin" | "member" | "observer"
+  ) => {
+    if (onUpdateMemberRole) {
+      const success = await onUpdateMemberRole(memberId, newRole);
+      if (success) {
+        setBoardMembers((prev) =>
+          prev.map((m) => (m.id === memberId ? { ...m, role: newRole } : m))
+        );
+        toast.success("Role updated");
+      }
+    }
+  };
+
+  const getRoleBadge = (role: string) => {
+    switch (role) {
+      case "admin":
+        return (
+          <Badge className="bg-[#5865f2]/20 text-[#5865f2] border-[#5865f2]/30 text-xs">
+            <Shield size={10} className="mr-1" />
+            Admin
+          </Badge>
+        );
+      case "observer":
+        return (
+          <Badge className="bg-gray-500/20 text-gray-400 border-gray-500/30 text-xs">
+            <Eye size={10} className="mr-1" />
+            Observer
+          </Badge>
+        );
+      default:
+        return (
+          <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-xs">
+            <Users size={10} className="mr-1" />
+            Member
+          </Badge>
+        );
+    }
+  };
 
   const handleSaveSettings = () => {
     onUpdateBoard({
@@ -464,12 +625,310 @@ export function BoardSettingsMenu({
             )}
 
             {settingsTab === "members" && (
-              <div className="p-4">
-                <div className="text-center py-8 text-gray-500">
-                  <Users size={48} className="mx-auto mb-2 opacity-50" />
-                  <p className="text-gray-400">
-                    Member management coming soon!
-                  </p>
+              <div className="p-4 space-y-4">
+                {/* Add Member Section */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-gray-300">Add Members</Label>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1 h-8 bg-[#5865f2] hover:bg-[#4752c4] border-0 text-white"
+                      onClick={() =>
+                        setShowAddMemberDropdown(!showAddMemberDropdown)
+                      }
+                    >
+                      <Plus size={14} />
+                      Add
+                    </Button>
+                  </div>
+
+                  {/* Add Member Dropdown */}
+                  {showAddMemberDropdown && (
+                    <div className="bg-[#1e1f22] rounded-lg p-3 space-y-3 border border-[#404249]">
+                      <div className="relative">
+                        <Search
+                          size={16}
+                          className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"
+                        />
+                        <Input
+                          placeholder="Search users..."
+                          value={memberSearchQuery}
+                          onChange={(e) => setMemberSearchQuery(e.target.value)}
+                          className="pl-9 bg-[#2b2d31] border-[#404249] text-white h-9"
+                        />
+                        {memberSearchQuery && (
+                          <button
+                            onClick={() => setMemberSearchQuery("")}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
+                          >
+                            <X size={14} />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Search Results */}
+                      {memberSearchQuery.trim() && (
+                        <div className="space-y-1 max-h-40 overflow-y-auto">
+                          {isSearching ? (
+                            <p className="text-xs text-gray-500 py-2 text-center">
+                              Searching...
+                            </p>
+                          ) : searchResults.length > 0 ? (
+                            searchResults.map((user) => {
+                              const isAlreadyMember = boardMembers.some(
+                                (m) => m.user_id === user.id
+                              );
+                              return (
+                                <div
+                                  key={user.id}
+                                  className="flex items-center justify-between p-2 rounded-lg hover:bg-[#2b2d31] transition-colors"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <Avatar className="h-7 w-7">
+                                      {user.avatar_url && (
+                                        <AvatarImage src={user.avatar_url} />
+                                      )}
+                                      <AvatarFallback className="text-xs bg-[#5865f2] text-white">
+                                        {user.username
+                                          ?.slice(0, 2)
+                                          .toUpperCase()}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <span className="text-sm text-gray-200">
+                                      {user.username}
+                                    </span>
+                                  </div>
+                                  {isAlreadyMember ? (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs text-gray-500"
+                                    >
+                                      Added
+                                    </Badge>
+                                  ) : (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-7 text-xs text-[#5865f2] hover:bg-[#5865f2]/10"
+                                      onClick={() => handleAddMember(user.id)}
+                                    >
+                                      Add
+                                    </Button>
+                                  )}
+                                </div>
+                              );
+                            })
+                          ) : (
+                            <p className="text-xs text-gray-500 py-2 text-center">
+                              No users found
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Server Members (if available) */}
+                      {!memberSearchQuery.trim() &&
+                        serverMembers.length > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-xs text-gray-500 uppercase tracking-wider">
+                              Server Members
+                            </p>
+                            <div className="space-y-1 max-h-40 overflow-y-auto">
+                              {serverMembers.map((user) => {
+                                const isAlreadyMember = boardMembers.some(
+                                  (m) => m.user_id === user.id
+                                );
+                                return (
+                                  <div
+                                    key={user.id}
+                                    className="flex items-center justify-between p-2 rounded-lg hover:bg-[#2b2d31] transition-colors"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <Avatar className="h-7 w-7">
+                                        {user.avatar_url && (
+                                          <AvatarImage src={user.avatar_url} />
+                                        )}
+                                        <AvatarFallback className="text-xs bg-[#5865f2] text-white">
+                                          {user.username
+                                            ?.slice(0, 2)
+                                            .toUpperCase()}
+                                        </AvatarFallback>
+                                      </Avatar>
+                                      <span className="text-sm text-gray-200">
+                                        {user.username}
+                                      </span>
+                                    </div>
+                                    {isAlreadyMember ? (
+                                      <Badge
+                                        variant="outline"
+                                        className="text-xs text-gray-500"
+                                      >
+                                        Added
+                                      </Badge>
+                                    ) : (
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-7 text-xs text-[#5865f2] hover:bg-[#5865f2]/10"
+                                        onClick={() => handleAddMember(user.id)}
+                                      >
+                                        Add
+                                      </Button>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                    </div>
+                  )}
+                </div>
+
+                <Separator className="bg-[#404249]" />
+
+                {/* Current Members List */}
+                <div className="space-y-3">
+                  <Label className="text-gray-300">
+                    Board Members ({boardMembers.length})
+                  </Label>
+
+                  {isLoadingMembers ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <div className="animate-spin w-6 h-6 border-2 border-[#5865f2] border-t-transparent rounded-full mx-auto mb-2" />
+                      <p className="text-sm">Loading members...</p>
+                    </div>
+                  ) : boardMembers.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500 bg-[#1e1f22] rounded-lg">
+                      <Users size={32} className="mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">No members yet</p>
+                      <p className="text-xs text-gray-600">
+                        Add members to collaborate on this board
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {boardMembers.map((member) => (
+                        <div
+                          key={member.id}
+                          className="flex items-center justify-between p-3 bg-[#1e1f22] rounded-lg group hover:bg-[#252629] transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-9 w-9">
+                              {member.user?.avatar_url && (
+                                <AvatarImage src={member.user.avatar_url} />
+                              )}
+                              <AvatarFallback className="bg-[#5865f2] text-white text-sm">
+                                {member.user?.username
+                                  ?.slice(0, 2)
+                                  .toUpperCase() || "??"}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium text-gray-200">
+                                  {member.user?.username || "Unknown User"}
+                                </span>
+                                {member.user_id === currentUserId && (
+                                  <Badge className="bg-[#5865f2]/20 text-[#5865f2] text-[10px] px-1.5">
+                                    You
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="mt-0.5">
+                                {getRoleBadge(member.role)}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Actions */}
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {/* Role Change Dropdown */}
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 px-2 text-gray-400 hover:text-white hover:bg-[#404249]"
+                                >
+                                  <ChevronDown size={14} />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent
+                                align="end"
+                                className="w-40 bg-[#2b2d31] border-[#404249]"
+                              >
+                                <DropdownMenuItem
+                                  onClick={() =>
+                                    handleUpdateMemberRole(member.id, "admin")
+                                  }
+                                  className={`text-gray-200 focus:bg-[#404249] ${
+                                    member.role === "admin"
+                                      ? "bg-[#5865f2]/10"
+                                      : ""
+                                  }`}
+                                >
+                                  <Shield
+                                    size={14}
+                                    className="mr-2 text-[#5865f2]"
+                                  />
+                                  Admin
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() =>
+                                    handleUpdateMemberRole(member.id, "member")
+                                  }
+                                  className={`text-gray-200 focus:bg-[#404249] ${
+                                    member.role === "member"
+                                      ? "bg-green-500/10"
+                                      : ""
+                                  }`}
+                                >
+                                  <Users
+                                    size={14}
+                                    className="mr-2 text-green-400"
+                                  />
+                                  Member
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() =>
+                                    handleUpdateMemberRole(
+                                      member.id,
+                                      "observer"
+                                    )
+                                  }
+                                  className={`text-gray-200 focus:bg-[#404249] ${
+                                    member.role === "observer"
+                                      ? "bg-gray-500/10"
+                                      : ""
+                                  }`}
+                                >
+                                  <Eye
+                                    size={14}
+                                    className="mr-2 text-gray-400"
+                                  />
+                                  Observer
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+
+                            {/* Remove Member */}
+                            {member.user_id !== currentUserId && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 px-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10"
+                                onClick={() => handleRemoveMember(member.id)}
+                              >
+                                <UserMinus size={14} />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

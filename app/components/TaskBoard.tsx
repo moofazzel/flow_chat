@@ -1,5 +1,6 @@
 "use client";
 
+import type { BoardMember } from "@/hooks/useBoard";
 import {
   closestCorners,
   DndContext,
@@ -83,6 +84,26 @@ interface TaskBoardProps {
   onArchiveTask?: (taskId: string) => void;
   boardLabels?: Label[];
   onLabelsChange?: (labels: Label[]) => void;
+  // Member management props for BoardSettingsMenu
+  currentUserId?: string;
+  serverId?: string | null;
+  onGetBoardMembers?: (boardId: string) => Promise<BoardMember[]>;
+  onAddBoardMember?: (
+    boardId: string,
+    userId: string,
+    role?: "admin" | "member" | "observer"
+  ) => Promise<BoardMember | null>;
+  onRemoveBoardMember?: (memberId: string) => Promise<boolean>;
+  onUpdateMemberRole?: (
+    memberId: string,
+    role: "admin" | "member" | "observer"
+  ) => Promise<boolean>;
+  onSearchUsers?: (
+    query: string
+  ) => Promise<{ id: string; username: string; avatar_url: string | null }[]>;
+  onGetServerMembers?: (
+    serverId: string
+  ) => Promise<{ id: string; username: string; avatar_url: string | null }[]>;
 }
 
 // Default columns only used for new board initialization
@@ -361,6 +382,15 @@ export function TaskBoard({
   onArchiveTask,
   boardLabels,
   onLabelsChange,
+  // Member management props
+  currentUserId,
+  serverId,
+  onGetBoardMembers,
+  onAddBoardMember,
+  onRemoveBoardMember,
+  onUpdateMemberRole,
+  onSearchUsers,
+  onGetServerMembers,
 }: TaskBoardProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTask, setActiveTask] = useState<Task | null>(null);
@@ -626,6 +656,14 @@ export function TaskBoard({
                   onUpdateBoard={onBoardUpdate}
                   onDeleteBoard={onDeleteBoard}
                   onDuplicateBoard={onDuplicateBoard}
+                  currentUserId={currentUserId}
+                  serverId={serverId}
+                  onGetBoardMembers={onGetBoardMembers}
+                  onAddBoardMember={onAddBoardMember}
+                  onRemoveBoardMember={onRemoveBoardMember}
+                  onUpdateMemberRole={onUpdateMemberRole}
+                  onSearchUsers={onSearchUsers}
+                  onGetServerMembers={onGetServerMembers}
                 />
               </div>
             )}

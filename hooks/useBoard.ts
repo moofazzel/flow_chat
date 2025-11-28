@@ -885,6 +885,23 @@ export const useBoard = (boardId?: string, serverId?: string | null) => {
     return true;
   };
 
+  const updateBoardMemberRole = async (
+    memberId: string,
+    role: "admin" | "member" | "observer"
+  ): Promise<boolean> => {
+    const { error } = await supabase
+      .from("board_members")
+      .update({ role })
+      .eq("id", memberId);
+
+    if (error) {
+      toast.error("Failed to update member role");
+      return false;
+    }
+
+    return true;
+  };
+
   // ================================================================
   // BOARD LABELS OPERATIONS
   // ================================================================
@@ -1072,6 +1089,7 @@ export const useBoard = (boardId?: string, serverId?: string | null) => {
     getBoardMembers,
     addBoardMember,
     removeBoardMember,
+    updateBoardMemberRole,
     // Labels
     getBoardLabels,
     createBoardLabel,

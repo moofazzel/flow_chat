@@ -2,20 +2,16 @@
 
 import { createClient } from "@/utils/supabase/client";
 import {
-  AtSign,
   Calendar,
   Crown,
-  Mail,
   MessageSquare,
   MoreVertical,
-  Phone,
   Search,
   Settings as SettingsIcon,
   Shield,
   Star,
   UserMinus,
   Users,
-  Video,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -215,9 +211,13 @@ function MemberCard({
       {/* Member Info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
-          <span className="text-white font-medium text-sm sm:text-base truncate max-w-[100px] sm:max-w-none">{member.name}</span>
+          <span className="text-white font-medium text-sm sm:text-base truncate max-w-[100px] sm:max-w-none">
+            {member.name}
+          </span>
           {member.username && (
-            <span className="text-gray-500 text-xs sm:text-sm hidden xs:inline">@{member.username}</span>
+            <span className="text-gray-500 text-xs sm:text-sm hidden xs:inline">
+              @{member.username}
+            </span>
           )}
           {getRoleIcon(member.role)}
           <Badge
@@ -229,7 +229,9 @@ function MemberCard({
             {member.role}
           </Badge>
         </div>
-        <div className="text-gray-400 text-xs sm:text-sm truncate">{member.email}</div>
+        <div className="text-gray-400 text-xs sm:text-sm truncate">
+          {member.email}
+        </div>
         {!isCompact && (
           <div className="hidden sm:flex items-center gap-1 text-gray-500 text-xs mt-1">
             <Calendar size={10} />
@@ -240,7 +242,7 @@ function MemberCard({
 
       {/* Quick Actions - Show on hover for desktop, always visible on mobile */}
       <div className="flex items-center gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-200">
-        {/* Hide message/call buttons on mobile, show only menu */}
+        {/* Send Message Button */}
         <TooltipProvider delayDuration={0}>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -261,46 +263,6 @@ function MemberCard({
           </Tooltip>
         </TooltipProvider>
 
-        <TooltipProvider delayDuration={0}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="hidden sm:flex text-gray-400 hover:text-green-400 hover:bg-green-500/10 p-2 h-8 w-8 rounded-lg"
-              >
-                <Phone size={16} />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent
-              side="top"
-              className="bg-[#1e1f22] border-[#3f4147] text-white"
-            >
-              Voice Call
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-
-        <TooltipProvider delayDuration={0}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="hidden sm:flex text-gray-400 hover:text-blue-400 hover:bg-blue-500/10 p-2 h-8 w-8 rounded-lg"
-              >
-                <Video size={16} />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent
-              side="top"
-              className="bg-[#1e1f22] border-[#3f4147] text-white"
-            >
-              Video Call
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-
         {/* More Options Dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -317,31 +279,14 @@ function MemberCard({
             align="end"
             className="w-48 sm:w-52 bg-[#1e1f22] border-[#3f4147] shadow-xl"
           >
-            {/* Show message/call options in dropdown on mobile */}
+            {/* Send Message option for mobile */}
             <DropdownMenuItem className="sm:hidden text-gray-300 hover:bg-[#5865f2] hover:text-white focus:bg-[#5865f2] focus:text-white cursor-pointer">
               <MessageSquare size={14} className="mr-2" />
               Send Message
             </DropdownMenuItem>
-            <DropdownMenuItem className="sm:hidden text-gray-300 hover:bg-[#5865f2] hover:text-white focus:bg-[#5865f2] focus:text-white cursor-pointer">
-              <Phone size={14} className="mr-2" />
-              Voice Call
-            </DropdownMenuItem>
-            <DropdownMenuItem className="sm:hidden text-gray-300 hover:bg-[#5865f2] hover:text-white focus:bg-[#5865f2] focus:text-white cursor-pointer">
-              <Video size={14} className="mr-2" />
-              Video Call
-            </DropdownMenuItem>
-            <DropdownMenuSeparator className="sm:hidden bg-[#3f4147]" />
-            <DropdownMenuItem className="text-gray-300 hover:bg-[#5865f2] hover:text-white focus:bg-[#5865f2] focus:text-white cursor-pointer">
-              <AtSign size={14} className="mr-2" />
-              Mention in Chat
-            </DropdownMenuItem>
-            <DropdownMenuItem className="text-gray-300 hover:bg-[#5865f2] hover:text-white focus:bg-[#5865f2] focus:text-white cursor-pointer">
-              <Mail size={14} className="mr-2" />
-              Send Email
-            </DropdownMenuItem>
             {member.role !== "owner" && (
               <>
-                <DropdownMenuSeparator className="bg-[#3f4147]" />
+                <DropdownMenuSeparator className="sm:hidden bg-[#3f4147]" />
                 <DropdownMenuItem
                   onClick={() => onChangeRole(member)}
                   className="text-gray-300 hover:bg-[#5865f2] hover:text-white focus:bg-[#5865f2] focus:text-white cursor-pointer"
@@ -604,23 +549,50 @@ export function TeamMembersPanel({
     member: members.filter((m) => m.role === "member").length,
   };
 
-  const handleRemoveMember = (memberId: string) => {
+  const handleRemoveMember = async (memberId: string) => {
     const member = members.find((m) => m.id === memberId);
-    setMembers(members.filter((m) => m.id !== memberId));
-    setMemberToRemove(null);
-    if (member) {
+    if (!member || !currentServerId) return;
+
+    try {
+      const { error } = await supabase
+        .from("server_members")
+        .delete()
+        .eq("server_id", currentServerId)
+        .eq("user_id", memberId);
+
+      if (error) throw error;
+
+      setMembers(members.filter((m) => m.id !== memberId));
+      setMemberToRemove(null);
       toast.success(`${member.name} has been removed from the team`);
+    } catch (error) {
+      console.error("Error removing member:", error);
+      toast.error("Failed to remove member");
+      setMemberToRemove(null);
     }
   };
 
-  const handleChangeRole = (memberId: string, newRole: TeamMember["role"]) => {
+  const handleChangeRole = async (memberId: string, newRole: TeamMember["role"]) => {
     const member = members.find((m) => m.id === memberId);
-    setMembers(
-      members.map((m) => (m.id === memberId ? { ...m, role: newRole } : m))
-    );
-    setSelectedMember(null);
-    if (member) {
+    if (!member || !currentServerId) return;
+
+    try {
+      const { error } = await supabase
+        .from("server_members")
+        .update({ role: newRole })
+        .eq("server_id", currentServerId)
+        .eq("user_id", memberId);
+
+      if (error) throw error;
+
+      setMembers(
+        members.map((m) => (m.id === memberId ? { ...m, role: newRole } : m))
+      );
+      setSelectedMember(null);
       toast.success(`${member.name}'s role has been changed to ${newRole}`);
+    } catch (error) {
+      console.error("Error changing role:", error);
+      toast.error("Failed to change role");
     }
   };
 
@@ -654,7 +626,10 @@ export function TeamMembersPanel({
               {roleStats.owner > 0 && (
                 <div className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg bg-yellow-500/10">
                   <Crown size={10} className="text-yellow-400 sm:hidden" />
-                  <Crown size={12} className="text-yellow-400 hidden sm:block" />
+                  <Crown
+                    size={12}
+                    className="text-yellow-400 hidden sm:block"
+                  />
                   <span className="text-yellow-400 text-[10px] sm:text-xs font-medium">
                     {roleStats.owner}
                   </span>
@@ -795,7 +770,9 @@ export function TeamMembersPanel({
                     {selectedMember.name.substring(0, 2).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
-                <span className="truncate">Change Role for {selectedMember.name}</span>
+                <span className="truncate">
+                  Change Role for {selectedMember.name}
+                </span>
               </DialogTitle>
               <DialogDescription className="text-gray-400 text-xs sm:text-sm">
                 Select a new role for this team member.
@@ -848,9 +825,14 @@ export function TeamMembersPanel({
               <div className="space-y-2 p-2 sm:p-3 bg-[#1e1f22] rounded-lg">
                 <div className="flex items-start gap-2">
                   <Users size={12} className="text-gray-400 mt-0.5 sm:hidden" />
-                  <Users size={14} className="text-gray-400 mt-0.5 hidden sm:block" />
+                  <Users
+                    size={14}
+                    className="text-gray-400 mt-0.5 hidden sm:block"
+                  />
                   <div>
-                    <p className="text-white text-xs sm:text-sm font-medium">Member</p>
+                    <p className="text-white text-xs sm:text-sm font-medium">
+                      Member
+                    </p>
                     <p className="text-gray-400 text-[10px] sm:text-xs">
                       Can view and participate in channels
                     </p>
@@ -858,9 +840,14 @@ export function TeamMembersPanel({
                 </div>
                 <div className="flex items-start gap-2">
                   <Star size={12} className="text-blue-400 mt-0.5 sm:hidden" />
-                  <Star size={14} className="text-blue-400 mt-0.5 hidden sm:block" />
+                  <Star
+                    size={14}
+                    className="text-blue-400 mt-0.5 hidden sm:block"
+                  />
                   <div>
-                    <p className="text-white text-xs sm:text-sm font-medium">Moderator</p>
+                    <p className="text-white text-xs sm:text-sm font-medium">
+                      Moderator
+                    </p>
                     <p className="text-gray-400 text-[10px] sm:text-xs">
                       Can manage messages and moderate content
                     </p>
@@ -868,9 +855,14 @@ export function TeamMembersPanel({
                 </div>
                 <div className="flex items-start gap-2">
                   <Shield size={12} className="text-red-400 mt-0.5 sm:hidden" />
-                  <Shield size={14} className="text-red-400 mt-0.5 hidden sm:block" />
+                  <Shield
+                    size={14}
+                    className="text-red-400 mt-0.5 hidden sm:block"
+                  />
                   <div>
-                    <p className="text-white text-xs sm:text-sm font-medium">Admin</p>
+                    <p className="text-white text-xs sm:text-sm font-medium">
+                      Admin
+                    </p>
                     <p className="text-gray-400 text-[10px] sm:text-xs">
                       Can manage members and server settings
                     </p>

@@ -572,7 +572,10 @@ export function TeamMembersPanel({
     }
   };
 
-  const handleChangeRole = async (memberId: string, newRole: TeamMember["role"]) => {
+  const handleChangeRole = async (
+    memberId: string,
+    newRole: TeamMember["role"]
+  ) => {
     const member = members.find((m) => m.id === memberId);
     if (!member || !currentServerId) return;
 

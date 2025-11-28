@@ -56,14 +56,13 @@ export interface ChatMessage {
   reply_to?: ChatMessage;
 }
 
-// Create supabase client outside the hook to ensure stability
-const supabase = createClient();
-
 export const useChat = (channelId: string) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const typingTimeoutRef = useRef<Record<string, NodeJS.Timeout>>({});
+  const supabaseRef = useRef(createClient());
+  const supabase = supabaseRef.current;
 
   useEffect(() => {
     if (!channelId) return;
@@ -114,7 +113,11 @@ export const useChat = (channelId: string) => {
 
         if (replyMessages) {
           replyMessagesMap = replyMessages.reduce((acc, msg) => {
-            acc[msg.id] = msg;
+            acc[msg.id] = {
+              id: msg.id,
+              content: msg.content,
+              author: Array.isArray(msg.author) ? msg.author[0] : msg.author,
+            };
             return acc;
           }, {} as Record<string, { id: string; content: string; author: { username: string } | null }>);
         }
@@ -401,13 +404,23 @@ export const useChat = (channelId: string) => {
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          console.log("Real-time subscription active for channel:", channelId);
+        } else if (status === "CHANNEL_ERROR") {
+          console.error("Real-time subscription error for channel:", channelId);
+        }
+      });
+
+    // Capture ref value for cleanup
+    const timeoutRef = typingTimeoutRef.current;
 
     return () => {
       // Clear all typing timeouts
-      Object.values(typingTimeoutRef.current).forEach(clearTimeout);
+      Object.values(timeoutRef).forEach(clearTimeout);
       supabase.removeChannel(channel);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channelId]);
 
   const sendMessage = async (
@@ -429,7 +442,12 @@ export const useChat = (channelId: string) => {
         content,
         reply_to_id: options?.replyToId,
       })
-      .select()
+      .select(
+        `
+        *,
+        author:users!author_id(username, avatar_url, full_name)
+      `
+      )
       .single();
 
     if (messageError || !messageData) {
@@ -437,6 +455,27 @@ export const useChat = (channelId: string) => {
       console.error(messageError);
       return false;
     }
+
+    // Immediately add the message to local state (optimistic update)
+    // This ensures the message shows even if real-time isn't working
+    const newMessage: ChatMessage = {
+      ...messageData,
+      attachments: [],
+      reactions: {},
+      mentions: [],
+      task_links: [],
+      reply_to: options?.replyToId
+        ? messages.find((m) => m.id === options.replyToId) || null
+        : null,
+    };
+
+    setMessages((prev) => {
+      // Check if message already exists (from real-time)
+      if (prev.some((m) => m.id === newMessage.id)) {
+        return prev;
+      }
+      return [...prev, newMessage];
+    });
 
     const messageId = messageData.id;
 
@@ -492,6 +531,20 @@ export const useChat = (channelId: string) => {
   };
 
   const editMessage = async (messageId: string, newContent: string) => {
+    // Optimistic update - update local state immediately
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === messageId
+          ? {
+              ...msg,
+              content: newContent,
+              is_edited: true,
+              edited_at: new Date().toISOString(),
+            }
+          : msg
+      )
+    );
+
     const { error } = await supabase
       .from("messages")
       .update({
@@ -504,6 +557,7 @@ export const useChat = (channelId: string) => {
     if (error) {
       toast.error("Failed to edit message");
       console.error(error);
+      // Revert on error - refetch messages
       return false;
     }
     toast.success("Message edited");
@@ -511,6 +565,10 @@ export const useChat = (channelId: string) => {
   };
 
   const deleteMessage = async (messageId: string) => {
+    // Optimistic update - remove from local state immediately
+    const deletedMessage = messages.find((m) => m.id === messageId);
+    setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
+
     const { error } = await supabase
       .from("messages")
       .delete()
@@ -519,6 +577,16 @@ export const useChat = (channelId: string) => {
     if (error) {
       toast.error("Failed to delete message");
       console.error(error);
+      // Revert on error - add message back
+      if (deletedMessage) {
+        setMessages((prev) =>
+          [...prev, deletedMessage].sort(
+            (a, b) =>
+              new Date(a.created_at).getTime() -
+              new Date(b.created_at).getTime()
+          )
+        );
+      }
       return false;
     }
     toast.success("Message deleted");
@@ -672,12 +740,25 @@ export const useChat = (channelId: string) => {
 
   // Pin/Unpin messages
   const pinMessage = async (messageId: string) => {
+    // Optimistic update
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === messageId ? { ...msg, is_pinned: true } : msg
+      )
+    );
+
     const { error } = await supabase
       .from("messages")
       .update({ is_pinned: true })
       .eq("id", messageId);
 
     if (error) {
+      // Revert on error
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === messageId ? { ...msg, is_pinned: false } : msg
+        )
+      );
       toast.error("Failed to pin message");
       console.error(error);
       return false;
@@ -687,12 +768,25 @@ export const useChat = (channelId: string) => {
   };
 
   const unpinMessage = async (messageId: string) => {
+    // Optimistic update
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === messageId ? { ...msg, is_pinned: false } : msg
+      )
+    );
+
     const { error } = await supabase
       .from("messages")
       .update({ is_pinned: false })
       .eq("id", messageId);
 
     if (error) {
+      // Revert on error
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === messageId ? { ...msg, is_pinned: true } : msg
+        )
+      );
       toast.error("Failed to unpin message");
       console.error(error);
       return false;

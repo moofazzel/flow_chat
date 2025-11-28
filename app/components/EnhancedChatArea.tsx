@@ -1,4 +1,14 @@
 "use client";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { copyToClipboard } from "@/utils/clipboard";
 import {
   AlertCircle,
@@ -6,7 +16,6 @@ import {
   Bell,
   Bold,
   Calendar,
-  Check,
   CheckCheck,
   ClipboardList,
   Code,
@@ -30,6 +39,7 @@ import {
   Smile,
   Sticker,
   Strikethrough,
+  Trash2,
   Users,
   VolumeX,
   X,
@@ -259,6 +269,15 @@ export function EnhancedChatArea({
   const [selectedMessageForTask, setSelectedMessageForTask] =
     useState<Message | null>(null);
 
+  // Delete confirmation dialog state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [messageToDelete, setMessageToDelete] = useState<Message | null>(null);
+
+  // Edit message state
+  const [editingMessageContent, setEditingMessageContent] =
+    useState<Message | null>(null);
+  const [editText, setEditText] = useState("");
+
   // Dummy setMessages to prevent errors
   const setMessages = (action: React.SetStateAction<Message[]>) => {
     console.log("State updates not supported in DB mode yet", action);
@@ -269,6 +288,11 @@ export function EnhancedChatArea({
   const [availableUsers, setAvailableUsers] = useState<
     Array<{ id: string; name: string; avatar: string; status: string }>
   >([]);
+
+  // Scroll to bottom function
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
 
   useEffect(() => {
     const loadUser = async () => {
@@ -341,11 +365,6 @@ export function EnhancedChatArea({
     }
     prevMessageCountRef.current = chatMessages.length;
   }, [chatMessages, currentUser?.id, channelMuted]);
-
-  // Scroll to bottom function
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
 
   // Load users from database for mentions
   useEffect(() => {
@@ -644,34 +663,54 @@ export function EnhancedChatArea({
     }
   };
 
-  // Old implementation removed - now using database
+  // Edit message handlers
   const handleStartEdit = (msg: Message) => {
     if (msg.isCurrentUser) {
       setEditingMessage(msg.id);
-      setMessage(msg.content);
-      inputRef.current?.focus();
+      setEditingMessageContent(msg);
+      setEditText(msg.content);
+      setShowMoreMenu(null);
     }
   };
 
   const handleCancelEdit = () => {
     setEditingMessage(null);
-    setMessage("");
+    setEditingMessageContent(null);
+    setEditText("");
   };
 
   const handleSaveEdit = async (messageId: string) => {
-    if (!message.trim()) return;
+    if (!editText.trim()) {
+      toast.error("Message cannot be empty");
+      return;
+    }
 
-    const success = await editMessage(messageId, message.trim());
+    // Check if content actually changed
+    if (editText.trim() === editingMessageContent?.content) {
+      handleCancelEdit();
+      return;
+    }
+
+    const success = await editMessage(messageId, editText.trim());
     if (success) {
       setEditingMessage(null);
-      setMessage("");
+      setEditingMessageContent(null);
+      setEditText("");
     }
   };
 
-  const handleDeleteMessage = async (messageId: string) => {
-    if (confirm("Are you sure you want to delete this message?")) {
-      await deleteMessage(messageId);
-      setShowMoreMenu(null);
+  // Delete message handlers
+  const handleDeleteClick = (msg: Message) => {
+    setMessageToDelete(msg);
+    setDeleteDialogOpen(true);
+    setShowMoreMenu(null);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (messageToDelete) {
+      await deleteMessage(messageToDelete.id);
+      setDeleteDialogOpen(false);
+      setMessageToDelete(null);
     }
   };
 
@@ -1064,7 +1103,9 @@ export function EnhancedChatArea({
                             msg.isCurrentUser
                               ? "left-2 sm:left-4"
                               : "right-2 sm:right-4"
-                          } opacity-0 group-hover:opacity-100 transition-opacity bg-[#1e1f22] rounded-md border border-[#3f4147] shadow-lg flex items-center gap-0.5 p-0.5 z-10`}
+                          } opacity-0 group-hover:opacity-100 transition-opacity bg-[#1e1f22] rounded-md border border-[#3f4147] shadow-lg flex items-center gap-0.5 p-0.5 ${
+                            showMoreMenu === msg.id ? "z-[102]" : "z-10"
+                          }`}
                         >
                           {/* Quick reactions - hide some on mobile */}
                           <div className="hidden sm:flex items-center gap-0.5">
@@ -1092,6 +1133,19 @@ export function EnhancedChatArea({
                           >
                             <Reply size={16} />
                           </Button>
+
+                          {/* Edit button - only for own messages */}
+                          {msg.isCurrentUser && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-gray-400 hover:text-white hover:bg-[#35363c] p-1 h-auto"
+                              onClick={() => handleStartEdit(msg)}
+                              title="Edit"
+                            >
+                              <Edit2 size={16} />
+                            </Button>
+                          )}
 
                           <Button
                             variant="ghost"
@@ -1149,10 +1203,10 @@ export function EnhancedChatArea({
                             {showMoreMenu === msg.id && (
                               <>
                                 <div
-                                  className="fixed inset-0 z-30"
+                                  className="fixed inset-0 z-100"
                                   onClick={() => setShowMoreMenu(null)}
                                 />
-                                <div className="absolute top-full mt-1 right-0 bg-[#1e1f22] border border-[#3f4147] rounded-lg shadow-xl min-w-[180px] overflow-hidden z-40">
+                                <div className="absolute top-full mt-1 right-0 bg-[#1e1f22] border border-[#3f4147] rounded-lg shadow-xl min-w-[180px] overflow-hidden z-101 py-1">
                                   <button
                                     onClick={() => handleMarkUnread()}
                                     className="w-full px-3 py-1.5 text-left text-gray-300 hover:bg-[#35363c] hover:text-white flex items-center gap-2 text-xs"
@@ -1181,7 +1235,7 @@ export function EnhancedChatArea({
                                     <FileText size={14} />
                                     Copy Text
                                   </button>
-                                  <Separator className="bg-[#3f4147]" />
+                                  <Separator className="bg-[#3f4147] my-1" />
                                   <button
                                     onClick={() =>
                                       handleCreateTaskFromMessage(msg)
@@ -1193,21 +1247,12 @@ export function EnhancedChatArea({
                                   </button>
                                   {msg.isCurrentUser && (
                                     <>
-                                      <Separator className="bg-[#3f4147]" />
+                                      <Separator className="bg-[#3f4147] my-1" />
                                       <button
-                                        onClick={() => handleStartEdit(msg)}
-                                        className="w-full px-3 py-1.5 text-left text-gray-300 hover:bg-[#35363c] hover:text-white flex items-center gap-2 text-xs"
-                                      >
-                                        <Edit2 size={14} />
-                                        Edit Message
-                                      </button>
-                                      <button
-                                        onClick={() =>
-                                          handleDeleteMessage(msg.id)
-                                        }
+                                        onClick={() => handleDeleteClick(msg)}
                                         className="w-full px-3 py-1.5 text-left text-red-400 hover:bg-red-900/20 hover:text-red-300 flex items-center gap-2 text-xs"
                                       >
-                                        <X size={14} />
+                                        <Trash2 size={14} />
                                         Delete Message
                                       </button>
                                     </>
@@ -1272,23 +1317,66 @@ export function EnhancedChatArea({
                             </div>
                           )}
 
-                          {/* Message content */}
-                          <div
-                            className={`text-gray-300 text-[13px] sm:text-sm leading-relaxed break-words ${
-                              !isGrouped || msg.replyTo ? "mt-0.5" : ""
-                            } ${
-                              msg.isCurrentUser
-                                ? "bg-[#5865f2] px-3 py-2 rounded-2xl rounded-br-sm max-w-[85%] sm:max-w-md"
-                                : ""
-                            }`}
-                          >
-                            {parseTaskMentions(msg.content)}
-                            {msg.isEdited && (
-                              <span className="text-[10px] text-gray-400 ml-1">
-                                (edited)
-                              </span>
-                            )}
-                          </div>
+                          {/* Message content - Show inline edit if editing this message */}
+                          {editingMessage === msg.id ? (
+                            <div className="w-full max-w-full sm:max-w-lg">
+                              <div className="bg-[#383a40] rounded-lg border border-[#5865f2] p-2">
+                                <Textarea
+                                  autoFocus
+                                  value={editText}
+                                  onChange={(e) => setEditText(e.target.value)}
+                                  className="border-none bg-transparent text-gray-200 text-sm resize-none min-h-[44px] max-h-40 p-1 focus:ring-0 focus-visible:ring-0"
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Escape") {
+                                      e.preventDefault();
+                                      handleCancelEdit();
+                                    }
+                                    if (e.key === "Enter" && !e.shiftKey) {
+                                      e.preventDefault();
+                                      handleSaveEdit(msg.id);
+                                    }
+                                  }}
+                                />
+                                <div className="flex items-center justify-end gap-2 mt-1">
+                                  <span className="text-[10px] text-gray-500 mr-auto">
+                                    esc to cancel • enter to save
+                                  </span>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-gray-400 hover:text-white h-6 px-2 text-xs"
+                                    onClick={handleCancelEdit}
+                                  >
+                                    Cancel
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    className="bg-[#5865f2] hover:bg-[#4752c4] text-white h-6 px-3 text-xs"
+                                    onClick={() => handleSaveEdit(msg.id)}
+                                  >
+                                    Save
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div
+                              className={`text-gray-300 text-[13px] sm:text-sm leading-relaxed break-words ${
+                                !isGrouped || msg.replyTo ? "mt-0.5" : ""
+                              } ${
+                                msg.isCurrentUser
+                                  ? "bg-[#5865f2] px-3 py-2 rounded-2xl rounded-br-sm max-w-[85%] sm:max-w-md"
+                                  : ""
+                              }`}
+                            >
+                              {parseTaskMentions(msg.content)}
+                              {msg.isEdited && (
+                                <span className="text-[10px] text-gray-400 ml-1">
+                                  (edited)
+                                </span>
+                              )}
+                            </div>
+                          )}
 
                           {/* Task card */}
                           {msg.task && (
@@ -1454,34 +1542,6 @@ export function EnhancedChatArea({
           </div>
         )}
 
-        {/* Editing indicator */}
-        {editingMessage && (
-          <div className="mb-2 p-1.5 bg-[#2b2d31] rounded-t-md border-l-2 border-yellow-500 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Edit2 size={12} className="text-yellow-500" />
-              <span className="text-gray-300 text-xs">Editing message</span>
-            </div>
-            <div className="flex gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-green-400 hover:text-green-300 p-1 h-auto"
-                onClick={() => handleSaveEdit(editingMessage)}
-              >
-                <Check size={14} />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-gray-400 hover:text-white p-1 h-auto"
-                onClick={handleCancelEdit}
-              >
-                <X size={14} />
-              </Button>
-            </div>
-          </div>
-        )}
-
         {/* Slash commands suggestions */}
         {showSlashCommands && filteredCommands.length > 0 && (
           <div className="mb-2 bg-[#2b2d31] rounded-md border border-[#3f4147] max-h-48 overflow-y-auto">
@@ -1603,7 +1663,7 @@ export function EnhancedChatArea({
         {/* Input area */}
         <div
           className={`bg-[#383a40] ${
-            replyingTo || editingMessage ? "rounded-b-lg" : "rounded-lg"
+            replyingTo ? "rounded-b-lg" : "rounded-lg"
           } relative border border-[#3f4147] focus-within:border-[#5865f2] transition-colors`}
         >
           <Textarea
@@ -1614,6 +1674,7 @@ export function EnhancedChatArea({
             className="border-none bg-transparent text-gray-200 placeholder:text-gray-500 text-sm resize-none min-h-[40px] max-h-32 py-3 px-4"
             rows={1}
             onKeyDown={(e) => {
+              // Handle Enter to send
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
                 handleSend();
@@ -1866,6 +1927,62 @@ export function EnhancedChatArea({
             : undefined
         }
       />
+
+      {/* Delete Confirmation Dialog - Discord Style */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent className="bg-[#313338] border-none max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white text-lg font-semibold">
+              Delete Message
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-400 text-sm">
+              Are you sure you want to delete this message? This action cannot
+              be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          {/* Message Preview */}
+          {messageToDelete && (
+            <div className="my-4 p-3 bg-[#2b2d31] rounded-lg border border-[#1e1f22]">
+              <div className="flex items-start gap-3">
+                <Avatar className="h-8 w-8 shrink-0">
+                  <AvatarFallback className="text-xs bg-[#5865f2]">
+                    {messageToDelete.avatar}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-white text-sm font-medium">
+                      {messageToDelete.author}
+                    </span>
+                    <span className="text-gray-500 text-xs">
+                      {messageToDelete.timestamp}
+                    </span>
+                  </div>
+                  <p className="text-gray-300 text-sm mt-1 break-words">
+                    {messageToDelete.content.length > 200
+                      ? `${messageToDelete.content.substring(0, 200)}...`
+                      : messageToDelete.content}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <AlertDialogFooter className="gap-2 sm:gap-2">
+            <AlertDialogCancel className="bg-transparent border-none text-gray-300 hover:text-white hover:bg-[#404249] h-10 px-4">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              className="bg-[#da373c] hover:bg-[#a12828] text-white h-10 px-4"
+            >
+              <Trash2 size={16} className="mr-2" />
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

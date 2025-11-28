@@ -269,16 +269,17 @@ export function BoardsContainer({
     return aIndex - bIndex;
   });
 
-  // Update board order when boards change (add new boards to the end)
+  // Update board order when boards change (add new boards to the end, preserve existing order)
   useEffect(() => {
+    if (formattedBoards.length === 0) return;
+
     const currentIds = formattedBoards.map((b) => b.id);
-    const newOrder = [...boardOrder.filter((id) => currentIds.includes(id))];
-    // Add any new boards not in the order
-    currentIds.forEach((id) => {
-      if (!newOrder.includes(id)) {
-        newOrder.push(id);
-      }
-    });
+    // Keep existing order for boards that still exist
+    const existingOrder = boardOrder.filter((id) => currentIds.includes(id));
+    // Find new boards not in saved order and add them at the end
+    const newBoards = currentIds.filter((id) => !boardOrder.includes(id));
+    const newOrder = [...existingOrder, ...newBoards];
+
     if (JSON.stringify(newOrder) !== JSON.stringify(boardOrder)) {
       setBoardOrder(newOrder);
     }

@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { LoginForm } from "./LoginForm";
 import { RegisterForm } from "./RegisterForm";
@@ -11,9 +12,25 @@ interface AuthPageProps {
 
 export function AuthPage({ onAuthSuccess }: AuthPageProps) {
   const [isLogin, setIsLogin] = useState(true);
+  const searchParams = useSearchParams();
+  const returnUrl = searchParams.get("returnUrl");
 
   return (
     <div className="min-h-screen bg-[#313338] flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Return URL Banner */}
+      {returnUrl && returnUrl.includes("/invite/") && (
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="absolute top-0 left-0 right-0 bg-[#5865f2] py-3 px-4 text-center z-20"
+        >
+          <p className="text-white text-sm">
+            🎉 You&apos;ve been invited to join a server! Log in or create an
+            account to accept the invite.
+          </p>
+        </motion.div>
+      )}
+
       {/* Animated Background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div
@@ -124,11 +141,13 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
                 key="login"
                 onSuccess={onAuthSuccess}
                 onSwitchToRegister={() => setIsLogin(false)}
+                returnUrl={returnUrl}
               />
             ) : (
               <RegisterForm
                 key="register"
                 onSwitchToLogin={() => setIsLogin(true)}
+                returnUrl={returnUrl}
               />
             )}
           </AnimatePresence>

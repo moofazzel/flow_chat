@@ -19,9 +19,13 @@ import { Label } from "./ui/label";
 
 interface RegisterFormProps {
   onSwitchToLogin: () => void;
+  returnUrl?: string | null;
 }
 
-export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
+export function RegisterForm({
+  onSwitchToLogin,
+  returnUrl,
+}: RegisterFormProps) {
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [fullName, setFullName] = useState("");
@@ -301,7 +305,9 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
           </motion.div>
           <h1 className="text-white text-2xl mb-2">Create an account</h1>
           <p className="text-[#b5bac1] text-sm">
-            Join Flow Chat and start collaborating!
+            {returnUrl && returnUrl.includes("/invite/")
+              ? "Create an account to accept your server invite"
+              : "Join Flow Chat and start collaborating!"}
           </p>
         </div>
 

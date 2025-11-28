@@ -3,6 +3,7 @@
 import { login } from "@/utils/auth";
 import { AlertCircle, Loader2, Lock, Mail } from "lucide-react";
 import { motion } from "motion/react";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "./ui/button";
@@ -12,13 +13,19 @@ import { Label } from "./ui/label";
 interface LoginFormProps {
   onSuccess: () => void;
   onSwitchToRegister: () => void;
+  returnUrl?: string | null;
 }
 
-export function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
+export function LoginForm({
+  onSuccess,
+  onSwitchToRegister,
+  returnUrl,
+}: LoginFormProps) {
   const [emailOrUsername, setEmailOrUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,6 +81,11 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
 
         // Call success callback
         onSuccess();
+
+        // Redirect to returnUrl if present
+        if (returnUrl) {
+          router.push(returnUrl);
+        }
       } else {
         // Handle specific error cases
         const errorMessage = result.error || "Login failed. Please try again.";
@@ -213,7 +225,9 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
           </motion.div>
           <h1 className="text-white text-2xl mb-2">Welcome back!</h1>
           <p className="text-[#b5bac1] text-sm">
-            We&apos;re so excited to see you again!
+            {returnUrl && returnUrl.includes("/invite/")
+              ? "Log in to accept your server invite"
+              : "We're so excited to see you again!"}
           </p>
         </div>
 

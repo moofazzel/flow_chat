@@ -215,6 +215,7 @@ export function BoardSettingsMenu({
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
   const [showBackgroundDialog, setShowBackgroundDialog] = useState(false);
   const [showActivityDialog, setShowActivityDialog] = useState(false);
+  const [showDeleteConfirmDialog, setShowDeleteConfirmDialog] = useState(false);
   const [settingsTab, setSettingsTab] = useState<
     "general" | "members" | "advanced"
   >("general");
@@ -481,24 +482,6 @@ export function BoardSettingsMenu({
               Export Board
             </DropdownMenuItem>
           )}
-
-          <DropdownMenuItem
-            onClick={() => onUpdateBoard({ isArchived: !isArchived })}
-            className="text-gray-200 focus:text-white focus:bg-[#404249]"
-          >
-            <Archive size={16} className="mr-2" />
-            {isArchived ? "Unarchive Board" : "Archive Board"}
-          </DropdownMenuItem>
-
-          <DropdownMenuSeparator className="bg-[#404249]" />
-
-          <DropdownMenuItem
-            onClick={onDeleteBoard}
-            className="text-[#ed4245] focus:text-[#ed4245] focus:bg-[#ed4245]/10"
-          >
-            <Trash2 size={16} className="mr-2" />
-            Delete Board
-          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 
@@ -976,16 +959,7 @@ export function BoardSettingsMenu({
                         variant="outline"
                         size="sm"
                         className="mt-2 text-[#ed4245] border-[#ed4245]/50 hover:bg-[#ed4245]/10"
-                        onClick={() => {
-                          if (
-                            confirm(
-                              `Delete "${boardName}"? This cannot be undone.`
-                            )
-                          ) {
-                            onDeleteBoard();
-                            setShowSettingsDialog(false);
-                          }
-                        }}
+                        onClick={() => setShowDeleteConfirmDialog(true)}
                       >
                         Delete Board
                       </Button>
@@ -1199,6 +1173,58 @@ export function BoardSettingsMenu({
               </div>
             </div>
           </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteConfirmDialog} onOpenChange={setShowDeleteConfirmDialog}>
+        <DialogContent className="max-w-md bg-[#2b2d31] border-[#1e1f22]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-white">
+              <Trash2 className="text-[#ed4245]" size={24} />
+              Delete Board
+            </DialogTitle>
+            <DialogDescription className="text-gray-400">
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4">
+            <div className="p-4 bg-[#ed4245]/10 border border-[#ed4245]/30 rounded-lg">
+              <p className="text-gray-200 text-sm">
+                Are you sure you want to delete <strong className="text-white">&quot;{boardName}&quot;</strong>?
+              </p>
+              <p className="text-gray-400 text-sm mt-2">
+                This will permanently delete the board and all its:
+              </p>
+              <ul className="text-gray-400 text-sm mt-1 list-disc list-inside space-y-1">
+                <li>Lists and columns</li>
+                <li>Tasks and cards</li>
+                <li>Comments and attachments</li>
+                <li>Member assignments</li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteConfirmDialog(false)}
+              className="flex-1 bg-[#1e1f22] border-[#404249] text-gray-200 hover:bg-[#404249]"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                onDeleteBoard();
+                setShowDeleteConfirmDialog(false);
+                setShowSettingsDialog(false);
+              }}
+              className="flex-1 bg-[#ed4245] hover:bg-[#c73e41] text-white"
+            >
+              Delete Board
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </>

@@ -229,8 +229,6 @@ import Image from 'next/image';
 **`app/components/AddListButton.tsx`**:
 - Lines 92-93: Multiple unescaped quotes `"`
 
-**`app/components/BoardMenu.tsx`**:
-- Line 144: Unescaped quotes `"`
 
 **`app/components/ColumnMenu.tsx`**:
 - Lines 382, 418, 486, 510: Multiple unescaped quotes `"`

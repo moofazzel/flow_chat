@@ -7,7 +7,6 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Task } from "../page";
 import { AddBoardModal } from "./AddBoardModal";
-import { BoardMenu } from "./BoardMenu";
 import { TaskBoard } from "./TaskBoard";
 import { Button } from "./ui/button";
 
@@ -230,20 +229,6 @@ export function BoardsContainer({
     toast.success("Board deleted successfully");
   };
 
-  // Handle board rename
-  const handleRenameBoard = async (
-    boardId: string,
-    newName: string,
-    newDescription: string,
-    newColor: string
-  ) => {
-    await updateBoard(boardId, {
-      title: newName,
-      background: newColor,
-    });
-    toast.success("Board updated successfully");
-  };
-
   // Handle board duplication
   const handleDuplicateBoard = async (boardId: string) => {
     const boardToDuplicate = formattedBoards.find((b) => b.id === boardId);
@@ -295,16 +280,6 @@ export function BoardsContainer({
                 <div className={`w-2 h-2 rounded-full ${board.color}`} />
                 <span className="font-medium">{board.name}</span>
               </button>
-              <BoardMenu
-                boardId={board.id}
-                boardName={board.name}
-                boardDescription={board.description}
-                boardColor={board.color}
-                isOnlyBoard={formattedBoards.length === 1}
-                onDelete={handleDeleteBoard}
-                onRename={handleRenameBoard}
-                onDuplicate={handleDuplicateBoard}
-              />
             </div>
           ))}
           <Button

@@ -22,7 +22,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { AnimatePresence, motion } from "framer-motion";
-import { Filter, MessageSquare, Plus, Search, Star, Tag } from "lucide-react";
+import { Filter, MessageSquare, Plus, Search, Tag } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { Task } from "../page";
 import { AddListButton } from "./AddListButton";
@@ -634,38 +634,24 @@ export function TaskBoard({
           {/* Board Name with Settings */}
           <div className="flex items-center gap-2">
             <h1 className="text-white font-semibold text-lg">{boardName}</h1>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 w-7 p-0 hover:bg-[#404249]"
-              onClick={() => onBoardUpdate?.({ isFavorite: true })}
-              title="Star this board"
-            >
-              <Star
-                size={16}
-                className="text-gray-400 hover:text-yellow-500 hover:fill-yellow-500"
-              />
-            </Button>
             {onBoardUpdate && onDeleteBoard && onDuplicateBoard && (
-              <div className="relative">
-                <BoardSettingsMenu
-                  boardId={boardId}
-                  boardName={boardName}
-                  boardDescription={boardDescription}
-                  boardColor={boardColor}
-                  onUpdateBoard={onBoardUpdate}
-                  onDeleteBoard={onDeleteBoard}
-                  onDuplicateBoard={onDuplicateBoard}
-                  currentUserId={currentUserId}
-                  serverId={serverId}
-                  onGetBoardMembers={onGetBoardMembers}
-                  onAddBoardMember={onAddBoardMember}
-                  onRemoveBoardMember={onRemoveBoardMember}
-                  onUpdateMemberRole={onUpdateMemberRole}
-                  onSearchUsers={onSearchUsers}
-                  onGetServerMembers={onGetServerMembers}
-                />
-              </div>
+              <BoardSettingsMenu
+                boardId={boardId}
+                boardName={boardName}
+                boardDescription={boardDescription}
+                boardColor={boardColor}
+                onUpdateBoard={onBoardUpdate}
+                onDeleteBoard={onDeleteBoard}
+                onDuplicateBoard={onDuplicateBoard}
+                currentUserId={currentUserId}
+                serverId={serverId}
+                onGetBoardMembers={onGetBoardMembers}
+                onAddBoardMember={onAddBoardMember}
+                onRemoveBoardMember={onRemoveBoardMember}
+                onUpdateMemberRole={onUpdateMemberRole}
+                onSearchUsers={onSearchUsers}
+                onGetServerMembers={onGetServerMembers}
+              />
             )}
           </div>
 

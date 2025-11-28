@@ -1,8 +1,28 @@
 "use client";
 
-import { type BoardData } from "@/utils/storage"; // 🆕 Import storage
+import { useBoard, type Card } from "@/hooks/useBoard";
+import { type BoardData } from "@/utils/storage";
+import {
+  closestCenter,
+  DndContext,
+  DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  horizontalListSortingStrategy,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { AnimatePresence, motion } from "framer-motion";
-import { MessageSquare, Plus } from "lucide-react";
+import { GripVertical, MessageSquare, Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Task } from "../page";
@@ -54,10 +74,67 @@ interface BoardsContainerProps {
   onBoardOperationsReady?: (ops: BoardOperations) => void;
 }
 
-// 🆕 Default boards (used if no saved boards found)
+// Sortable Board Tab Component
+function SortableBoardTab({
+  board,
+  isActive,
+  onSelect,
+}: {
+  board: BoardData & { tasks: Task[] };
+  isActive: boolean;
+  onSelect: () => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: board.id,
+    transition: {
+      duration: 200,
+      easing: "cubic-bezier(0.25, 1, 0.5, 1)",
+    },
+  });
 
-import { useBoard, type Card } from "@/hooks/useBoard";
-// ... existing imports ...
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition: transition || "transform 200ms cubic-bezier(0.25, 1, 0.5, 1)",
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      data-board-tab="true"
+      className={`px-3 py-2 rounded-lg flex items-center gap-1 whitespace-nowrap shrink-0 select-none transition-colors duration-150 ${
+        isActive
+          ? "bg-[#5865f2] text-white shadow-md"
+          : "bg-[#404249] text-gray-300 hover:bg-[#4a4f58]"
+      } ${isDragging ? "opacity-40 scale-95" : "opacity-100"}`}
+    >
+      {/* Drag Handle */}
+      <div
+        {...attributes}
+        {...listeners}
+        className={`cursor-grab active:cursor-grabbing p-0.5 rounded hover:bg-white/10 touch-none ${
+          isActive
+            ? "text-white/70 hover:text-white"
+            : "text-gray-500 hover:text-gray-300"
+        }`}
+      >
+        <GripVertical size={14} />
+      </div>
+
+      <button onClick={onSelect} className="flex items-center gap-2">
+        <div className={`w-2 h-2 rounded-full ${board.color}`} />
+        <span className="font-medium">{board.name}</span>
+      </button>
+    </div>
+  );
+}
 
 export function BoardsContainer({
   currentServerId,
@@ -172,6 +249,77 @@ export function BoardsContainer({
     );
   });
 
+  // Track board order (store just IDs, derive ordered boards from this)
+  const [boardOrder, setBoardOrder] = useState<string[]>(() => {
+    const saved = localStorage.getItem("Flow Chat_boardOrder");
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  // Track active drag item for DragOverlay
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
+
+  // Get boards in the correct order
+  const orderedBoards = [...formattedBoards].sort((a, b) => {
+    const aIndex = boardOrder.indexOf(a.id);
+    const bIndex = boardOrder.indexOf(b.id);
+    // If not in order array, put at end
+    if (aIndex === -1 && bIndex === -1) return 0;
+    if (aIndex === -1) return 1;
+    if (bIndex === -1) return -1;
+    return aIndex - bIndex;
+  });
+
+  // Update board order when boards change (add new boards to the end)
+  useEffect(() => {
+    const currentIds = formattedBoards.map((b) => b.id);
+    const newOrder = [...boardOrder.filter((id) => currentIds.includes(id))];
+    // Add any new boards not in the order
+    currentIds.forEach((id) => {
+      if (!newOrder.includes(id)) {
+        newOrder.push(id);
+      }
+    });
+    if (JSON.stringify(newOrder) !== JSON.stringify(boardOrder)) {
+      setBoardOrder(newOrder);
+    }
+  }, [formattedBoards, boardOrder]);
+
+  // Save board order to localStorage
+  useEffect(() => {
+    localStorage.setItem("Flow Chat_boardOrder", JSON.stringify(boardOrder));
+  }, [boardOrder]);
+
+  // DnD sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // Handle drag start for DragOverlay
+  const handleBoardDragStart = (event: DragStartEvent) => {
+    setActiveDragId(event.active.id as string);
+  };
+
+  // Handle drag end for board reordering
+  const handleBoardDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveDragId(null);
+
+    if (over && active.id !== over.id) {
+      setBoardOrder((items) => {
+        const oldIndex = items.indexOf(active.id as string);
+        const newIndex = items.indexOf(over.id as string);
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    }
+  };
+
   // Update active board when boards load if not set
   useEffect(() => {
     if (!activeBoard && formattedBoards.length > 0) {
@@ -261,36 +409,66 @@ export function BoardsContainer({
     <div className="flex-1 flex flex-col relative bg-[#313338] overflow-hidden">
       {/* Board Tabs Navigation - FIXED */}
       <div className="shrink-0 h-14 bg-[#2b2d31] border-b border-[#1e1f22] flex items-center gap-2">
-        {/* Scrollable Board Tabs */}
-        <div className="flex items-center gap-2 px-4 overflow-x-auto flex-1 min-w-0">
-          {formattedBoards.map((board) => (
-            <div
-              key={board.id}
-              data-board-tab="true"
-              className={`px-4 py-2 rounded-lg transition-all flex items-center gap-1 whitespace-nowrap shrink-0 ${
-                activeBoard === board.id
-                  ? "bg-[#5865f2] text-white shadow-md"
-                  : "bg-[#404249] text-gray-300 hover:bg-[#4a4f58]"
-              }`}
+        {/* Scrollable Board Tabs with Drag & Drop */}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleBoardDragStart}
+          onDragEnd={handleBoardDragEnd}
+        >
+          <div className="flex items-center gap-2 px-4 overflow-x-auto flex-1 min-w-0">
+            <SortableContext
+              items={orderedBoards.map((b) => b.id)}
+              strategy={horizontalListSortingStrategy}
             >
-              <button
-                onClick={() => scrollToBoard(board.id)}
-                className="flex items-center gap-2"
-              >
-                <div className={`w-2 h-2 rounded-full ${board.color}`} />
-                <span className="font-medium">{board.name}</span>
-              </button>
-            </div>
-          ))}
-          <Button
-            onClick={() => setShowAddBoardModal(true)}
-            variant="ghost"
-            size="sm"
-            className="gap-2 hover:bg-[#404249] shrink-0"
+              {orderedBoards.map((board) => (
+                <SortableBoardTab
+                  key={board.id}
+                  board={board}
+                  isActive={activeBoard === board.id}
+                  onSelect={() => scrollToBoard(board.id)}
+                />
+              ))}
+            </SortableContext>
+            <Button
+              onClick={() => setShowAddBoardModal(true)}
+              variant="ghost"
+              size="sm"
+              className="gap-2 hover:bg-[#404249] shrink-0"
+            >
+              <Plus size={16} className="text-gray-300" />
+            </Button>
+          </div>
+          <DragOverlay
+            dropAnimation={{
+              duration: 200,
+              easing: "cubic-bezier(0.18, 0.67, 0.6, 1.22)",
+            }}
           >
-            <Plus size={16} className="text-gray-300" />
-          </Button>
-        </div>
+            {activeDragId
+              ? (() => {
+                  const activeBoard = orderedBoards.find(
+                    (b) => b.id === activeDragId
+                  );
+                  if (!activeBoard) return null;
+                  return (
+                    <div className="px-3 py-2 rounded-lg bg-[#5865f2] text-white shadow-2xl cursor-grabbing transform scale-105">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className={`w-2 h-2 rounded-full ${
+                            activeBoard.color || "bg-blue-500"
+                          }`}
+                        />
+                        <span className="font-medium text-sm whitespace-nowrap">
+                          {activeBoard.name}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()
+              : null}
+          </DragOverlay>
+        </DndContext>
 
         {/* Fixed Show Chat Button */}
         <div className="shrink-0 pr-4">
@@ -319,7 +497,7 @@ export function BoardsContainer({
         <AnimatePresence mode="wait" initial={false}>
           {/* if no board  */}
 
-          {formattedBoards.map((board) => {
+          {orderedBoards.map((board) => {
             const isActive = activeBoard === board.id;
 
             if (!isActive) return null;

@@ -236,6 +236,9 @@ export function EnhancedChatArea({
 
   // Missing state variables
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const notificationSoundRef = useRef<HTMLAudioElement | null>(null);
+  const prevMessageCountRef = useRef<number>(0);
   const [showSlashCommands, setShowSlashCommands] = useState(false);
   const [commandSearchQuery, setCommandSearchQuery] = useState("");
   const [showTaskMentions, setShowTaskMentions] = useState(false);
@@ -274,6 +277,75 @@ export function EnhancedChatArea({
     };
     loadUser();
   }, []);
+
+  // Initialize notification sound
+  useEffect(() => {
+    // Try to load audio file, fallback to Web Audio API
+    notificationSoundRef.current = new Audio("/sounds/notification.mp3");
+    notificationSoundRef.current.volume = 0.5;
+
+    // Preload the audio
+    notificationSoundRef.current.load();
+  }, []);
+
+  // Function to play notification sound with Web Audio API fallback
+  const playNotificationSound = () => {
+    if (notificationSoundRef.current) {
+      notificationSoundRef.current.currentTime = 0;
+      notificationSoundRef.current.play().catch(() => {
+        // If file doesn't exist or autoplay blocked, use Web Audio API
+        try {
+          const audioContext = new (window.AudioContext ||
+            (window as unknown as { webkitAudioContext: typeof AudioContext })
+              .webkitAudioContext)();
+          const oscillator = audioContext.createOscillator();
+          const gainNode = audioContext.createGain();
+
+          oscillator.connect(gainNode);
+          gainNode.connect(audioContext.destination);
+
+          oscillator.frequency.value = 800;
+          oscillator.type = "sine";
+          gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+          gainNode.gain.exponentialRampToValueAtTime(
+            0.01,
+            audioContext.currentTime + 0.2
+          );
+
+          oscillator.start(audioContext.currentTime);
+          oscillator.stop(audioContext.currentTime + 0.2);
+        } catch {
+          // Audio not supported
+        }
+      });
+    }
+  };
+
+  // Play notification sound and scroll on new messages
+  useEffect(() => {
+    if (
+      chatMessages.length > prevMessageCountRef.current &&
+      prevMessageCountRef.current > 0
+    ) {
+      const lastMessage = chatMessages[chatMessages.length - 1];
+      // Play sound only if the message is from someone else and channel is not muted
+      if (
+        lastMessage &&
+        lastMessage.author_id !== currentUser?.id &&
+        !channelMuted
+      ) {
+        playNotificationSound();
+      }
+      // Auto-scroll to bottom for new messages
+      scrollToBottom();
+    }
+    prevMessageCountRef.current = chatMessages.length;
+  }, [chatMessages, currentUser?.id, channelMuted]);
+
+  // Scroll to bottom function
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
 
   // Load users from database for mentions
   useEffect(() => {
@@ -414,6 +486,8 @@ export function EnhancedChatArea({
       if (user.username) {
         broadcastTyping(user.username, false);
       }
+      // Scroll to bottom after sending
+      setTimeout(() => scrollToBottom(), 100);
     }
   };
 
@@ -1343,6 +1417,8 @@ export function EnhancedChatArea({
                     </div>
                   );
                 })}
+                {/* Scroll anchor */}
+                <div ref={messagesEndRef} />
               </div>
             )}
           </div>

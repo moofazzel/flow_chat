@@ -56,7 +56,9 @@ const callSlice = createSlice({
         offer: RTCSessionDescriptionInit;
       }>
     ) => {
-      state.isCallModalOpen = true;
+      // Do not open the call modal automatically when an incoming
+      // offer is received. Let the UI show a toast/notification and
+      // open the modal only when the user explicitly answers.
       state.callType = action.payload.type;
       state.isInitiator = false;
       state.activeCallUserId = action.payload.userId;

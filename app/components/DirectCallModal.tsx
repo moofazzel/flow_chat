@@ -25,7 +25,19 @@ import { Button } from "./ui/button";
 // Generate unique session ID for debugging
 const generateSessionId = () => Math.random().toString(36).substring(2, 8);
 
-// Call sound URLs - using Web Audio API generated tones as fallback
+// Call sound URLs (env override) with Web Audio fallback
+const SOUND_RINGTONE =
+  process.env.NEXT_PUBLIC_SOUND_RINGTONE || "/sounds/notification.mp3";
+const SOUND_RINGBACK =
+  process.env.NEXT_PUBLIC_SOUND_RINGBACK || "/sounds/notification.mp3";
+const SOUND_CONNECTED =
+  process.env.NEXT_PUBLIC_SOUND_CONNECTED || "/sounds/notification.mp3";
+const SOUND_END =
+  process.env.NEXT_PUBLIC_SOUND_END || "/sounds/notification.mp3";
+const SOUND_DECLINED =
+  process.env.NEXT_PUBLIC_SOUND_DECLINED || "/sounds/notification.mp3";
+
+// Fallback tone frequencies
 const RINGTONE_FREQUENCY = 440; // A4 note
 const RINGBACK_FREQUENCY = 480; // B4 note
 const CALL_END_FREQUENCY = 300; // D#4 note
@@ -115,6 +127,36 @@ export function DirectCallModal({
   const ringtoneOscillatorRef = useRef<OscillatorNode | null>(null);
   const ringtoneIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const ringbackIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const ringtoneAudioRef = useRef<HTMLAudioElement | null>(null);
+  const ringbackAudioRef = useRef<HTMLAudioElement | null>(null);
+  const connectedAudioRef = useRef<HTMLAudioElement | null>(null);
+  const endAudioRef = useRef<HTMLAudioElement | null>(null);
+  const declinedAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Preload audio assets
+  useEffect(() => {
+    ringtoneAudioRef.current = new Audio(SOUND_RINGTONE);
+    ringtoneAudioRef.current.loop = true;
+    ringbackAudioRef.current = new Audio(SOUND_RINGBACK);
+    ringbackAudioRef.current.loop = true;
+    connectedAudioRef.current = new Audio(SOUND_CONNECTED);
+    endAudioRef.current = new Audio(SOUND_END);
+    declinedAudioRef.current = new Audio(SOUND_DECLINED);
+
+    return () => {
+      [
+        ringtoneAudioRef.current,
+        ringbackAudioRef.current,
+        connectedAudioRef.current,
+        endAudioRef.current,
+        declinedAudioRef.current,
+      ].forEach((a) => {
+        try {
+          a?.pause();
+        } catch {}
+      });
+    };
+  }, []);
 
   // Key refs for preventing double cleanup and tracking call state
   const isInitializedRef = useRef(false);
@@ -176,30 +218,44 @@ export function DirectCallModal({
   // Start ringtone (incoming call) - plays a pattern
   const startRingtone = useCallback(() => {
     console.log("[DirectCall] Starting ringtone");
-    // Clear existing intervals directly instead of calling stopAllSounds
-    if (ringtoneIntervalRef.current) {
-      clearInterval(ringtoneIntervalRef.current);
-      ringtoneIntervalRef.current = null;
+    // Stop ringback
+    try {
+      ringbackAudioRef.current?.pause();
+    } catch {}
+    // Try playing audio asset; fallback to tones
+    try {
+      if (ringtoneAudioRef.current) {
+        ringtoneAudioRef.current.currentTime = 0;
+        ringtoneAudioRef.current.play().catch(() => {
+          const playRingPattern = () => {
+            playTone(RINGTONE_FREQUENCY, 0.3, 0.4);
+            setTimeout(
+              () => playTone(RINGTONE_FREQUENCY * 1.25, 0.3, 0.4),
+              350
+            );
+          };
+          playRingPattern();
+          ringtoneIntervalRef.current = setInterval(playRingPattern, 2000);
+        });
+      }
+    } catch {
+      const playRingPattern = () => {
+        playTone(RINGTONE_FREQUENCY, 0.3, 0.4);
+        setTimeout(() => playTone(RINGTONE_FREQUENCY * 1.25, 0.3, 0.4), 350);
+      };
+      playRingPattern();
+      ringtoneIntervalRef.current = setInterval(playRingPattern, 2000);
     }
-    if (ringbackIntervalRef.current) {
-      clearInterval(ringbackIntervalRef.current);
-      ringbackIntervalRef.current = null;
-    }
-
-    const playRingPattern = () => {
-      // Play two quick tones
-      playTone(RINGTONE_FREQUENCY, 0.3, 0.4);
-      setTimeout(() => playTone(RINGTONE_FREQUENCY * 1.25, 0.3, 0.4), 350);
-    };
-
-    playRingPattern(); // Play immediately
-    ringtoneIntervalRef.current = setInterval(playRingPattern, 2000); // Repeat every 2 seconds
   }, [playTone]);
 
   // Start ringback tone (outgoing call waiting for answer)
   const startRingback = useCallback(() => {
     console.log("[DirectCall] Starting ringback tone");
-    // Clear existing intervals directly
+    // Stop ringtone
+    try {
+      ringtoneAudioRef.current?.pause();
+    } catch {}
+    // Clear tone intervals
     if (ringtoneIntervalRef.current) {
       clearInterval(ringtoneIntervalRef.current);
       ringtoneIntervalRef.current = null;
@@ -209,35 +265,76 @@ export function DirectCallModal({
       ringbackIntervalRef.current = null;
     }
 
-    const playRingbackPattern = () => {
-      playTone(RINGBACK_FREQUENCY, 0.8, 0.2);
-    };
-
-    playRingbackPattern();
-    ringbackIntervalRef.current = setInterval(playRingbackPattern, 3000);
+    try {
+      if (ringbackAudioRef.current) {
+        ringbackAudioRef.current.currentTime = 0;
+        ringbackAudioRef.current.play().catch(() => {
+          const playRingbackPattern = () =>
+            playTone(RINGBACK_FREQUENCY, 0.8, 0.2);
+          playRingbackPattern();
+          ringbackIntervalRef.current = setInterval(playRingbackPattern, 3000);
+        });
+      }
+    } catch {
+      const playRingbackPattern = () => playTone(RINGBACK_FREQUENCY, 0.8, 0.2);
+      playRingbackPattern();
+      ringbackIntervalRef.current = setInterval(playRingbackPattern, 3000);
+    }
   }, [playTone]);
 
   // Play call connected sound
   const playConnectedSound = useCallback(() => {
     console.log("[DirectCall] Playing connected sound");
-    playTone(523.25, 0.15, 0.3); // C5
-    setTimeout(() => playTone(659.25, 0.15, 0.3), 150); // E5
-    setTimeout(() => playTone(783.99, 0.2, 0.3), 300); // G5
+    try {
+      if (connectedAudioRef.current) {
+        connectedAudioRef.current.currentTime = 0;
+        connectedAudioRef.current.play().catch(() => {
+          playTone(523.25, 0.15, 0.3);
+          setTimeout(() => playTone(659.25, 0.15, 0.3), 150);
+          setTimeout(() => playTone(783.99, 0.2, 0.3), 300);
+        });
+      }
+    } catch {
+      playTone(523.25, 0.15, 0.3);
+      setTimeout(() => playTone(659.25, 0.15, 0.3), 150);
+      setTimeout(() => playTone(783.99, 0.2, 0.3), 300);
+    }
   }, [playTone]);
 
   // Play call end sound
   const playEndSound = useCallback(() => {
     console.log("[DirectCall] Playing end sound");
-    playTone(CALL_END_FREQUENCY, 0.3, 0.25);
-    setTimeout(() => playTone(CALL_END_FREQUENCY * 0.8, 0.4, 0.2), 350);
+    try {
+      if (endAudioRef.current) {
+        endAudioRef.current.currentTime = 0;
+        endAudioRef.current.play().catch(() => {
+          playTone(CALL_END_FREQUENCY, 0.3, 0.25);
+          setTimeout(() => playTone(CALL_END_FREQUENCY * 0.8, 0.4, 0.2), 350);
+        });
+      }
+    } catch {
+      playTone(CALL_END_FREQUENCY, 0.3, 0.25);
+      setTimeout(() => playTone(CALL_END_FREQUENCY * 0.8, 0.4, 0.2), 350);
+    }
   }, [playTone]);
 
   // Play declined sound
   const playDeclinedSound = useCallback(() => {
     console.log("[DirectCall] Playing declined sound");
-    playTone(350, 0.2, 0.25);
-    setTimeout(() => playTone(300, 0.2, 0.25), 250);
-    setTimeout(() => playTone(250, 0.3, 0.2), 500);
+    try {
+      if (declinedAudioRef.current) {
+        declinedAudioRef.current.currentTime = 0;
+        declinedAudioRef.current.play().catch(() => {
+          playTone(350, 0.2, 0.25);
+          setTimeout(() => playTone(300, 0.2, 0.25), 250);
+          setTimeout(() => playTone(250, 0.3, 0.2), 500);
+        });
+      }
+    } catch {
+      playTone(350, 0.2, 0.25);
+      setTimeout(() => playTone(300, 0.2, 0.25), 250);
+      setTimeout(() => playTone(250, 0.3, 0.2), 500);
+    }
   }, [playTone]);
 
   // Stop all sounds
@@ -258,6 +355,10 @@ export function DirectCallModal({
       }
       ringtoneOscillatorRef.current = null;
     }
+    try {
+      ringtoneAudioRef.current?.pause();
+      ringbackAudioRef.current?.pause();
+    } catch {}
   }, []);
 
   // Handle call status changes for sounds
@@ -888,6 +989,40 @@ export function DirectCallModal({
                   console.log(
                     `[DirectCall:${sessionId}] ✅ Call offer sent successfully`
                   );
+
+                  // Also notify via user-targeted global channel so receiver gets it outside DM
+                  try {
+                    const userChannel = supabase.channel(
+                      `user-call:${otherUser.id}`,
+                      { config: { broadcast: { self: false } } }
+                    );
+                    await userChannel.subscribe();
+                    {
+                      await userChannel.send({
+                        type: "broadcast",
+                        event: "call-offer",
+                        payload: {
+                          offer,
+                          fromUserId: currentUserId,
+                          fromUserName: currentUserName,
+                          fromUserAvatar: otherUser.avatar,
+                          toUserId: otherUser.id,
+                          callType,
+                          threadId,
+                          sessionId,
+                        },
+                      });
+                      console.log(
+                        `[DirectCall:${sessionId}] ✅ Call offer broadcasted to user channel`
+                      );
+                    }
+                    await supabase.removeChannel(userChannel);
+                  } catch (e) {
+                    console.warn(
+                      `[DirectCall:${sessionId}] Failed user-channel broadcast:`,
+                      e
+                    );
+                  }
                 } catch (error) {
                   console.error(
                     `[DirectCall:${sessionId}] Failed to create/send offer:`,

@@ -4,7 +4,12 @@ import type { ChatMessage as RealtimeChatMessage } from "@/hooks/use-dm-chat";
 import { useDmChat } from "@/hooks/use-dm-chat";
 import { getDmMessages, sendDmMessage } from "@/lib/friendService";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { endCall, receiveCall, startCall } from "@/store/slices/callSlice";
+import {
+  endCall,
+  receiveCall,
+  setCallModalOpen,
+  startCall,
+} from "@/store/slices/callSlice";
 import { createClient } from "@/utils/supabase/client";
 import {
   Edit2,
@@ -270,6 +275,13 @@ export function EnhancedDirectMessageChat({
       },
     });
 
+    // Ringtone audio
+    const ringtoneAudio = new Audio(
+      process.env.NEXT_PUBLIC_SOUND_RINGTONE || "/sounds/notification.mp3"
+    );
+    ringtoneAudio.loop = true;
+    let activeToastId: string | number | null = null;
+
     let isSubscribed = false;
 
     callChannel
@@ -310,6 +322,16 @@ export function EnhancedDirectMessageChat({
               payload.fromUserName
             );
 
+            // Play ringtone
+            try {
+              ringtoneAudio.currentTime = 0;
+              ringtoneAudio.play().catch((e) => {
+                console.warn("[CallListener] Audio autoplay blocked:", e);
+              });
+            } catch (e) {
+              console.warn("[CallListener] Failed to play ringtone:", e);
+            }
+
             dispatch(
               receiveCall({
                 type: payload.callType,
@@ -322,23 +344,52 @@ export function EnhancedDirectMessageChat({
             );
 
             // Show notification with action
-            toast.info(
+            const toastId = toast.info(
               `Incoming ${payload.callType} call from ${payload.fromUserName}`,
               {
                 duration: 30000, // Keep notification for 30 seconds
                 action: {
                   label: "Answer",
                   onClick: () => {
-                    // The modal should already be open via dispatch
+                    dispatch(setCallModalOpen(true));
+                    toast.dismiss(toastId);
+                    try {
+                      ringtoneAudio.pause();
+                    } catch {}
                   },
                 },
               }
             );
+            activeToastId = toastId;
           } else {
             console.log("[CallListener] ❌ Call not for me, ignoring");
           }
         }
       )
+      .on("broadcast", { event: "call-end" }, ({ payload }: any) => {
+        if (payload?.toUserId !== currentUserId) return;
+        console.log("[CallListener] Call ended by other user");
+        // Dismiss toast and stop ringtone
+        if (activeToastId) {
+          toast.dismiss(activeToastId);
+          activeToastId = null;
+        }
+        try {
+          ringtoneAudio.pause();
+        } catch {}
+      })
+      .on("broadcast", { event: "call-declined" }, ({ payload }: any) => {
+        if (payload?.toUserId !== currentUserId) return;
+        console.log("[CallListener] Call declined");
+        // Dismiss toast and stop ringtone
+        if (activeToastId) {
+          toast.dismiss(activeToastId);
+          activeToastId = null;
+        }
+        try {
+          ringtoneAudio.pause();
+        } catch {}
+      })
       .subscribe((status) => {
         console.log("[CallListener] Channel subscription status:", status);
         if (status === "SUBSCRIBED") {
@@ -360,6 +411,13 @@ export function EnhancedDirectMessageChat({
         supabase.removeChannel(callChannel);
       } else {
         callChannel.unsubscribe();
+      }
+      // Stop ringtone and dismiss toast
+      try {
+        ringtoneAudio.pause();
+      } catch {}
+      if (activeToastId) {
+        toast.dismiss(activeToastId);
       }
     };
   }, [

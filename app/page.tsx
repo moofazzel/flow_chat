@@ -277,7 +277,6 @@ export default function Home() {
   // Derive tasks from Supabase boards (memoized for performance)
   const tasks = useMemo(() => {
     return supabaseBoards.flatMap((board) => {
-      console.log("🚀 ~ board:", board);
       return (board.lists || []).flatMap((list) =>
         (list.cards || []).map((card) => ({
           id: card.id, // Database UUID
@@ -298,8 +297,6 @@ export default function Home() {
       );
     });
   }, [supabaseBoards]);
-
-  console.log("🚀 ~ Supabase tasks:", tasks);
 
   // Boards and labels state (initialize from storage to avoid setState in mount effect)
   const [boards, setBoards] = useState<BoardData[]>(loadInitialBoards);

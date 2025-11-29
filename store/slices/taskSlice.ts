@@ -156,7 +156,9 @@ export const fetchTaskDetails = createAsyncThunk(
         priority: taskData.priority || "medium",
       } as Task;
     } catch (error) {
-      return rejectWithValue(error.message);
+      const message =
+        error instanceof Error ? error.message : "An unknown error occurred";
+      return rejectWithValue(message);
     }
   }
 );
@@ -238,7 +240,9 @@ export const addCommentThunk = createAsyncThunk(
         created_at: data.created_at,
       } as Comment;
     } catch (error) {
-      return rejectWithValue(error.message);
+      const message =
+        error instanceof Error ? error.message : "An unknown error occurred";
+      return rejectWithValue(message);
     }
   }
 );

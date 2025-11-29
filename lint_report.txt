@@ -1,0 +1,308 @@
+
+> flow_chat@0.1.0 lint
+> eslint
+
+
+G:\upwork portfolio project\flow_chat\app\components\AudioControlsPopover.tsx
+  133:40  error  Error: Cannot call impure function during render
+
+`Math.random` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+G:\upwork portfolio project\flow_chat\app\components\AudioControlsPopover.tsx:133:40
+  131 |                   <div
+  132 |                     className="h-full bg-[#3ba55d] transition-all duration-100"
+> 133 |                     style={{ width: `${Math.random() * 70 + 20}%` }}
+      |                                        ^^^^^^^^^^^^^ Cannot call impure function
+  134 |                   />
+  135 |                 </div>
+  136 |                 <div className="text-xs text-gray-400 mt-1">  react-hooks/purity
+
+G:\upwork portfolio project\flow_chat\app\components\BoardSettingsMenu.tsx
+  245:7  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+G:\upwork portfolio project\flow_chat\app\components\BoardSettingsMenu.tsx:245:7
+  243 |   useEffect(() => {
+  244 |     if (settingsTab === "members" && onGetBoardMembers) {
+> 245 |       setIsLoadingMembers(true);
+      |       ^^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  246 |       onGetBoardMembers(boardId)
+  247 |         .then((members) => {
+  248 |           setBoardMembers(members);  react-hooks/set-state-in-effect
+
+G:\upwork portfolio project\flow_chat\app\components\BoardsContainer.tsx
+  141:10  warning  '_tasks' is defined but never used                  @typescript-eslint/no-unused-vars
+  156:19  warning  '_currentBoard' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+G:\upwork portfolio project\flow_chat\app\components\ChatArea.tsx
+  59:10  warning  'taskSearchQuery' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+G:\upwork portfolio project\flow_chat\app\components\ColumnMenu.tsx
+  153:3   warning  'columnId' is defined but never used                             @typescript-eslint/no-unused-vars
+  453:34  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  453:48  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  491:39  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  491:53  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  584:47  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  584:61  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  612:47  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  612:61  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+
+G:\upwork portfolio project\flow_chat\app\components\DirectMessageChat.tsx
+  50:16  warning  '_onTaskClick' is defined but never used  @typescript-eslint/no-unused-vars
+  52:11  warning  '_onBack' is defined but never used       @typescript-eslint/no-unused-vars
+
+G:\upwork portfolio project\flow_chat\app\components\EnhancedChatArea.tsx
+  212:3  warning  'onSendMessage' is defined but never used                    @typescript-eslint/no-unused-vars
+  230:5  warning  'uploadAttachment' is assigned a value but never used        @typescript-eslint/no-unused-vars
+  543:9  warning  'handleAttachFile' is assigned a value but never used        @typescript-eslint/no-unused-vars
+  558:9  warning  'handleRemoveAttachment' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  570:9  warning  'handleSearch' is assigned a value but never used            @typescript-eslint/no-unused-vars
+
+G:\upwork portfolio project\flow_chat\app\components\FloatingChat.tsx
+  40:9  warning  'isLoading' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+G:\upwork portfolio project\flow_chat\app\components\ImageViewerModal.tsx
+  97:11  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+G:\upwork portfolio project\flow_chat\app\components\MentionAutocomplete.tsx
+  141:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+G:\upwork portfolio project\flow_chat\app\components\MentionAutocomplete.tsx:141:5
+  139 |   // Reset selected index when query changes
+  140 |   useEffect(() => {
+> 141 |     setSelectedIndex(0);
+      |     ^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  142 |   }, [query]);
+  143 |
+  144 |   if (!show || filteredResults.length === 0) {  react-hooks/set-state-in-effect
+
+G:\upwork portfolio project\flow_chat\app\components\QuickTaskCreate.tsx
+  66:3  warning  'boardId' is defined but never used  @typescript-eslint/no-unused-vars
+
+G:\upwork portfolio project\flow_chat\app\components\ServerChannelList.tsx
+  20:26  warning  'setActiveServerId' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+G:\upwork portfolio project\flow_chat\app\components\Sidebar.tsx
+  172:6  warning  React Hook useEffect has a missing dependency: 'currentServerId'. Either include it or remove the dependency array                                                                                                                                                                     react-hooks/exhaustive-deps
+  210:6  warning  React Hook useEffect has missing dependencies: 'currentView', 'onChannelSelect', and 'selectedChannel'. Either include them or remove the dependency array. If 'onChannelSelect' changes too often, find the parent component that defines it and wrap that definition in useCallback  react-hooks/exhaustive-deps
+
+G:\upwork portfolio project\flow_chat\app\components\SupabaseDebugPanel.tsx
+  112:49  error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+
+G:\upwork portfolio project\flow_chat\app\components\TaskBoard.tsx
+  368:3   warning  'onTaskAssignment' is defined but never used     @typescript-eslint/no-unused-vars
+  379:3   warning  'onTasksUpdate' is defined but never used        @typescript-eslint/no-unused-vars
+  403:10  warning  'filters' is assigned a value but never used     @typescript-eslint/no-unused-vars
+  403:19  warning  'setFilters' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+G:\upwork portfolio project\flow_chat\app\components\TaskCard.tsx
+  408:55  error  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  408:68  error  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+
+G:\upwork portfolio project\flow_chat\app\components\TaskDetailsModal.tsx
+  1036:29  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+G:\upwork portfolio project\flow_chat\app\components\UserSettingsModal.tsx
+  38:3  warning  'userStatus' is defined but never used  @typescript-eslint/no-unused-vars
+
+G:\upwork portfolio project\flow_chat\app\components\VoicePlayer.tsx
+  61:9  warning  'handleSeek' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+G:\upwork portfolio project\flow_chat\app\components\VoiceRecorder.tsx
+  29:5  error    Error: Cannot access variable before it is declared
+
+`startRecording` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+G:\upwork portfolio project\flow_chat\app\components\VoiceRecorder.tsx:29:5
+  27 |   useEffect(() => {
+  28 |     // Start recording immediately when component mounts
+> 29 |     startRecording();
+     |     ^^^^^^^^^^^^^^ `startRecording` accessed before it is declared
+  30 |
+  31 |     return () => {
+  32 |       // Cleanup
+
+G:\upwork portfolio project\flow_chat\app\components\VoiceRecorder.tsx:46:3
+  44 |   }, []);
+  45 |
+> 46 |   const startRecording = async () => {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 47 |     try {
+     | ^^^^^^^^^
+> 48 |       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+     ΓÇª
+     | ^^^^^^^^^
+> 77 |     }
+     | ^^^^^^^^^
+> 78 |   };
+     | ^^^^^ `startRecording` is declared here
+  79 |
+  80 |   const stopRecording = () => {
+  81 |     if (                                                                                                                                          react-hooks/immutability
+  33:7  error    Error: Cannot access variable before it is declared
+
+`stopTimer` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+G:\upwork portfolio project\flow_chat\app\components\VoiceRecorder.tsx:33:7
+  31 |     return () => {
+  32 |       // Cleanup
+> 33 |       stopTimer();
+     |       ^^^^^^^^^ `stopTimer` accessed before it is declared
+  34 |       if (
+  35 |         mediaRecorderRef.current &&
+  36 |         mediaRecorderRef.current.state !== "inactive"
+
+G:\upwork portfolio project\flow_chat\app\components\VoiceRecorder.tsx:120:3
+  118 |   };
+  119 |
+> 120 |   const stopTimer = () => {
+      |   ^^^^^^^^^^^^^^^^^^^^^^^^^
+> 121 |     if (timerRef.current) {
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 122 |       clearInterval(timerRef.current);
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 123 |       timerRef.current = null;
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 124 |     }
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 125 |   };
+      | ^^^^^ `stopTimer` is declared here
+  126 |
+  127 |   const formatTime = (seconds: number) => {
+  128 |     const mins = Math.floor(seconds / 60);  react-hooks/immutability
+  44:6  warning  React Hook useEffect has missing dependencies: 'audioUrl' and 'startRecording'. Either include them or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     react-hooks/exhaustive-deps
+
+G:\upwork portfolio project\flow_chat\app\components\figma\ImageWithFallback.tsx
+  21:9  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  25:5  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+G:\upwork portfolio project\flow_chat\app\components\ui\sidebar.tsx
+  611:26  error  Error: Cannot call impure function during render
+
+`Math.random` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+G:\upwork portfolio project\flow_chat\app\components\ui\sidebar.tsx:611:26
+  609 |   // Random width between 50 to 90%.
+  610 |   const width = React.useMemo(() => {
+> 611 |     return `${Math.floor(Math.random() * 40) + 50}%`;
+      |                          ^^^^^^^^^^^^^ Cannot call impure function
+  612 |   }, []);
+  613 |
+  614 |   return (  react-hooks/purity
+
+G:\upwork portfolio project\flow_chat\app\invite\[code]\page.tsx
+  275:9  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+G:\upwork portfolio project\flow_chat\hooks\use-dm-chat.ts
+  157:6  warning  React Hook useEffect has a missing dependency: 'channelRef'. Either include it or remove the dependency array    react-hooks/exhaustive-deps
+  187:5  warning  React Hook useCallback has a missing dependency: 'channelRef'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  265:5  warning  React Hook useCallback has a missing dependency: 'channelRef'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  284:5  warning  React Hook useCallback has a missing dependency: 'channelRef'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  299:5  warning  React Hook useCallback has a missing dependency: 'channelRef'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  316:5  warning  React Hook useCallback has a missing dependency: 'channelRef'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+G:\upwork portfolio project\flow_chat\hooks\useChannelMessages.ts
+  20:7  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+G:\upwork portfolio project\flow_chat\hooks\useChannelMessages.ts:20:7
+  18 |   useEffect(() => {
+  19 |     if (!channelId) {
+> 20 |       setMessages([]);
+     |       ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  21 |       setLoading(false);
+  22 |       return;
+  23 |     }  react-hooks/set-state-in-effect
+
+G:\upwork portfolio project\flow_chat\hooks\useDmNotifications.ts
+  140:6  warning  React Hook useEffect has a missing dependency: 'options.showToast'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+G:\upwork portfolio project\flow_chat\hooks\useServer.ts
+  17:7  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+G:\upwork portfolio project\flow_chat\hooks\useServer.ts:17:7
+  15 |   useEffect(() => {
+  16 |     if (!userId) {
+> 17 |       setServers([]);
+     |       ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  18 |       setLoading(false);
+  19 |       return;
+  20 |     }      react-hooks/set-state-in-effect
+  37:7  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+G:\upwork portfolio project\flow_chat\hooks\useServer.ts:37:7
+  35 |   useEffect(() => {
+  36 |     if (!serverId) {
+> 37 |       setChannels([]);
+     |       ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  38 |       setLoading(false);
+  39 |       return;
+  40 |     }  react-hooks/set-state-in-effect
+
+G:\upwork portfolio project\flow_chat\hooks\useServerNotifications.ts
+  102:6  warning  React Hook useEffect has a missing dependency: 'supabase'. Either include it or remove the dependency array    react-hooks/exhaustive-deps
+  138:5  warning  React Hook useCallback has a missing dependency: 'supabase'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  206:6  warning  React Hook useEffect has a missing dependency: 'supabase'. Either include it or remove the dependency array    react-hooks/exhaustive-deps
+
+G:\upwork portfolio project\flow_chat\lib\friendService.ts
+  39:3  warning  'message' is defined but never used  @typescript-eslint/no-unused-vars
+
+G:\upwork portfolio project\flow_chat\lib\workspaceService.ts
+  108:33  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  124:33  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+G:\upwork portfolio project\flow_chat\store\index.ts
+  24:13  warning  '_key' is defined but never used          @typescript-eslint/no-unused-vars
+  27:34  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  30:16  warning  '_key' is defined but never used          @typescript-eslint/no-unused-vars
+
+G:\upwork portfolio project\flow_chat\store\slices\chatSlice.ts
+  104:44  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  120:35  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  153:63  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  154:46  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  184:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  288:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+G:\upwork portfolio project\flow_chat\store\slices\taskSlice.ts
+  175:24  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  202:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  261:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  303:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  323:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  340:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+G:\upwork portfolio project\flow_chat\utils\clipboard.ts
+  10:14  warning  'err' is defined but never used  @typescript-eslint/no-unused-vars
+
+Γ£û 77 problems (35 errors, 42 warnings)
+

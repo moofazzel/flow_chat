@@ -9,6 +9,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Hash, Send, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { Task } from "../page";
+import { ChatLoadingSkeleton } from "./ChatLoadingSkeleton";
 import { InlineTaskActivityCard, parseActivityType } from "./TaskActivityCard";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Button } from "./ui/button";
@@ -161,7 +162,9 @@ export function FloatingChat({
                 }}
                 className="space-y-2 sm:space-y-3"
               >
-                {chatMessages.length === 0 ? (
+                {isLoading && chatMessages.length === 0 ? (
+                  <ChatLoadingSkeleton count={10} />
+                ) : chatMessages.length === 0 ? (
                   <div className="flex items-center justify-center h-32 text-gray-500 text-sm">
                     No messages yet. Start the conversation!
                   </div>
@@ -196,7 +199,7 @@ export function FloatingChat({
                             })}
                           </span>
                         </div>
-                        <div className="text-gray-300 text-xs sm:text-sm mt-0.5 break-words">
+                        <div className="text-gray-300 text-xs sm:text-sm mt-0.5 wrap-break-word">
                           {msg.content}
                         </div>
 

@@ -4,6 +4,7 @@ import { useChannelMessages } from "@/hooks/useChannelMessages";
 import { User } from "@/utils/auth";
 import { Send } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { ChatLoadingSkeleton } from "./ChatLoadingSkeleton";
 
 interface ChannelChatProps {
   channelId: string;
@@ -42,14 +43,14 @@ export function ChannelChat({
   return (
     <div className="flex flex-col h-full bg-[#313338]">
       {/* Header */}
-      <div className="flex-shrink-0 h-12 px-4 flex items-center border-b border-gray-700">
+      <div className="shrink-0 h-12 px-4 flex items-center border-b border-gray-700">
         <span className="text-gray-300 text-lg"># {channelName}</span>
       </div>
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {loading ? (
-          <div className="text-gray-400">Loading messages...</div>
+          <ChatLoadingSkeleton count={10} />
         ) : messages.length === 0 ? (
           <div className="text-gray-400 text-center py-8">
             No messages yet. Start the conversation!

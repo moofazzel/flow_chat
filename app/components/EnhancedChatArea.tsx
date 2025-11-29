@@ -203,6 +203,7 @@ const slashCommands = [
 import { useChat } from "@/hooks/useChat";
 import { getCurrentUser, User } from "@/utils/auth";
 import { createClient } from "@/utils/supabase/client";
+import { ChatLoadingSkeleton } from "./ChatLoadingSkeleton";
 
 // workspace/board chat
 export function EnhancedChatArea({
@@ -1051,10 +1052,7 @@ export function EnhancedChatArea({
         <ScrollArea className="h-full">
           <div className="px-4 py-4 min-h-full flex flex-col">
             {isLoading ? (
-              <div className="flex flex-col items-center justify-center flex-1 text-center px-4 py-20">
-                <div className="w-12 h-12 border-4 border-[#5865f2] border-t-transparent rounded-full animate-spin mb-4" />
-                <p className="text-gray-400 text-sm">Loading messages...</p>
-              </div>
+              <ChatLoadingSkeleton count={10} />
             ) : messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center flex-1 text-center px-4 py-20">
                 <div className="w-16 h-16 bg-[#2b2d31] rounded-full flex items-center justify-center mb-4">

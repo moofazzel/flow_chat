@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { ChatLoadingSkeleton } from "./ChatLoadingSkeleton";
 import { DirectCallModal } from "./DirectCallModal";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Button } from "./ui/button";
@@ -502,11 +503,7 @@ export function EnhancedDirectMessageChat({
   };
 
   if (isLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center bg-[#313338]">
-        <div className="text-white">Loading messages...</div>
-      </div>
-    );
+    return <ChatLoadingSkeleton />;
   }
 
   return (

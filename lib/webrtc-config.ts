@@ -47,6 +47,12 @@ export function getIceServers(): RTCIceServer[] {
       username: "openrelayproject",
       credential: "openrelayproject",
     });
+    // Prefer TLS where possible for restrictive networks
+    iceServers.push({
+      urls: "turns:openrelay.metered.ca:443?transport=tcp",
+      username: "openrelayproject",
+      credential: "openrelayproject",
+    });
   }
 
   // Add STUN servers (always include these)
@@ -74,11 +80,15 @@ export function getIceServers(): RTCIceServer[] {
  * Get complete RTCPeerConnection configuration
  */
 export function getRTCConfiguration(): RTCConfiguration {
+  const forceRelay =
+    (process.env.NEXT_PUBLIC_WEBRTC_FORCE_RELAY || "").toLowerCase() === "true";
   return {
     iceServers: getIceServers(),
     iceCandidatePoolSize: 10,
     bundlePolicy: "max-bundle",
     rtcpMuxPolicy: "require",
+    // In very restrictive networks, forcing relay (TURN-only) helps
+    iceTransportPolicy: forceRelay ? "relay" : "all",
   };
 }
 

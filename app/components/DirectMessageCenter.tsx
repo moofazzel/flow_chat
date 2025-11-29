@@ -493,11 +493,99 @@ export function DirectMessageCenter() {
 
   if (!currentUser || isLoading) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-[#313338]">
-        <div className="text-center">
-          <div className="text-white text-lg mb-2">Loading...</div>
-          <div className="text-gray-400 text-sm">
-            Getting your conversations ready
+      <div className="flex-1 flex gap-4 animate-pulse" aria-busy="true">
+        {/* Left sidebar skeleton */}
+        <div
+          style={{ width: 240 }}
+          className="h-full bg-[#2b2d31] flex flex-col border-r border-[#1e1f22] p-3"
+        >
+          <div className="mb-3">
+            <div className="h-9 rounded-md bg-[#232426] w-full relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent opacity-0 motion-safe:animate-[shimmer_1.2s_linear_infinite]" />
+            </div>
+          </div>
+
+          <div className="space-y-2 mb-2">
+            <div className="h-10 rounded-md bg-[#26282b]" />
+            <div className="h-10 rounded-md bg-[#26282b]" />
+          </div>
+
+          <div className="h-px bg-[#1e1f22] my-2" />
+
+          <div className="flex-1 overflow-hidden">
+            <div className="space-y-2">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-3 px-2 py-2 rounded bg-[#27292c]"
+                >
+                  <div className="w-8 h-8 rounded-full bg-[#303234]" />
+                  <div className="flex-1">
+                    <div className="h-3 bg-[#303234] rounded w-3/4 mb-2" />
+                    <div className="h-2 bg-[#2d2f31] rounded w-1/2" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-3 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-[#303234]" />
+            <div className="flex-1">
+              <div className="h-3 bg-[#303234] rounded w-3/4 mb-2" />
+              <div className="h-2 bg-[#2d2f31] rounded w-1/2" />
+            </div>
+          </div>
+        </div>
+
+        {/* Main content skeleton */}
+        <div className="flex-1 flex flex-col bg-[#313338] p-6">
+          <div className="h-12 flex items-center gap-4 border-b border-[#1e1f22] mb-4">
+            <div className="w-10 h-10 rounded-full bg-[#303234]" />
+            <div className="flex-1">
+              <div className="h-4 bg-[#303234] rounded w-2/4 mb-2" />
+              <div className="h-3 bg-[#2d2f31] rounded w-1/4" />
+            </div>
+            <div className="w-8 h-8 rounded bg-[#303234]" />
+            <div className="w-8 h-8 rounded bg-[#303234]" />
+          </div>
+
+          <div className="flex-1 overflow-auto space-y-4 py-6">
+            {/* Message bubbles skeleton */}
+            {Array.from({ length: 8 }).map((_, i) => {
+              const isRight = i % 2 === 0;
+              return (
+                <div
+                  key={i}
+                  className={`flex ${
+                    isRight ? "justify-end" : "justify-start"
+                  } px-2`}
+                >
+                  {!isRight && (
+                    <div className="w-8 h-8 rounded-full bg-[#303234] mr-3 shrink-0" />
+                  )}
+                  <div
+                    className={`max-w-[70%] ${
+                      isRight ? "bg-[#3a3c3f]" : "bg-[#2f3133]"
+                    } rounded-lg p-3`}
+                  >
+                    <div className="h-3 bg-[#303234] rounded w-32 mb-2" />
+                    <div className="h-3 bg-[#2d2f31] rounded w-44" />
+                  </div>
+                  {isRight && (
+                    <div className="w-8 h-8 rounded-full bg-[#303234] ml-3 shrink-0" />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="h-14 flex items-center gap-3 border-t border-[#1e1f22] mt-4 pt-3">
+            <div className="w-10 h-10 rounded-full bg-[#303234]" />
+            <div className="flex-1">
+              <div className="h-9 bg-[#232426] rounded-md" />
+            </div>
+            <div className="w-10 h-9 bg-[#303234] rounded-md" />
           </div>
         </div>
       </div>
